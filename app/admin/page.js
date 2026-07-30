@@ -169,16 +169,22 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Stat cards */}
+      {/* Stat cards — Pending Accounts / Password Resets act as filters into the tabs below */}
       <div className="mb-7 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-gray-100 bg-white px-6 py-5 shadow-sm">
+        <button type="button" onClick={() => setTab('accounts')}
+          className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
+            tab === 'accounts' ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
+          }`}>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Pending Accounts</p>
           <p className="mt-3 text-4xl font-semibold text-slate-900">{pendingAccounts.length}</p>
-        </div>
-        <div className="rounded-2xl border border-gray-100 bg-white px-6 py-5 shadow-sm">
+        </button>
+        <button type="button" onClick={() => setTab('resets')}
+          className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
+            tab === 'resets' ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
+          }`}>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Password Resets</p>
           <p className="mt-3 text-4xl font-semibold text-slate-900">{pendingResets.length}</p>
-        </div>
+        </button>
         <div className="rounded-2xl border border-gray-100 bg-white px-6 py-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Approved Accounts</p>
           <p className="mt-3 text-4xl font-semibold text-slate-900">{historyAccounts.filter((a) => a.account_status === 'active').length}</p>

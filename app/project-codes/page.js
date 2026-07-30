@@ -96,8 +96,12 @@ export default function ProjectCodesPage() {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [managerFilter, setManagerFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [projectPage, setProjectPage] = useState(1);
+  const [openMenuCode, setOpenMenuCode] = useState(null);
+  const [reactivatingCode, setReactivatingCode] = useState(null);
+  const menuRef = useRef(null);
 
   // Modal state
   const [modal, setModal] = useState(null); // null | 'create' | 'edit'
@@ -153,6 +157,27 @@ export default function ProjectCodesPage() {
     void fetchAll();
     // Removed auto-polling (was 15s) — caused navigation lag. Refresh is now manual.
   }, [fetchAll]);
+
+  useEffect(() => {
+    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenuCode(null); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleReactivate = async (projectCode) => {
+    setReactivatingCode(projectCode);
+    try {
+      await axios.patch(`${backendBaseUrl}/api/v1/projects/${projectCode}/reactivate`, {
+        editorId: sessionUser?.user_id,
+      });
+      await fetchAll();
+    } catch (err) {
+      console.error('Reactivate failed:', err.response?.data?.error || err.message);
+    } finally {
+      setReactivatingCode(null);
+      setOpenMenuCode(null);
+    }
+  };
 
   const openCreate = () => {
     setFormCode(''); setFormName(''); setFormHours(''); setFormManagerIds([]); setFormError('');
@@ -277,32 +302,13 @@ export default function ProjectCodesPage() {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold text-slate-950">Project Codes</h1>
-          <p className="mt-1 text-sm text-slate-500">Create, edit and manage all project codes.</p>
-        </div>
-        <button
-          onClick={openCreate}
-          className="rounded-3xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12378F]"
-        >
-          + Issue New Code
-        </button>
+      <div className="mb-6">
+        <h1 className="text-3xl font-semibold text-slate-950">Projects</h1>
+        <p className="mt-1 text-sm text-slate-500">Create, edit and manage all project codes.</p>
       </div>
 
-      {/* Filter & Search Bar */}
+      {/* Unified toolbar: search · status filter · manager filter … + Issue New Code */}
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        {['ALL', 'ACTIVE', 'INACTIVE'].map((f) => (
-          <button
-            key={f}
-            onClick={() => setStatusFilter(f)}
-            className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
-              statusFilter === f ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {f === 'ALL' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
-          </button>
-        ))}
         <input
           type="text"
           value={searchQuery}
@@ -310,6 +316,23 @@ export default function ProjectCodesPage() {
           placeholder="Search code or project name..."
           className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
         />
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="ALL">Status: All</option>
+          <option value="ACTIVE">Status: Active</option>
+          <option value="INACTIVE">Status: Inactive</option>
+        </select>
+        <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)}
+          className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="ALL">Filter by Manager</option>
+          {managerUsers.map((u) => <option key={u.user_id} value={u.user_id}>{u.full_name}</option>)}
+        </select>
+        <button
+          onClick={openCreate}
+          className="ml-auto rounded-3xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12378F]"
+        >
+          + Issue New Code
+        </button>
       </div>
 
       {/* Projects Table */}
@@ -326,7 +349,7 @@ export default function ProjectCodesPage() {
               <th className="px-6 py-4">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100" ref={menuRef}>
             {loading ? (
               <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">Loading project codes...</td></tr>
             ) : (() => {
@@ -334,7 +357,10 @@ export default function ProjectCodesPage() {
                 const statusOk = statusFilter === 'ALL' || (p.status || 'ACTIVE').toUpperCase() === statusFilter;
                 const q = searchQuery.trim().toLowerCase();
                 const searchOk = !q || (p.project_code || '').toLowerCase().includes(q) || (p.project_name || '').toLowerCase().includes(q);
-                return statusOk && searchOk;
+                const managerOk = managerFilter === 'ALL'
+                  || p.account_manager_id === managerFilter
+                  || (Array.isArray(p.manager_ids) && p.manager_ids.includes(managerFilter));
+                return statusOk && searchOk && managerOk;
               });
               if (filtered.length === 0) return <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">No project codes found.</td></tr>;
               const totalPages = Math.max(1, Math.ceil(filtered.length / 10));
@@ -369,14 +395,28 @@ export default function ProjectCodesPage() {
                         </td>
                         <td className="px-6 py-4 text-slate-700 max-w-[180px] truncate">{managerDisplay}</td>
                         <td className="px-6 py-4">
-                          {!isInactive && (
-                            <button
-                              onClick={() => openEdit(project)}
-                              className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-                            >
-                              Edit
+                          <div className="relative inline-block">
+                            <button type="button"
+                              onClick={() => setOpenMenuCode(openMenuCode === project.project_code ? null : project.project_code)}
+                              className="flex items-center justify-center rounded-xl border border-slate-200 w-8 h-8 text-slate-500 hover:bg-slate-100 transition">
+                              &#8230;
                             </button>
-                          )}
+                            {openMenuCode === project.project_code && (
+                              <div className="absolute right-0 z-20 mt-1 w-40 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+                                <button type="button" onClick={() => { openEdit(project); setOpenMenuCode(null); }}
+                                  className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                  Edit
+                                </button>
+                                {isInactive && (
+                                  <button type="button" disabled={reactivatingCode === project.project_code}
+                                    onClick={() => handleReactivate(project.project_code)}
+                                    className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60">
+                                    {reactivatingCode === project.project_code ? 'Reactivating…' : 'Reactivate'}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

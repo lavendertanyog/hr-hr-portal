@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import axios from 'axios';
 
@@ -23,8 +23,31 @@ function RoleBadge({ role }) {
   return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${color}`}>{label}</span>;
 }
 
-function formatRole(role) {
-  return String(role || '').split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+// Row action: primary "Manage Roles" button + a "···" menu for secondary actions
+function RowActions({ user, onManageRoles, onLeaveDays, openMenuId, setOpenMenuId }) {
+  const isOpen = openMenuId === user.user_id;
+  return (
+    <div className="flex items-center gap-2">
+      <button onClick={() => onManageRoles(user)}
+        className="rounded-xl border border-[#1a3a8f] px-4 py-2 text-xs font-semibold text-[#1a3a8f] hover:bg-[#e8edf8] transition">
+        Manage Roles
+      </button>
+      <div className="relative">
+        <button type="button" onClick={() => setOpenMenuId(isOpen ? null : user.user_id)}
+          className="flex items-center justify-center rounded-xl border border-slate-200 w-8 h-8 text-slate-500 hover:bg-slate-100 transition">
+          &#8230;
+        </button>
+        {isOpen && (
+          <div className="absolute right-0 z-20 mt-1 w-40 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+            <button type="button" onClick={() => { onLeaveDays(user); setOpenMenuId(null); }}
+              className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
+              Leave Days
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function UserRolesPage() {
@@ -37,11 +60,12 @@ export default function UserRolesPage() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
 
-  // Tabs: 'directory' | 'by_role'
-  const [tab, setTab] = useState('directory');
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grouped'
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [page, setPage] = useState(1);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
 
   // Role modal
   const [roleModal, setRoleModal] = useState(null);
@@ -60,6 +84,14 @@ export default function UserRolesPage() {
       const u = JSON.parse(sessionStorage.getItem('hr_portal_user') || '{}');
       if (u?.user_id) { setRequesterId(u.user_id); setRequesterUser(u); }
     } catch {}
+  }, []);
+
+  useEffect(() => {
+    const closeMenu = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenuId(null);
+    };
+    document.addEventListener('mousedown', closeMenu);
+    return () => document.removeEventListener('mousedown', closeMenu);
   }, []);
 
   const fetchUsers = useCallback(async (rid) => {
@@ -133,14 +165,7 @@ export default function UserRolesPage() {
     } finally { setLeaveSubmitting(false); }
   };
 
-  // Derived: primary role for a user
-  const primaryRole = (u) => {
-    const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0
-      ? u.user_roles : [u.user_role].filter(Boolean);
-    return ROLE_PRIORITY.find((r) => roles.includes(r)) || roles[0] || 'staff';
-  };
-
-  // Filtered list
+  // Filtered list (search + role filter, used by both List and Grouped views)
   const filtered = allUsers.filter((u) => {
     const q = searchQuery.trim().toLowerCase();
     const matchQ = !q || (u.full_name + ' ' + u.email).toLowerCase().includes(q);
@@ -153,21 +178,28 @@ export default function UserRolesPage() {
   const safePage = Math.min(page, totalPages);
   const pageData = filtered.slice((safePage - 1) * 10, safePage * 10);
 
-  // By-role grouping
+  // By-role grouping (search still applies within each group)
+  const searchedUsers = allUsers.filter((u) => {
+    const q = searchQuery.trim().toLowerCase();
+    return !q || (u.full_name + ' ' + u.email).toLowerCase().includes(q);
+  });
   const byRole = ALL_ROLES.map(({ key, label, color }) => ({
     key, label, color,
-    users: allUsers.filter((u) => {
+    users: searchedUsers.filter((u) => {
       const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0 ? u.user_roles : [u.user_role];
       return roles.includes(key);
     }),
-  }));
+  })).filter((g) => roleFilter === 'ALL' || g.key === roleFilter);
 
   const displayName = requesterUser?.full_name || 'HR Admin';
 
-  const TABS = [
-    { key: 'directory', label: `User Directory (${allUsers.length})` },
-    { key: 'by_role',   label: 'By Role' },
-  ];
+  const roleCounts = ALL_ROLES.map(({ key, label, color }) => ({
+    key, label, color,
+    count: allUsers.filter((u) => {
+      const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0 ? u.user_roles : [u.user_role];
+      return roles.includes(key);
+    }).length,
+  }));
 
   return (
     <div className="p-8">
@@ -190,21 +222,24 @@ export default function UserRolesPage() {
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="mb-7 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {ALL_ROLES.map(({ key, label, color }) => {
-          const count = allUsers.filter((u) => {
-            const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0 ? u.user_roles : [u.user_role];
-            return roles.includes(key);
-          }).length;
-          return (
-            <div key={key} className="rounded-2xl border border-gray-100 bg-white px-6 py-5 shadow-sm cursor-pointer hover:shadow-md transition"
-              onClick={() => { setTab('directory'); setRoleFilter(key); setPage(1); }}>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{label}</p>
-              <p className="mt-3 text-4xl font-semibold text-slate-900">{count}</p>
-            </div>
-          );
-        })}
+      {/* Stat cards — click to filter the table below; "All Users" resets the filter */}
+      <div className="mb-7 grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <button type="button" onClick={() => { setRoleFilter('ALL'); setPage(1); }}
+          className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
+            roleFilter === 'ALL' ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
+          }`}>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">All Users</p>
+          <p className="mt-3 text-4xl font-semibold text-slate-900">{allUsers.length}</p>
+        </button>
+        {roleCounts.map(({ key, label, count }) => (
+          <button key={key} type="button" onClick={() => { setRoleFilter(key); setPage(1); }}
+            className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
+              roleFilter === key ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
+            }`}>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{label}</p>
+            <p className="mt-3 text-4xl font-semibold text-slate-900">{count}</p>
+          </button>
+        ))}
       </div>
 
       {feedback && (
@@ -215,34 +250,32 @@ export default function UserRolesPage() {
         }`}>{feedback}</div>
       )}
 
-      {/* Tabs */}
       <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-        <div className="flex gap-1 border-b border-gray-100 px-4 pt-4">
-          {TABS.map((t) => (
-            <button key={t.key} onClick={() => { setTab(t.key); setPage(1); }}
-              className={`rounded-t-xl px-4 py-2.5 text-sm font-semibold transition ${
-                tab === t.key ? 'bg-[#e8edf8] text-[#1a3a8f]' : 'text-slate-500 hover:text-slate-700'
-              }`}>
-              {t.label}
+        {/* Toolbar: search · role filter · view toggle */}
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-100">
+          <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+            placeholder="Search users…"
+            className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60" />
+          <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+            className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="ALL">Filter by Role</option>
+            {ALL_ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+          </select>
+          <div className="ml-auto flex gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+            <button type="button" onClick={() => setViewMode('list')}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${viewMode === 'list' ? 'bg-white shadow-sm text-[#1a3a8f]' : 'text-slate-500'}`}>
+              List
             </button>
-          ))}
+            <button type="button" onClick={() => setViewMode('grouped')}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${viewMode === 'grouped' ? 'bg-white shadow-sm text-[#1a3a8f]' : 'text-slate-500'}`}>
+              Grouped
+            </button>
+          </div>
         </div>
 
-        {/* ─── Directory tab ─── */}
-        {tab === 'directory' ? (
-          <>
-            {/* Filters */}
-            <div className="flex items-center gap-3 flex-wrap px-4 py-3 border-b border-gray-100">
-              <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
-                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                <option value="ALL">All Roles</option>
-                {ALL_ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-              </select>
-              <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-                placeholder="Search by name or email…"
-                className="ml-auto rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60" />
-            </div>
-
+        {/* ─── List view ─── */}
+        {viewMode === 'list' ? (
+          <div ref={menuRef}>
             {loading ? (
               <p className="px-6 py-8 text-sm text-slate-400">Loading users…</p>
             ) : filtered.length === 0 ? (
@@ -253,7 +286,7 @@ export default function UserRolesPage() {
                   <tr>
                     <th className="px-6 py-4">Name</th>
                     <th className="px-6 py-4">Email</th>
-                    <th className="px-6 py-4">Assigned Roles</th>
+                    <th className="px-6 py-4">Roles</th>
                     <th className="px-6 py-4">Action</th>
                   </tr>
                 </thead>
@@ -261,7 +294,6 @@ export default function UserRolesPage() {
                   {pageData.map((u) => {
                     const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0
                       ? u.user_roles : [u.user_role].filter(Boolean);
-                    const primary = primaryRole(u);
                     return (
                       <tr key={u.user_id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 font-semibold text-slate-900">{u.full_name}</td>
@@ -272,16 +304,8 @@ export default function UserRolesPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex gap-2">
-                            <button onClick={() => openRoleModal(u)}
-                              className="rounded-xl border border-[#1a3a8f] px-4 py-2 text-xs font-semibold text-[#1a3a8f] hover:bg-[#e8edf8] transition">
-                              Manage Roles
-                            </button>
-                            <button onClick={() => openLeaveModal(u)}
-                              className="rounded-xl border border-emerald-700 px-4 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 transition">
-                              Leave Days
-                            </button>
-                          </div>
+                          <RowActions user={u} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
+                            openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                         </td>
                       </tr>
                     );
@@ -301,10 +325,10 @@ export default function UserRolesPage() {
                 </div>
               </div>
             )}
-          </>
+          </div>
         ) : (
-          /* ─── By Role tab ─── */
-          <div className="divide-y divide-gray-100">
+          /* ─── Grouped view ─── */
+          <div className="divide-y divide-gray-100" ref={menuRef}>
             {byRole.map(({ key, label, color, users: roleUsers }) => (
               <div key={key}>
                 <div className="flex items-center gap-3 px-6 py-4 bg-gray-50">
@@ -337,16 +361,8 @@ export default function UserRolesPage() {
                               </div>
                             </td>
                             <td className="px-6 py-3">
-                              <div className="flex gap-2">
-                                <button onClick={() => openRoleModal(u)}
-                                  className="rounded-xl border border-[#1a3a8f] px-4 py-2 text-xs font-semibold text-[#1a3a8f] hover:bg-[#e8edf8] transition">
-                                  Manage Roles
-                                </button>
-                                <button onClick={() => openLeaveModal(u)}
-                                  className="rounded-xl border border-emerald-700 px-4 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 transition">
-                                  Leave Days
-                                </button>
-                              </div>
+                              <RowActions user={u} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
+                                openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                             </td>
                           </tr>
                         );

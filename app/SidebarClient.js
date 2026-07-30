@@ -12,10 +12,10 @@ function deriveNameFromEmail(email) {
 }
 
 const NAV = [
-  { label: 'Admin Approvals', href: '/admin' },
+  { label: 'Approvals', href: '/admin' },
   { label: 'User Roles', href: '/users' },
   { label: 'Hierarchy', href: '/hierarchy' },
-  { label: 'Project Codes', href: '/project-codes' },
+  { label: 'Projects', href: '/project-codes' },
 ];
 
 function formatRole(role) {
