@@ -23,8 +23,15 @@ function RoleBadge({ role }) {
   return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${color}`}>{label}</span>;
 }
 
+const PROJECT_ROLE_OPTIONS = [
+  { key: 'account_manager', label: 'Account Manager' },
+  { key: 'manager', label: 'Manager' },
+  { key: 'staff', label: 'Staff' },
+  { key: 'hr', label: 'HR' },
+];
+
 // Row action: primary "Manage Roles" button + a "···" menu for secondary actions
-function RowActions({ user, onManageRoles, onLeaveDays, openMenuId, setOpenMenuId }) {
+function RowActions({ user, onManageRoles, onLeaveDays, onProjectRoles, openMenuId, setOpenMenuId }) {
   const isOpen = openMenuId === user.user_id;
   return (
     <div className="flex items-center gap-2">
@@ -38,7 +45,11 @@ function RowActions({ user, onManageRoles, onLeaveDays, openMenuId, setOpenMenuI
           &#8230;
         </button>
         {isOpen && (
-          <div className="absolute right-0 z-20 mt-1 w-40 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+          <div className="absolute right-0 z-20 mt-1 w-44 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+            <button type="button" onClick={() => { onProjectRoles(user); setOpenMenuId(null); }}
+              className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-[#1a3a8f] hover:bg-[#e8edf8]">
+              Project Roles
+            </button>
             <button type="button" onClick={() => { onLeaveDays(user); setOpenMenuId(null); }}
               className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
               Leave Days
@@ -57,6 +68,7 @@ export default function UserRolesPage() {
 
   // Data
   const [allUsers, setAllUsers] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
 
@@ -78,6 +90,13 @@ export default function UserRolesPage() {
   const [leaveDays, setLeaveDays] = useState(12);
   const [leaveSubmitting, setLeaveSubmitting] = useState(false);
   const [leaveFeedback, setLeaveFeedback] = useState('');
+
+  // Project roles modal (multi-row: project + role per row)
+  const [projectRolesModal, setProjectRolesModal] = useState(null);
+  const [projectRoleRows, setProjectRoleRows] = useState([]); // [{ projectCode, projectRole }]
+  const [projectRolesLoading, setProjectRolesLoading] = useState(false);
+  const [projectRolesSubmitting, setProjectRolesSubmitting] = useState(false);
+  const [projectRolesFeedback, setProjectRolesFeedback] = useState('');
 
   useEffect(() => {
     try {
@@ -106,6 +125,10 @@ export default function UserRolesPage() {
   }, []);
 
   useEffect(() => { if (requesterId) fetchUsers(requesterId); }, [requesterId, fetchUsers]);
+
+  useEffect(() => {
+    axios.get(`${BACKEND}/api/v1/projects`).then((r) => setProjects(r.data?.data || [])).catch(() => {});
+  }, []);
 
   const openRoleModal = (u) => {
     const currentRoles = Array.isArray(u.user_roles) && u.user_roles.length > 0
@@ -163,6 +186,53 @@ export default function UserRolesPage() {
     } catch (err) {
       setLeaveFeedback(err.response?.data?.error || 'Failed to update leave entitlement.');
     } finally { setLeaveSubmitting(false); }
+  };
+
+  const openProjectRolesModal = async (u) => {
+    setProjectRolesModal(u);
+    setProjectRoleRows([]);
+    setProjectRolesFeedback('');
+    setProjectRolesLoading(true);
+    try {
+      const res = await axios.get(`${BACKEND}/api/v1/hr/user-project-roles/${u.user_id}?requesterId=${requesterId}`);
+      const rows = (res.data?.data || []).map((r) => ({ projectCode: r.project_code, projectRole: r.project_role }));
+      setProjectRoleRows(rows.length > 0 ? rows : [{ projectCode: '', projectRole: 'staff' }]);
+    } catch (err) {
+      setProjectRolesFeedback(err.response?.data?.error || 'Failed to load current project roles.');
+      setProjectRoleRows([{ projectCode: '', projectRole: 'staff' }]);
+    } finally { setProjectRolesLoading(false); }
+  };
+
+  const updateProjectRoleRow = (index, field, value) => {
+    setProjectRoleRows((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const removeProjectRoleRow = (index) => {
+    setProjectRoleRows((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addProjectRoleRow = () => {
+    setProjectRoleRows((prev) => [...prev, { projectCode: '', projectRole: 'staff' }]);
+  };
+
+  const submitProjectRoles = async () => {
+    if (!projectRolesModal) return;
+    const assignments = projectRoleRows.filter((r) => r.projectCode && r.projectRole);
+    setProjectRolesSubmitting(true); setProjectRolesFeedback('');
+    try {
+      await axios.post(`${BACKEND}/api/v1/hr/set-project-roles`, {
+        requesterId,
+        userId: projectRolesModal.user_id,
+        assignments,
+      });
+      setProjectRolesFeedback('Project roles updated successfully.');
+      setTimeout(() => {
+        setProjectRolesModal(null); setProjectRolesFeedback('');
+        fetchUsers(requesterId);
+      }, 1000);
+    } catch (err) {
+      setProjectRolesFeedback(err.response?.data?.error || 'Failed to update project roles.');
+    } finally { setProjectRolesSubmitting(false); }
   };
 
   // Filtered list (search + role filter, used by both List and Grouped views)
@@ -305,6 +375,7 @@ export default function UserRolesPage() {
                         </td>
                         <td className="px-6 py-4">
                           <RowActions user={u} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
+                            onProjectRoles={openProjectRolesModal}
                             openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                         </td>
                       </tr>
@@ -362,6 +433,7 @@ export default function UserRolesPage() {
                             </td>
                             <td className="px-6 py-3">
                               <RowActions user={u} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
+                                onProjectRoles={openProjectRolesModal}
                                 openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                             </td>
                           </tr>
@@ -462,6 +534,73 @@ export default function UserRolesPage() {
               <button onClick={submitLeaveDays} disabled={leaveSubmitting || leaveDays === '' || Number(leaveDays) < 0}
                 className="rounded-2xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60 transition">
                 {leaveSubmitting ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Project Roles Modal — multi-row: project + role per row, saved all at once */}
+      {projectRolesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Manage Project Roles</h2>
+                <p className="text-sm text-slate-500 mt-0.5">{projectRolesModal.full_name}</p>
+                <p className="text-xs text-slate-400">{projectRolesModal.email}</p>
+              </div>
+              <button onClick={() => setProjectRolesModal(null)}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 text-xl leading-none">&times;</button>
+            </div>
+            <div className="px-6 py-5">
+              {projectRolesLoading ? (
+                <p className="text-sm text-slate-400 py-4">Loading current assignments…</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="hidden sm:grid grid-cols-[1fr_1fr_auto] gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 px-1">
+                    <span>Project</span>
+                    <span>Role</span>
+                    <span></span>
+                  </div>
+                  {projectRoleRows.map((row, i) => (
+                    <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-center">
+                      <select value={row.projectCode} onChange={(e) => updateProjectRoleRow(i, 'projectCode', e.target.value)}
+                        className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Select project…</option>
+                        {projects.map((p) => <option key={p.project_code} value={p.project_code}>{p.project_code} — {p.project_name}</option>)}
+                      </select>
+                      <select value={row.projectRole} onChange={(e) => updateProjectRoleRow(i, 'projectRole', e.target.value)}
+                        className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        {PROJECT_ROLE_OPTIONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                      </select>
+                      <button type="button" onClick={() => removeProjectRoleRow(i)}
+                        title="Remove this assignment"
+                        className="justify-self-start sm:justify-self-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100">
+                        &#128465;
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={addProjectRoleRow}
+                    className="text-sm font-semibold text-[#1a3a8f] hover:underline">
+                    + Add Another Project Assignment
+                  </button>
+                </div>
+              )}
+              {projectRolesFeedback && (
+                <p className={`mt-4 rounded-xl px-4 py-2.5 text-sm font-medium ${
+                  projectRolesFeedback.includes('success') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                }`}>{projectRolesFeedback}</p>
+              )}
+            </div>
+            <div className="flex gap-3 justify-end px-6 pb-6 pt-2">
+              <button onClick={() => setProjectRolesModal(null)}
+                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button onClick={submitProjectRoles} disabled={projectRolesSubmitting || projectRolesLoading}
+                className="rounded-2xl bg-[#1a3a8f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12307a] disabled:opacity-60 transition">
+                {projectRolesSubmitting ? 'Saving…' : 'Save All'}
               </button>
             </div>
           </div>

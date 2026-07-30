@@ -90,7 +90,9 @@ function Modal({ title, onClose, children }) {
 export default function ProjectCodesPage() {
   const [projects, setProjects] = useState([]);
   const [utilisationMap, setUtilisationMap] = useState({});
-  const [managerUsers, setManagerUsers] = useState([]);
+  const [managerOnlyUsers, setManagerOnlyUsers] = useState([]);
+  const [accountManagerUsers, setAccountManagerUsers] = useState([]);
+  const [managerUsers, setManagerUsers] = useState([]); // combined, used only for the filter dropdown
   const [loading, setLoading] = useState(true);
   const [sessionUser, setSessionUser] = useState(null);
 
@@ -111,6 +113,7 @@ export default function ProjectCodesPage() {
   const [formCode, setFormCode] = useState('');
   const [formName, setFormName] = useState('');
   const [formHours, setFormHours] = useState('');
+  const [formAccountManagerIds, setFormAccountManagerIds] = useState([]);
   const [formManagerIds, setFormManagerIds] = useState([]);
   const [formError, setFormError] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
@@ -140,6 +143,8 @@ export default function ProjectCodesPage() {
       const utilMap = {};
       (utilisationRes.data.data || []).forEach((u) => { utilMap[u.project_code] = Number(u.weighted_utilisation_pct || 0); });
       setUtilisationMap(utilMap);
+      setManagerOnlyUsers(managersRes.data.data || []);
+      setAccountManagerUsers(amRes.data.data || []);
       const combined = [
         ...(managersRes.data.data || []),
         ...(amRes.data.data || []),
@@ -180,7 +185,7 @@ export default function ProjectCodesPage() {
   };
 
   const openCreate = () => {
-    setFormCode(''); setFormName(''); setFormHours(''); setFormManagerIds([]); setFormError('');
+    setFormCode(''); setFormName(''); setFormHours(''); setFormAccountManagerIds([]); setFormManagerIds([]); setFormError('');
     setDeleteConfirm(false);
     setModal('create');
   };
@@ -190,6 +195,9 @@ export default function ProjectCodesPage() {
     setFormCode(project.project_code || '');
     setFormName(project.project_name || '');
     setFormHours(project.budget_hours != null ? String(project.budget_hours) : '');
+    setFormAccountManagerIds(Array.isArray(project.account_manager_ids) && project.account_manager_ids.length > 0
+      ? project.account_manager_ids
+      : [project.account_manager_id].filter(Boolean));
     setFormManagerIds(Array.isArray(project.manager_ids) ? project.manager_ids : []);
     setFormError('');
     setDeleteConfirm(false);
@@ -200,8 +208,8 @@ export default function ProjectCodesPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault(); setFormError('');
-    if (!formCode.trim() || !formName.trim() || !formHours || formManagerIds.length === 0) {
-      setFormError('All fields are required: Project Code, Project Name, Budget Hours, and at least one Manager.');
+    if (!formCode.trim() || !formName.trim() || !formHours || formAccountManagerIds.length === 0 || formManagerIds.length === 0) {
+      setFormError('All fields are required: Project Code, Project Name, Budget Hours, at least one Account Manager, and at least one Manager.');
       return;
     }
     setFormSubmitting(true);
@@ -211,6 +219,7 @@ export default function ProjectCodesPage() {
         projectCode: formCode.trim().toUpperCase(),
         projectName: formName.trim(),
         budgetHours: formHours ? Number(formHours) : null,
+        accountManagerIds: formAccountManagerIds,
         managerIds: formManagerIds,
       });
       closeModal();
@@ -228,6 +237,7 @@ export default function ProjectCodesPage() {
       await axios.patch(`${backendBaseUrl}/api/v1/projects/${editProject.project_code}`, {
         projectName: formName.trim(),
         budgetHours: formHours ? Number(formHours) : null,
+        accountManagerIds: formAccountManagerIds,
         managerIds: formManagerIds,
         editorId: sessionUser?.user_id,
       });
@@ -289,9 +299,16 @@ export default function ProjectCodesPage() {
         />
       </div>
       <UserMultiSelect
-        label={<>Managers / Account Managers <span className="text-red-500">*</span></>}
+        label={<>Account Manager <span className="text-red-500">*</span></>}
         placeholder="Search by name or email..."
-        users={managerUsers}
+        users={accountManagerUsers}
+        selected={formAccountManagerIds}
+        onChange={setFormAccountManagerIds}
+      />
+      <UserMultiSelect
+        label={<>Manager <span className="text-red-500">*</span></>}
+        placeholder="Search by name or email..."
+        users={managerOnlyUsers}
         selected={formManagerIds}
         onChange={setFormManagerIds}
       />
@@ -359,6 +376,7 @@ export default function ProjectCodesPage() {
                 const searchOk = !q || (p.project_code || '').toLowerCase().includes(q) || (p.project_name || '').toLowerCase().includes(q);
                 const managerOk = managerFilter === 'ALL'
                   || p.account_manager_id === managerFilter
+                  || (Array.isArray(p.account_manager_ids) && p.account_manager_ids.includes(managerFilter))
                   || (Array.isArray(p.manager_ids) && p.manager_ids.includes(managerFilter));
                 return statusOk && searchOk && managerOk;
               });
@@ -371,7 +389,8 @@ export default function ProjectCodesPage() {
                   {page.map((project) => {
                     const hours = project.budget_hours ?? 0;
                     const utilization = utilisationMap[project.project_code] != null && !isNaN(Number(utilisationMap[project.project_code])) ? Number(utilisationMap[project.project_code]) : (Number(project.budget_hours) > 0 ? Math.round(((project.total_tracked_hours ?? 0) / Number(project.budget_hours)) * 100) : 0);
-                    const managerDisplay = project.account_manager_name || '—';
+                    const amNames = project.account_manager_names || (project.account_manager_name ? [project.account_manager_name] : []);
+                    const mgrNames = project.manager_names || [];
                     const isInactive = (project.status || '').toUpperCase() === 'INACTIVE';
                     return (
                       <tr key={project.project_code} className="hover:bg-slate-50">
@@ -393,7 +412,10 @@ export default function ProjectCodesPage() {
                             {project.status ?? 'Active'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-slate-700 max-w-[180px] truncate">{managerDisplay}</td>
+                        <td className="px-6 py-4 text-slate-700 max-w-[220px]">
+                          <p className="truncate"><span className="text-slate-400">AM:</span> {amNames.length > 0 ? amNames.join(', ') : '—'}</p>
+                          <p className="truncate"><span className="text-slate-400">Mgr:</span> {mgrNames.length > 0 ? mgrNames.join(', ') : '—'}</p>
+                        </td>
                         <td className="px-6 py-4">
                           <div className="relative inline-block">
                             <button type="button"
