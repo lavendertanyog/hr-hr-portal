@@ -27,7 +27,7 @@ function UserMultiSelect({ label, placeholder, users, selected, onChange }) {
   const selectedUsers = users.filter((u) => selected.includes(u.user_id));
 
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>
       {selectedUsers.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
@@ -39,35 +39,39 @@ function UserMultiSelect({ label, placeholder, users, selected, onChange }) {
           ))}
         </div>
       )}
-      <input
-        type="text"
-        value={search}
-        onFocus={() => setOpen(true)}
-        onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
-        placeholder={placeholder}
-        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
-      {open && (
-        <div className="absolute z-50 mt-1 max-h-52 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
-          {filtered.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-slate-400">No results</p>
-          ) : filtered.map((u) => {
-            const isSelected = selected.includes(u.user_id);
-            return (
-              <button
-                key={u.user_id}
-                type="button"
-                onClick={() => toggle(u.user_id)}
-                className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-slate-50 ${isSelected ? 'bg-[#E8EEFF]' : ''}`}
-              >
-                <span className="font-medium text-slate-800">{u.full_name}</span>
-                <span className="text-xs text-slate-400">{u.email}</span>
-                {isSelected && <span className="ml-2 text-[#1540A8] font-bold">&#10003;</span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* ref only wraps the input + dropdown panel, so clicking the label, chips, or any
+          other whitespace on the page (not just outside the whole field) closes the menu */}
+      <div ref={ref} className="relative">
+        <input
+          type="text"
+          value={search}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
+          placeholder={placeholder}
+          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {open && (
+          <div className="absolute z-50 mt-1 max-h-52 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-slate-400">No results</p>
+            ) : filtered.map((u) => {
+              const isSelected = selected.includes(u.user_id);
+              return (
+                <button
+                  key={u.user_id}
+                  type="button"
+                  onClick={() => toggle(u.user_id)}
+                  className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-slate-50 ${isSelected ? 'bg-[#E8EEFF]' : ''}`}
+                >
+                  <span className="font-medium text-slate-800">{u.full_name}</span>
+                  <span className="text-xs text-slate-400">{u.email}</span>
+                  {isSelected && <span className="ml-2 text-[#1540A8] font-bold">&#10003;</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
