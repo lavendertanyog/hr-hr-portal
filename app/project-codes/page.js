@@ -329,36 +329,36 @@ export default function ProjectCodesPage() {
         <p className="mt-2 text-sm text-slate-500">Create, edit and manage all project codes.</p>
       </div>
 
-      {/* Unified toolbar: search · status filter · manager filter … + Issue New Code */}
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search code or project name..."
-          className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-        />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="ALL">Status: All</option>
-          <option value="ACTIVE">Status: Active</option>
-          <option value="INACTIVE">Status: Inactive</option>
-        </select>
-        <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)}
-          className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="ALL">Filter by Manager</option>
-          {managerUsers.map((u) => <option key={u.user_id} value={u.user_id}>{u.full_name}</option>)}
-        </select>
-        <button
-          onClick={openCreate}
-          className="ml-auto rounded-3xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12378F]"
-        >
-          + Issue New Code
-        </button>
-      </div>
-
       {/* Projects Table */}
-      <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        {/* Unified toolbar: search · status filter · manager filter … + Issue New Code */}
+        <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-slate-100">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search code or project name..."
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+          />
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="ALL">Status: All</option>
+            <option value="ACTIVE">Status: Active</option>
+            <option value="INACTIVE">Status: Inactive</option>
+          </select>
+          <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="ALL">Filter by Manager</option>
+            {managerUsers.map((u) => <option key={u.user_id} value={u.user_id}>{u.full_name}</option>)}
+          </select>
+          <button
+            onClick={openCreate}
+            className="ml-auto rounded-3xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12378F]"
+          >
+            + Issue New Code
+          </button>
+        </div>
+        <div className="overflow-x-auto">
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase tracking-[0.22em] text-[0.70rem]">
             <tr>
@@ -466,6 +466,7 @@ export default function ProjectCodesPage() {
             })()}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Create Modal */}

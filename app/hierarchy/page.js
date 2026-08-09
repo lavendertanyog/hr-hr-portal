@@ -244,7 +244,6 @@ function HierarchyContent() {
   const [selectedCode, setSelectedCode] = useState(null);
   const [projectMembers, setProjectMembers] = useState([]);
   const [projectSearch, setProjectSearch] = useState('');
-  const [personFilter, setPersonFilter] = useState('ALL');
   const [showAllProjects, setShowAllProjects] = useState(false);
   const COLLAPSED_ROWS_HEIGHT = 92; // ~2 rows of pills
 
@@ -300,30 +299,19 @@ function HierarchyContent() {
 
   const activeProject = projectHierarchy.find((p) => p.project_code === selectedCode);
 
-  const personOptions = useMemo(() => {
-    const names = new Set();
-    projectHierarchy.forEach((p) => {
-      (p.account_manager_names || (p.accountManager ? [p.accountManager.full_name] : [])).forEach((n) => n && names.add(n));
-      (p.projectManagers || []).forEach((m) => m.full_name && names.add(m.full_name));
-    });
-    return Array.from(names).sort();
-  }, [projectHierarchy]);
-
   const visibleProjects = useMemo(() => {
     const q = projectSearch.trim().toLowerCase();
     const active = projectHierarchy.filter((p) => (p.status || 'ACTIVE').toUpperCase() !== 'INACTIVE');
+    if (!q) return active;
     return active.filter((p) => {
       const amNames = p.account_manager_names || (p.accountManager ? [p.accountManager.full_name] : []);
       const mgrNames = (p.projectManagers || []).map((m) => m.full_name);
-      const personOk = personFilter === 'ALL' || amNames.includes(personFilter) || mgrNames.includes(personFilter);
-      if (!personOk) return false;
-      if (!q) return true;
       const peopleMatch = [...amNames, ...mgrNames].some((n) => (n || '').toLowerCase().includes(q));
       return p.project_code.toLowerCase().includes(q) || (p.project_name || '').toLowerCase().includes(q) || peopleMatch;
     });
-  }, [projectHierarchy, projectSearch, personFilter]);
+  }, [projectHierarchy, projectSearch]);
 
-  const hasActiveFilter = Boolean(projectSearch.trim()) || personFilter !== 'ALL';
+  const hasActiveFilter = Boolean(projectSearch.trim());
   const isCollapsed = !showAllProjects && !hasActiveFilter;
 
   return (
@@ -367,11 +355,6 @@ function HierarchyContent() {
                   placeholder="Search project or person name…"
                   className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60"
                 />
-                <select value={personFilter} onChange={(e) => { setPersonFilter(e.target.value); }}
-                  className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                  <option value="ALL">Filter by Person</option>
-                  {personOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
                 <span className="ml-auto text-xs text-slate-400">{visibleProjects.length} project{visibleProjects.length !== 1 ? 's' : ''}</span>
               </div>
               <div className="overflow-hidden" style={isCollapsed ? { maxHeight: COLLAPSED_ROWS_HEIGHT } : undefined}>
