@@ -212,7 +212,7 @@ export default function AdminPage() {
           <p className="px-6 py-8 text-sm text-slate-400">Loading...</p>
         ) : tab === 'accounts' ? (
           pendingAccounts.length === 0 ? (
-            <p className="px-6 py-8 text-sm text-slate-400">No pending account registrations.</p>
+            <p className="px-6 py-8 text-sm text-slate-400 text-center">No pending account registrations.</p>
           ) : (
             <table className="min-w-full text-sm">
               <thead className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -266,7 +266,7 @@ export default function AdminPage() {
           )
         ) : tab === 'resets' ? (
           pendingResets.length === 0 ? (
-            <p className="px-6 py-8 text-sm text-slate-400">No pending password reset requests.</p>
+            <p className="px-6 py-8 text-sm text-slate-400 text-center">No pending password reset requests.</p>
           ) : (
             <table className="min-w-full text-sm">
               <thead className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -340,7 +340,7 @@ export default function AdminPage() {
             </div>
             {historySubFilter === 'Pending Accounts' ? (
               historyAccounts.length === 0 ? (
-                <p className="px-6 py-8 text-sm text-slate-400">No account history yet.</p>
+                <p className="px-6 py-8 text-sm text-slate-400 text-center">No account history yet.</p>
               ) : (
                 <table className="min-w-full text-sm">
                   <thead className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
