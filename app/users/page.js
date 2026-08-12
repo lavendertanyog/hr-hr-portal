@@ -450,16 +450,21 @@ export default function UserRolesPage() {
 
       {/* Role Management Modal */}
       {roleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setRoleModal(null); }}>
+          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+            <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Manage Roles</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{roleModal.full_name}</p>
                 <p className="text-xs text-slate-400">{roleModal.email}</p>
               </div>
-              <button onClick={() => setRoleModal(null)}
-                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 text-xl leading-none">&times;</button>
+              <button onClick={() => setRoleModal(null)} aria-label="Close"
+                className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
             <div className="px-6 py-5">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 mb-4">
@@ -502,16 +507,21 @@ export default function UserRolesPage() {
 
       {/* Leave Entitlement Modal */}
       {leaveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setLeaveModal(null); }}>
+          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+            <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Leave Entitlement</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{leaveModal.full_name}</p>
                 <p className="text-xs text-slate-400">{leaveModal.email}</p>
               </div>
-              <button onClick={() => setLeaveModal(null)}
-                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 text-xl leading-none">&times;</button>
+              <button onClick={() => setLeaveModal(null)} aria-label="Close"
+                className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
             <div className="px-6 py-5">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 mb-3">
@@ -542,16 +552,21 @@ export default function UserRolesPage() {
 
       {/* Project Roles Modal — multi-row: project + role per row, saved all at once */}
       {projectRolesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setProjectRolesModal(null); }}>
+          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl overflow-hidden">
+            <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Manage Project Roles</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{projectRolesModal.full_name}</p>
                 <p className="text-xs text-slate-400">{projectRolesModal.email}</p>
               </div>
-              <button onClick={() => setProjectRolesModal(null)}
-                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 text-xl leading-none">&times;</button>
+              <button onClick={() => setProjectRolesModal(null)} aria-label="Close"
+                className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
             <div className="px-6 py-5">
               {projectRolesLoading ? (
@@ -564,19 +579,19 @@ export default function UserRolesPage() {
                     <span></span>
                   </div>
                   {projectRoleRows.map((row, i) => (
-                    <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-center">
+                    <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-center min-w-0">
                       <select value={row.projectCode} onChange={(e) => updateProjectRoleRow(i, 'projectCode', e.target.value)}
-                        className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        className="min-w-0 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="">Select project…</option>
                         {projects.map((p) => <option key={p.project_code} value={p.project_code}>{p.project_code} — {p.project_name}</option>)}
                       </select>
                       <select value={row.projectRole} onChange={(e) => updateProjectRoleRow(i, 'projectRole', e.target.value)}
-                        className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        className="min-w-0 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                         {PROJECT_ROLE_OPTIONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
                       </select>
                       <button type="button" onClick={() => removeProjectRoleRow(i)}
                         title="Remove this assignment"
-                        className="justify-self-start sm:justify-self-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100">
+                        className="flex-shrink-0 justify-self-start sm:justify-self-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100">
                         &#128465;
                       </button>
                     </div>
