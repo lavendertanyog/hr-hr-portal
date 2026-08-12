@@ -321,21 +321,23 @@ export default function AdminPage() {
         ) : tab === 'history' ? (
           <div>
             {/* Sub-filter */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-              {['Pending Accounts', 'Reset History'].map((sf) => (
-                <button key={sf} onClick={() => { setHistorySubFilter(sf); setHistorySearch(''); }}
-                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                    historySubFilter === sf ? 'bg-[#e8edf8] text-[#1a3a8f]' : 'text-slate-500 hover:text-slate-700'
-                  }`}>
-                  {sf}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-100">
+              <div className="flex gap-1.5">
+                {['Pending Accounts', 'Reset History'].map((sf) => (
+                  <button key={sf} onClick={() => { setHistorySubFilter(sf); setHistorySearch(''); }}
+                    className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                      historySubFilter === sf ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}>
+                    {sf}
+                  </button>
+                ))}
+              </div>
               <input
                 type="text"
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
                 placeholder="Search by name or email..."
-                className="ml-auto rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-56"
+                className="ml-auto rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
               />
             </div>
             {historySubFilter === 'Pending Accounts' ? (
@@ -413,7 +415,7 @@ export default function AdminPage() {
               )
             ) : (
               historyResets.length === 0 ? (
-                <p className="px-6 py-8 text-sm text-slate-400">No password reset history yet.</p>
+                <p className="px-6 py-8 text-sm text-slate-400 text-center">No password reset history yet.</p>
               ) : (
                 <table className="min-w-full text-sm">
                   <thead className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
