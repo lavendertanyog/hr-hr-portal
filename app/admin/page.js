@@ -323,12 +323,12 @@ export default function AdminPage() {
             {/* Sub-filter */}
             <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-100">
               <div className="flex gap-1.5">
-                {['Pending Accounts', 'Reset History'].map((sf) => (
-                  <button key={sf} onClick={() => { setHistorySubFilter(sf); setHistorySearch(''); }}
+                {[{ id: 'Pending Accounts', label: 'Pending Accounts' }, { id: 'Reset History', label: 'Password Reset' }].map((sf) => (
+                  <button key={sf.id} onClick={() => { setHistorySubFilter(sf.id); setHistorySearch(''); }}
                     className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                      historySubFilter === sf ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      historySubFilter === sf.id ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}>
-                    {sf}
+                    {sf.label}
                   </button>
                 ))}
               </div>
