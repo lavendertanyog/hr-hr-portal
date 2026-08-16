@@ -16,6 +16,7 @@ const NAV = [
   { label: 'User Roles', href: '/users' },
   { label: 'Hierarchy', href: '/hierarchy' },
   { label: 'Projects', href: '/project-codes' },
+  { label: 'Attendance', href: '/attendance' },
 ];
 
 function formatRole(role) {

@@ -92,7 +92,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
       }
     });
     return groups;
-  }, [byRole]);
+  }, [byRole]);   
 
   const managerNodeRefs = useRef(new Map());
   const staffGroupRefs  = useRef(new Map());
