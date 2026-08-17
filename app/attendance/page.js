@@ -46,6 +46,17 @@ function humanizeTravelMode(mode) {
   return String(mode).split('_').map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 }
 
+function allocationLabel(a) {
+  return a.project_code || 'General';
+}
+
+function allocationsSummary(row) {
+  const allocations = Array.isArray(row.allocations) ? row.allocations : [];
+  if (allocations.length === 0) return row.project_code || (row.entry_type === 'GENERAL' ? 'General' : '—');
+  if (allocations.length === 1) return allocationLabel(allocations[0]);
+  return `${allocations.length} projects`;
+}
+
 // Currently clocked out but historic rows may still carry a stale ACTIVE status
 function derivedStatus(row) {
   const raw = String(row.status || '').toUpperCase();
@@ -134,6 +145,9 @@ export default function AttendancePage() {
       attendance_id: row.attendance_id,
       full_name: row.full_name,
       project_code: row.project_code,
+      project_allocations: Array.isArray(row.allocations) && row.allocations.length > 0
+        ? row.allocations.map((a) => `${allocationLabel(a)} (${Number(a.allocated_hours).toFixed(2)}h, ${a.status})`).join('; ')
+        : '',
       clock_in: row.clock_in_time,
       clock_out: row.clock_out_time,
       location: row.location_name,
@@ -249,6 +263,7 @@ export default function AttendancePage() {
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase tracking-[0.22em] text-[0.65rem]">
             <tr>
               <th className="px-4 py-3">Employee</th>
+              <th className="px-4 py-3">Project(s)</th>
               <th className="px-4 py-3">Clock In → Out</th>
               <th className="px-4 py-3">Hours</th>
               <th className="px-4 py-3">Status</th>
@@ -257,13 +272,15 @@ export default function AttendancePage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">Loading attendance logs…</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">Loading attendance logs…</td></tr>
             ) : filteredRows.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No records match the selected filters.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No records match the selected filters.</td></tr>
             ) : filteredRows.map((row) => {
               const isOpen = expandedId === row.attendance_id;
               const status = derivedStatus(row);
               const overnight = isOvernightShift(row);
+              const allocations = Array.isArray(row.allocations) ? row.allocations : [];
+              const isMultiProject = allocations.length > 1;
               return (
                 <React.Fragment key={row.attendance_id}>
                   <tr
@@ -271,6 +288,15 @@ export default function AttendancePage() {
                     onClick={() => setExpandedId(isOpen ? null : row.attendance_id)}
                   >
                     <td className="px-4 py-3 font-medium text-slate-800">{row.full_name}</td>
+                    <td className="px-4 py-3">
+                      {isMultiProject ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E8EEFF] px-2.5 py-1 text-xs font-semibold text-[#163EAF]">
+                          {allocations.length} projects
+                        </span>
+                      ) : (
+                        <span className="text-sm text-slate-600">{allocationsSummary(row)}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-600">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span>{formatDt(row.clock_in_time)} → {row.clock_out_time ? formatDt(row.clock_out_time) : <span className="text-green-600 font-semibold text-xs">Ongoing</span>}</span>
@@ -296,14 +322,34 @@ export default function AttendancePage() {
                   </tr>
                   {isOpen && (
                     <tr>
-                      <td colSpan={5} className="p-0">
+                      <td colSpan={6} className="p-0">
                         <div className="border-l-4 border-[#1540A8] bg-[#F5F8FF] px-6 py-5">
                           <div className="flex flex-wrap gap-x-10 gap-y-4">
-                            <div className="min-w-[140px]">
-                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Project</p>
-                              <span className="mt-1 inline-block rounded-full bg-[#E8EEFF] px-3 py-1 text-xs font-semibold text-[#163EAF]">
-                                {row.project_code || (row.entry_type === 'GENERAL' ? 'General' : '—')}
-                              </span>
+                            <div className="min-w-[180px]">
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                {isMultiProject ? 'Project Allocation' : 'Project'}
+                              </p>
+                              {isMultiProject ? (
+                                <div className="mt-1.5 flex flex-col gap-1.5">
+                                  {allocations.map((a, i) => (
+                                    <div key={i} className="flex items-center gap-2">
+                                      <span className="inline-block rounded-full bg-[#E8EEFF] px-2.5 py-1 text-xs font-semibold text-[#163EAF]">
+                                        {allocationLabel(a)}
+                                      </span>
+                                      <span className="text-xs text-slate-500">{Number(a.allocated_hours).toFixed(2)}h planned</span>
+                                      <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
+                                        a.status === 'COMPLETED' ? 'bg-slate-200 text-slate-500'
+                                        : a.status === 'ACTIVE' ? 'bg-green-100 text-green-700'
+                                        : 'bg-amber-100 text-amber-700'
+                                      }`}>{a.status}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="mt-1 inline-block rounded-full bg-[#E8EEFF] px-3 py-1 text-xs font-semibold text-[#163EAF]">
+                                  {allocationsSummary(row)}
+                                </span>
+                              )}
                             </div>
                             <div className="min-w-[220px] max-w-full">
                               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Location</p>
