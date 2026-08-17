@@ -332,7 +332,7 @@ export default function AttendancePage() {
                               {isMultiProject ? (
                                 <div className="mt-1.5 flex flex-col gap-1.5">
                                   {allocations.map((a, i) => (
-                                    <div key={i} className="flex items-center gap-2">
+                                    <div key={i} className="flex items-center gap-2 flex-wrap">
                                       <span className="inline-block rounded-full bg-[#E8EEFF] px-2.5 py-1 text-xs font-semibold text-[#163EAF]">
                                         {allocationLabel(a)}
                                       </span>
@@ -342,13 +342,27 @@ export default function AttendancePage() {
                                         : a.status === 'ACTIVE' ? 'bg-green-100 text-green-700'
                                         : 'bg-amber-100 text-amber-700'
                                       }`}>{a.status}</span>
+                                      {a.edited_after_completion && (
+                                        <span title={a.last_edited_at ? `Last edited ${formatDt(a.last_edited_at)}` : undefined}
+                                          className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                          ⚠ Edited after completion
+                                        </span>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
                               ) : (
-                                <span className="mt-1 inline-block rounded-full bg-[#E8EEFF] px-3 py-1 text-xs font-semibold text-[#163EAF]">
-                                  {allocationsSummary(row)}
-                                </span>
+                                <div className="mt-1 flex items-center gap-2 flex-wrap">
+                                  <span className="inline-block rounded-full bg-[#E8EEFF] px-3 py-1 text-xs font-semibold text-[#163EAF]">
+                                    {allocationsSummary(row)}
+                                  </span>
+                                  {allocations[0]?.edited_after_completion && (
+                                    <span title={allocations[0]?.last_edited_at ? `Last edited ${formatDt(allocations[0].last_edited_at)}` : undefined}
+                                      className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                      ⚠ Edited after completion
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </div>
                             <div className="min-w-[220px] max-w-full">
