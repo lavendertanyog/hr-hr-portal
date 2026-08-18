@@ -18,7 +18,7 @@ function StatusPill({ status }) {
   const s = String(status || '').toUpperCase();
   const map = {
     APPROVED: 'bg-green-50 text-green-700', REJECTED: 'bg-red-50 text-red-600',
-    PENDING: 'bg-yellow-50 text-yellow-700', CANCELLED: 'bg-slate-100 text-slate-500',
+    PENDING: 'bg-yellow-50 text-yellow-700',
   };
   return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${map[s] || 'bg-gray-100 text-gray-600'}`}>{s}</span>;
 }
@@ -126,7 +126,7 @@ export default function HrLeavePage() {
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex flex-wrap gap-1.5">
-            {['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].map((s) => (
+            {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map((s) => (
               <button key={s} type="button" onClick={() => setStatusFilter(s)}
                 className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
                   statusFilter === s ? 'bg-[#1a3a8f] text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
