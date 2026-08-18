@@ -105,23 +105,48 @@ function LevelLabel({ text }) {
 function Connector() { return <div className="mx-auto w-px h-6 bg-slate-300" />; }
 function TreeRow({ children }) { return <div className="flex flex-wrap justify-center gap-4">{children}</div>; }
 
+function personRoleLabel(u) {
+  const roles = userRoles(u);
+  return roles.length > 0 ? roleLabel(roles[0]) : '—';
+}
+
 function AddPersonNode({ role, options, onAdd }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((u) => (u.full_name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q));
+  }, [options, query]);
+
   if (open) {
     return (
-      <select autoFocus defaultValue=""
-        onChange={(e) => { if (e.target.value) { onAdd(e.target.value); setOpen(false); } }}
-        onBlur={() => setOpen(false)}
-        className="rounded-xl border-2 border-dashed border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-700 focus:outline-none"
-        style={{ minWidth: 160, maxWidth: 200 }}>
-        <option value="" disabled>Select {roleLabel(role)}…</option>
-        {options.map((u) => <option key={u.user_id} value={u.user_id}>{u.full_name}</option>)}
-        {options.length === 0 && <option value="" disabled>No eligible {roleLabel(role)}s</option>}
-      </select>
+      <div className="relative" style={{ minWidth: 180, maxWidth: 220 }}>
+        <input ref={inputRef} type="text" value={query} onChange={(e) => setQuery(e.target.value)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="Search name…"
+          className="w-full rounded-xl border-2 border-dashed border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-700 focus:outline-none" />
+        <div className="absolute z-30 mt-1 w-full max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-[11px] text-slate-400">No matches</p>
+          ) : filtered.map((u) => (
+            <button key={u.user_id} type="button"
+              onMouseDown={(e) => { e.preventDefault(); onAdd(u.user_id); setOpen(false); }}
+              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs text-slate-700 hover:bg-blue-50">
+              <span className="truncate">{u.full_name}</span>
+              <span className="flex-shrink-0 text-[10px] text-slate-400">{personRoleLabel(u)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     );
   }
   return (
-    <button type="button" onClick={() => setOpen(true)}
+    <button type="button" onClick={() => { setOpen(true); setQuery(''); }}
       className="flex items-center justify-center rounded-xl border-2 border-dashed border-blue-300 px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition"
       style={{ minWidth: 160, maxWidth: 200, minHeight: 52 }}>
       + Add {roleLabel(role)}
@@ -166,16 +191,10 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
   const supervisorOptions = [...byRole.account_manager, ...byRole.manager];
 
   const memberIds = useMemo(() => new Set(projectMembers.map((m) => m.user_id)), [projectMembers]);
-  const amCandidates = useMemo(
-    () => allUsers.filter((u) => userRoles(u).includes('account_manager') && !memberIds.has(u.user_id)),
-    [allUsers, memberIds]
-  );
-  const managerCandidates = useMemo(
-    () => allUsers.filter((u) => userRoles(u).includes('manager') && !memberIds.has(u.user_id)),
-    [allUsers, memberIds]
-  );
-  const staffCandidates = useMemo(
-    () => allUsers.filter((u) => userRoles(u).includes('staff') && !memberIds.has(u.user_id)),
+  // Any person in the system can be assigned to any level here — the project role assigned is
+  // independent of that person's own account role.
+  const candidatePool = useMemo(
+    () => allUsers.filter((u) => !memberIds.has(u.user_id)),
     [allUsers, memberIds]
   );
 
@@ -193,10 +212,15 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
     } catch (_) {}
   };
 
-  const handleAddToProject = async (userId) => {
+  const handleAddToProject = async (userId, projectRole) => {
     try {
       await axios.post(`${BACKEND}/api/v1/projects/assign-bulk`, {
         managerId: requesterId, userIds: [userId], projectCode: project.project_code,
+      });
+      // assign-bulk defaults the project role to the person's own account role — force it to
+      // the level this control represents (a staff member can still be added as a project Manager, etc).
+      await axios.patch(`${BACKEND}/api/v1/projects/assignments/role`, {
+        managerId: requesterId, userId, projectCode: project.project_code, projectRole,
       });
       await onMembersChanged?.();
     } catch (_) {}
@@ -286,7 +310,10 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
             <OrgNode key={m.user_id} ref={(el) => { if (el) managerNodeRefs.current.set(m.user_id + '_am', el); }}
               user={m} role="account_manager" removable onRemoveFromProject={handleRemoveFromProject} />
           ))}
-          <AddPersonNode role="account_manager" options={amCandidates} onAdd={handleAddToProject} />
+          {byRole.account_manager.length === 0 && (
+            <AddPersonNode role="account_manager" options={candidatePool}
+              onAdd={(userId) => handleAddToProject(userId, 'account_manager')} />
+          )}
         </TreeRow>
         <Connector />
         <LevelLabel text="Manager" />
@@ -296,7 +323,8 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
               ref={(el) => { if (el) managerNodeRefs.current.set(m.user_id, el); else managerNodeRefs.current.delete(m.user_id); }}
               user={m} role="manager" removable onRemoveFromProject={handleRemoveFromProject} />
           ))}
-          <AddPersonNode role="manager" options={managerCandidates} onAdd={handleAddToProject} />
+          <AddPersonNode role="manager" options={candidatePool}
+            onAdd={(userId) => handleAddToProject(userId, 'manager')} />
         </TreeRow>
         {byRole.manager.map((mgr) => {
           const group = staffByManager[mgr.user_id] || [];
@@ -325,7 +353,8 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
                 supervisorOptions={supervisorOptions} onAssignSupervisor={handleAssignSupervisor}
                 onRemoveFromProject={handleRemoveFromProject} />
             ))}
-            <AddPersonNode role="staff" options={staffCandidates} onAdd={handleAddToProject} />
+            <AddPersonNode role="staff" options={candidatePool}
+              onAdd={(userId) => handleAddToProject(userId, 'staff')} />
           </TreeRow>
         </div>
         {projectMembers.length === 0 && (
