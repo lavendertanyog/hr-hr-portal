@@ -17,14 +17,14 @@ function userRoles(u) {
 }
 
 const ROLE_COLOR = {
-  account_manager: { border: '#7c3aed', text: '#6d28d9', bg: '#f5f3ff' },
-  hr:              { border: '#16a34a', text: '#15803d', bg: '#f0fdf4' },
-  manager:         { border: '#1a3a8f', text: '#1d4ed8', bg: '#eff6ff' },
-  staff:           { border: '#64748b', text: '#475569', bg: '#f8fafc' },
+  account_manager: { border: '#7c3aed', text: '#4c1d95', bg: '#f5f3ff' },
+  hr:              { border: '#16a34a', text: '#14532d', bg: '#f0fdf4' },
+  manager:         { border: '#1a3a8f', text: '#1e3a8a', bg: '#eff6ff' },
+  staff:           { border: '#64748b', text: '#1e293b', bg: '#f8fafc' },
 };
 
 const OrgNode = React.forwardRef(function OrgNode(
-  { user, role, unassigned, editable, currentSupervisorId, supervisorOptions, onAssignSupervisor, onRemoveSupervisor },
+  { user, role, unassigned, editable, removable, currentSupervisorId, supervisorOptions, onAssignSupervisor, onRemoveSupervisor, onRemoveFromProject },
   ref
 ) {
   if (!user) return null;
@@ -41,17 +41,27 @@ const OrgNode = React.forwardRef(function OrgNode(
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-slate-900 truncate">{user.full_name}</p>
-          <p className="text-[11px] font-medium truncate" style={{ color: unassigned ? '#b45309' : color.text }}>{roleLabel(role)}</p>
+          <p className="text-[11px] font-semibold truncate" style={{ color: unassigned ? '#92400e' : color.text }}>{roleLabel(role)}</p>
         </div>
-        {editable && !unassigned && (
-          <button type="button" onClick={() => setAssigning((v) => !v)} title="Reassign supervisor"
-            className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
-            </svg>
-          </button>
-        )}
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          {editable && !unassigned && (
+            <button type="button" onClick={() => setAssigning((v) => !v)} title="Reassign supervisor"
+              className="flex items-center justify-center w-6 h-6 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+            </button>
+          )}
+          {removable && (
+            <button type="button" onClick={() => onRemoveFromProject(user.user_id)} title="Remove from project"
+              className="flex items-center justify-center w-6 h-6 rounded-full text-slate-400 hover:bg-red-50 hover:text-red-500 transition">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18" /><path d="M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
       {unassigned && (
         assigning ? (
@@ -192,6 +202,15 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
     } catch (_) {}
   };
 
+  const handleRemoveFromProject = async (userId) => {
+    try {
+      await axios.delete(`${BACKEND}/api/v1/assignments/remove`, {
+        data: { managerId: requesterId, userId, projectCode: project.project_code },
+      });
+      await onMembersChanged?.();
+    } catch (_) {}
+  };
+
   const recompute = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -264,7 +283,8 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
         <LevelLabel text="Account Manager" />
         <TreeRow>
           {byRole.account_manager.map((m) => (
-            <OrgNode key={m.user_id} ref={(el) => { if (el) managerNodeRefs.current.set(m.user_id + '_am', el); }} user={m} role="account_manager" />
+            <OrgNode key={m.user_id} ref={(el) => { if (el) managerNodeRefs.current.set(m.user_id + '_am', el); }}
+              user={m} role="account_manager" removable onRemoveFromProject={handleRemoveFromProject} />
           ))}
           <AddPersonNode role="account_manager" options={amCandidates} onAdd={handleAddToProject} />
         </TreeRow>
@@ -274,7 +294,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
           {byRole.manager.map((m) => (
             <OrgNode key={m.user_id}
               ref={(el) => { if (el) managerNodeRefs.current.set(m.user_id, el); else managerNodeRefs.current.delete(m.user_id); }}
-              user={m} role="manager" />
+              user={m} role="manager" removable onRemoveFromProject={handleRemoveFromProject} />
           ))}
           <AddPersonNode role="manager" options={managerCandidates} onAdd={handleAddToProject} />
         </TreeRow>
@@ -287,21 +307,23 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
               className="w-full flex flex-col items-center pt-8">
               <LevelLabel text={`Staff — reports to ${mgr.full_name}`} />
               <TreeRow>{group.map((s) => (
-                <OrgNode key={s.user_id} user={s} role="staff" editable
+                <OrgNode key={s.user_id} user={s} role="staff" editable removable
                   currentSupervisorId={mgr.user_id} supervisorOptions={supervisorOptions}
-                  onAssignSupervisor={handleAssignSupervisor} onRemoveSupervisor={handleRemoveSupervisor} />
+                  onAssignSupervisor={handleAssignSupervisor} onRemoveSupervisor={handleRemoveSupervisor}
+                  onRemoveFromProject={handleRemoveFromProject} />
               ))}</TreeRow>
             </div>
           );
         })}
         <div ref={unassignedGroupRef} className="w-full flex flex-col items-center pt-8">
           <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600 mb-2">
-            Unassigned / Direct Reports — No Supervisor
+            No Manager Assigned
           </p>
           <TreeRow>
             {(staffByManager['__unassigned'] || []).map((s) => (
-              <OrgNode key={s.user_id} user={s} role="staff" unassigned
-                supervisorOptions={supervisorOptions} onAssignSupervisor={handleAssignSupervisor} />
+              <OrgNode key={s.user_id} user={s} role="staff" unassigned removable
+                supervisorOptions={supervisorOptions} onAssignSupervisor={handleAssignSupervisor}
+                onRemoveFromProject={handleRemoveFromProject} />
             ))}
             <AddPersonNode role="staff" options={staffCandidates} onAdd={handleAddToProject} />
           </TreeRow>
