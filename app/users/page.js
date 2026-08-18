@@ -284,7 +284,7 @@ export default function UserRolesPage() {
         </div>
         <div className="hidden md:block">
           {!logoMissing ? (
-            <Image src="/nextan-logo.png" alt="Nextan" width={110} height={34}
+            <Image src="/nextan-logo.png" alt="Nextan" width={140} height={44}
               className="object-contain opacity-80" onError={() => setLogoMissing(true)} />
           ) : (
             <span className="text-lg font-bold tracking-tight text-blue-900">nextan</span>

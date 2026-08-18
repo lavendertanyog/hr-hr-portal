@@ -99,8 +99,8 @@ export default function Home() {
               <Image
                 src="/nextan-logo.png"
                 alt="Nextan"
-                width={120}
-                height={40}
+                width={150}
+                height={50}
                 className="object-contain brightness-0 invert"
                 onError={() => setLogoMissing(true)}
               />

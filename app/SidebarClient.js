@@ -111,8 +111,8 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
           <Image
             src="/nextan-logo.png"
             alt="Nextan"
-            width={120}
-            height={36}
+            width={150}
+            height={45}
             className="object-contain"
             onError={() => setLogoMissing(true)}
           />
