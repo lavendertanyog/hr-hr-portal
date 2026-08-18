@@ -95,6 +95,30 @@ function LevelLabel({ text }) {
 function Connector() { return <div className="mx-auto w-px h-6 bg-slate-300" />; }
 function TreeRow({ children }) { return <div className="flex flex-wrap justify-center gap-4">{children}</div>; }
 
+function AddPersonNode({ role, options, onAdd }) {
+  const [open, setOpen] = useState(false);
+  if (open) {
+    return (
+      <select autoFocus defaultValue=""
+        onChange={(e) => { if (e.target.value) { onAdd(e.target.value); setOpen(false); } }}
+        onBlur={() => setOpen(false)}
+        className="rounded-xl border-2 border-dashed border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-700 focus:outline-none"
+        style={{ minWidth: 160, maxWidth: 200 }}>
+        <option value="" disabled>Select {roleLabel(role)}…</option>
+        {options.map((u) => <option key={u.user_id} value={u.user_id}>{u.full_name}</option>)}
+        {options.length === 0 && <option value="" disabled>No eligible {roleLabel(role)}s</option>}
+      </select>
+    );
+  }
+  return (
+    <button type="button" onClick={() => setOpen(true)}
+      className="flex items-center justify-center rounded-xl border-2 border-dashed border-blue-300 px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition"
+      style={{ minWidth: 160, maxWidth: 200, minHeight: 52 }}>
+      + Add {roleLabel(role)}
+    </button>
+  );
+}
+
 function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMembersChanged }) {
   // Group members by their project_role (from project_assignments.project_role)
   const byRole = useMemo(() => {
@@ -131,6 +155,20 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
 
   const supervisorOptions = [...byRole.account_manager, ...byRole.manager];
 
+  const memberIds = useMemo(() => new Set(projectMembers.map((m) => m.user_id)), [projectMembers]);
+  const amCandidates = useMemo(
+    () => allUsers.filter((u) => userRoles(u).includes('account_manager') && !memberIds.has(u.user_id)),
+    [allUsers, memberIds]
+  );
+  const managerCandidates = useMemo(
+    () => allUsers.filter((u) => userRoles(u).includes('manager') && !memberIds.has(u.user_id)),
+    [allUsers, memberIds]
+  );
+  const staffCandidates = useMemo(
+    () => allUsers.filter((u) => userRoles(u).includes('staff') && !memberIds.has(u.user_id)),
+    [allUsers, memberIds]
+  );
+
   const handleAssignSupervisor = async (staffUserId, supervisorId) => {
     try {
       await axios.patch(`${BACKEND}/api/v1/users/set-supervisor`, { managerId: supervisorId, staffIds: [staffUserId] });
@@ -141,6 +179,15 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
   const handleRemoveSupervisor = async (staffUserId) => {
     try {
       await axios.patch(`${BACKEND}/api/v1/hr/remove-supervisor`, { requesterId, staffId: staffUserId });
+      await onMembersChanged?.();
+    } catch (_) {}
+  };
+
+  const handleAddToProject = async (userId) => {
+    try {
+      await axios.post(`${BACKEND}/api/v1/projects/assign-bulk`, {
+        managerId: requesterId, userIds: [userId], projectCode: project.project_code,
+      });
       await onMembersChanged?.();
     } catch (_) {}
   };
@@ -214,29 +261,23 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
               stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="4 3" />
           ))}
         </svg>
-        {byRole.account_manager.length > 0 && (
-          <>
-            <LevelLabel text="Account Manager" />
-            <TreeRow>
-              {byRole.account_manager.map((m) => (
-                <OrgNode key={m.user_id} ref={(el) => { if (el) managerNodeRefs.current.set(m.user_id + '_am', el); }} user={m} role="account_manager" />
-              ))}
-            </TreeRow>
-          </>
-        )}
-        {byRole.manager.length > 0 && (
-          <>
-            {byRole.account_manager.length > 0 && <Connector />}
-            <LevelLabel text="Manager" />
-            <TreeRow>
-              {byRole.manager.map((m) => (
-                <OrgNode key={m.user_id}
-                  ref={(el) => { if (el) managerNodeRefs.current.set(m.user_id, el); else managerNodeRefs.current.delete(m.user_id); }}
-                  user={m} role="manager" />
-              ))}
-            </TreeRow>
-          </>
-        )}
+        <LevelLabel text="Account Manager" />
+        <TreeRow>
+          {byRole.account_manager.map((m) => (
+            <OrgNode key={m.user_id} ref={(el) => { if (el) managerNodeRefs.current.set(m.user_id + '_am', el); }} user={m} role="account_manager" />
+          ))}
+          <AddPersonNode role="account_manager" options={amCandidates} onAdd={handleAddToProject} />
+        </TreeRow>
+        <Connector />
+        <LevelLabel text="Manager" />
+        <TreeRow>
+          {byRole.manager.map((m) => (
+            <OrgNode key={m.user_id}
+              ref={(el) => { if (el) managerNodeRefs.current.set(m.user_id, el); else managerNodeRefs.current.delete(m.user_id); }}
+              user={m} role="manager" />
+          ))}
+          <AddPersonNode role="manager" options={managerCandidates} onAdd={handleAddToProject} />
+        </TreeRow>
         {byRole.manager.map((mgr) => {
           const group = staffByManager[mgr.user_id] || [];
           if (group.length === 0) return null;
@@ -253,19 +294,18 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
             </div>
           );
         })}
-        {(staffByManager['__unassigned'] || []).length > 0 && (
-          <div ref={unassignedGroupRef} className="w-full flex flex-col items-center pt-8">
-            <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600 mb-2">
-              Unassigned / Direct Reports — No Supervisor
-            </p>
-            <TreeRow>
-              {staffByManager['__unassigned'].map((s) => (
-                <OrgNode key={s.user_id} user={s} role="staff" unassigned
-                  supervisorOptions={supervisorOptions} onAssignSupervisor={handleAssignSupervisor} />
-              ))}
-            </TreeRow>
-          </div>
-        )}
+        <div ref={unassignedGroupRef} className="w-full flex flex-col items-center pt-8">
+          <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600 mb-2">
+            Unassigned / Direct Reports — No Supervisor
+          </p>
+          <TreeRow>
+            {(staffByManager['__unassigned'] || []).map((s) => (
+              <OrgNode key={s.user_id} user={s} role="staff" unassigned
+                supervisorOptions={supervisorOptions} onAssignSupervisor={handleAssignSupervisor} />
+            ))}
+            <AddPersonNode role="staff" options={staffCandidates} onAdd={handleAddToProject} />
+          </TreeRow>
+        </div>
         {projectMembers.length === 0 && (
           <p className="mt-6 text-sm text-slate-400 italic">No members assigned to this project yet.</p>
         )}
