@@ -249,37 +249,21 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
       return { key: mgr.user_id, x1: mb.left + mb.width / 2 - box.left, y1: mb.bottom - box.top, x2: sb.left + sb.width / 2 - box.left, y2: sb.top - box.top };
     }).filter(Boolean);
 
-    // AM row → each manager node
-    byRole.account_manager.forEach((am) => {
-      const amEl = managerNodeRefs.current.get(am.user_id + '_am');
-      if (!amEl) return;
-      const ab = amEl.getBoundingClientRect();
-      byRole.manager.forEach((mgr) => {
-        const mEl = managerNodeRefs.current.get(mgr.user_id);
-        if (!mEl) return;
-        const mb = mEl.getBoundingClientRect();
-        next.push({
-          key: `am-${am.user_id}-${mgr.user_id}`,
-          x1: ab.left + ab.width / 2 - box.left, y1: ab.bottom - box.top,
-          x2: mb.left + mb.width / 2 - box.left, y2: mb.top - box.top,
-        });
-      });
-    });
-
-    // Top row (manager, or AM if no managers) → unassigned staff group
+    // Manager row → unassigned staff group. Only drawn when a manager actually exists —
+    // falling back to the AM node here used to draw a line straight through the empty
+    // "+ Add Manager" placeholder, which read as a broken/overlapping connector.
     const unassignedEl = unassignedGroupRef.current;
-    if (unassignedEl) {
+    if (unassignedEl && byRole.manager.length > 0) {
       const ub = unassignedEl.getBoundingClientRect();
-      const topRow = byRole.manager.length > 0 ? byRole.manager.map((m) => managerNodeRefs.current.get(m.user_id))
-        : byRole.account_manager.map((am) => managerNodeRefs.current.get(am.user_id + '_am'));
-      topRow.filter(Boolean).forEach((el, i) => {
-        const b = el.getBoundingClientRect();
-        next.push({
-          key: `unassigned-${i}`,
-          x1: b.left + b.width / 2 - box.left, y1: b.bottom - box.top,
-          x2: ub.left + ub.width / 2 - box.left, y2: ub.top - box.top,
+      byRole.manager.map((m) => managerNodeRefs.current.get(m.user_id))
+        .filter(Boolean).forEach((el, i) => {
+          const b = el.getBoundingClientRect();
+          next.push({
+            key: `unassigned-${i}`,
+            x1: b.left + b.width / 2 - box.left, y1: b.bottom - box.top,
+            x2: ub.left + ub.width / 2 - box.left, y2: ub.top - box.top,
+          });
         });
-      });
     }
 
     setLines(next);
