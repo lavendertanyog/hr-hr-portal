@@ -41,11 +41,6 @@ function formatHoursDuration(hours) {
   return `${clock} (${Number(hours).toFixed(2)})`;
 }
 
-function humanizeTravelMode(mode) {
-  if (!mode) return '—';
-  return String(mode).split('_').map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
-}
-
 function allocationLabel(a) {
   return a.project_code || 'General';
 }
@@ -152,7 +147,6 @@ export default function AttendancePage() {
       clock_out: row.clock_out_time,
       location: row.location_name,
       country: row.country_code,
-      travel_mode: row.travel_mode,
       hours: row.daily_worktime_hours,
       ot_hours: row.ot_hours_accrued,
       status: derivedStatus(row),
@@ -368,10 +362,6 @@ export default function AttendancePage() {
                             <div className="min-w-[220px] max-w-full">
                               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Location</p>
                               <p className="text-slate-700 mt-1 text-sm">{row.location_name ? `${row.location_name}${row.country_code ? ` (${row.country_code})` : ''}` : '—'}</p>
-                            </div>
-                            <div className="min-w-[140px]">
-                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Travel Mode</p>
-                              <p className="text-slate-700 mt-1 text-sm">{humanizeTravelMode(row.travel_mode)}</p>
                             </div>
                             <div className="min-w-[100px]">
                               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">OT Hours</p>
