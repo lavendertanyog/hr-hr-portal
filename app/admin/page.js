@@ -174,8 +174,11 @@ export default function AdminPage() {
   };
   // Main tab mirrors Pending Accounts / Password Resets — pending items only, no status filter needed.
   const pendingLeaveRequests = leaveRequests.filter((r) => String(r.workflow_status).toUpperCase() === 'PENDING' && leaveCategoryAndSearchMatch(r));
-  // History sub-tab browses every status.
-  const historyLeaveRequests = leaveRequests.filter((r) => (leaveStatusFilter === 'ALL' || String(r.workflow_status).toUpperCase() === leaveStatusFilter) && leaveCategoryAndSearchMatch(r));
+  // History sub-tab shows every leave request, unfiltered by status/category — search only.
+  const historyLeaveRequests = leaveRequests.filter((r) => {
+    const q = historySearch.trim().toLowerCase();
+    return !q || String(r.full_name || '').toLowerCase().includes(q) || String(r.email || '').toLowerCase().includes(q);
+  });
 
   const openEditLeave = (r) => {
     setEditingLeave(r);
@@ -485,34 +488,10 @@ export default function AdminPage() {
                   </button>
                 ))}
               </div>
-              {historySubFilter === 'Leave Requests' && (
-                <>
-                  <div className="flex flex-wrap gap-1.5">
-                    {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map((s) => (
-                      <button key={s} type="button" onClick={() => setLeaveStatusFilter(s)}
-                        className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                          leaveStatusFilter === s ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}>
-                        {s.charAt(0) + s.slice(1).toLowerCase()}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {['ALL', ...LEAVE_CATEGORIES].map((c) => (
-                      <button key={c} type="button" onClick={() => setLeaveCategoryFilter(c)}
-                        className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                          leaveCategoryFilter === c ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}>
-                        {c.charAt(0) + c.slice(1).toLowerCase()}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
               <input
                 type="text"
-                value={historySubFilter === 'Leave Requests' ? leaveSearch : historySearch}
-                onChange={(e) => (historySubFilter === 'Leave Requests' ? setLeaveSearch(e.target.value) : setHistorySearch(e.target.value))}
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
                 placeholder="Search by name or email..."
                 className="ml-auto rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
               />
