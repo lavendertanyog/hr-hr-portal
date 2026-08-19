@@ -166,13 +166,16 @@ export default function AdminPage() {
 
   const pendingLeaveCount = leaveRequests.filter((r) => String(r.workflow_status).toUpperCase() === 'PENDING').length;
 
-  const filteredLeaveRequests = leaveRequests.filter((r) => {
-    if (leaveStatusFilter !== 'ALL' && String(r.workflow_status).toUpperCase() !== leaveStatusFilter) return false;
+  const leaveCategoryAndSearchMatch = (r) => {
     if (leaveCategoryFilter !== 'ALL' && String(r.category).toUpperCase() !== leaveCategoryFilter) return false;
     const q = leaveSearch.trim().toLowerCase();
     if (q && !String(r.full_name || '').toLowerCase().includes(q) && !String(r.email || '').toLowerCase().includes(q)) return false;
     return true;
-  });
+  };
+  // Main tab mirrors Pending Accounts / Password Resets — pending items only, no status filter needed.
+  const pendingLeaveRequests = leaveRequests.filter((r) => String(r.workflow_status).toUpperCase() === 'PENDING' && leaveCategoryAndSearchMatch(r));
+  // History sub-tab browses every status.
+  const historyLeaveRequests = leaveRequests.filter((r) => (leaveStatusFilter === 'ALL' || String(r.workflow_status).toUpperCase() === leaveStatusFilter) && leaveCategoryAndSearchMatch(r));
 
   const openEditLeave = (r) => {
     setEditingLeave(r);
@@ -405,16 +408,6 @@ export default function AdminPage() {
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
               <div className="flex flex-wrap gap-1.5">
-                {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map((s) => (
-                  <button key={s} type="button" onClick={() => setLeaveStatusFilter(s)}
-                    className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                      leaveStatusFilter === s ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}>
-                    {s.charAt(0) + s.slice(1).toLowerCase()}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
                 {['ALL', ...LEAVE_CATEGORIES].map((c) => (
                   <button key={c} type="button" onClick={() => setLeaveCategoryFilter(c)}
                     className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
@@ -435,10 +428,8 @@ export default function AdminPage() {
               }`}>{leaveMessage}</div>
             )}
 
-            {filteredLeaveRequests.length === 0 ? (
-              <p className="px-6 py-8 text-sm text-slate-400 text-center">
-                {leaveRequests.length === 0 ? 'No leave requests exist yet.' : 'No leave requests match this filter.'}
-              </p>
+            {pendingLeaveRequests.length === 0 ? (
+              <p className="px-6 py-8 text-sm text-slate-400 text-center">No pending leave requests.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
@@ -455,7 +446,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {filteredLeaveRequests.map((r) => (
+                    {pendingLeaveRequests.map((r) => (
                       <tr key={r.leave_id} className="hover:bg-slate-50 transition">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <p className="font-semibold text-slate-800">{r.full_name}</p>
@@ -485,7 +476,7 @@ export default function AdminPage() {
             {/* Sub-filter */}
             <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-100">
               <div className="flex gap-1.5">
-                {[{ id: 'Pending Accounts', label: 'Pending Accounts' }, { id: 'Reset History', label: 'Password Reset' }].map((sf) => (
+                {[{ id: 'Pending Accounts', label: 'Pending Accounts' }, { id: 'Reset History', label: 'Password Reset' }, { id: 'Leave Requests', label: 'Leave Requests' }].map((sf) => (
                   <button key={sf.id} onClick={() => { setHistorySubFilter(sf.id); setHistorySearch(''); }}
                     className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
                       historySubFilter === sf.id ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -494,15 +485,84 @@ export default function AdminPage() {
                   </button>
                 ))}
               </div>
+              {historySubFilter === 'Leave Requests' && (
+                <>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map((s) => (
+                      <button key={s} type="button" onClick={() => setLeaveStatusFilter(s)}
+                        className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                          leaveStatusFilter === s ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}>
+                        {s.charAt(0) + s.slice(1).toLowerCase()}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['ALL', ...LEAVE_CATEGORIES].map((c) => (
+                      <button key={c} type="button" onClick={() => setLeaveCategoryFilter(c)}
+                        className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                          leaveCategoryFilter === c ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}>
+                        {c.charAt(0) + c.slice(1).toLowerCase()}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               <input
                 type="text"
-                value={historySearch}
-                onChange={(e) => setHistorySearch(e.target.value)}
+                value={historySubFilter === 'Leave Requests' ? leaveSearch : historySearch}
+                onChange={(e) => (historySubFilter === 'Leave Requests' ? setLeaveSearch(e.target.value) : setHistorySearch(e.target.value))}
                 placeholder="Search by name or email..."
                 className="ml-auto rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
               />
             </div>
-            {historySubFilter === 'Pending Accounts' ? (
+            {historySubFilter === 'Leave Requests' ? (
+              historyLeaveRequests.length === 0 ? (
+                <p className="px-6 py-8 text-sm text-slate-400 text-center">
+                  {leaveRequests.length === 0 ? 'No leave requests exist yet.' : 'No leave requests match this filter.'}
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      <tr>
+                        <th className="px-6 py-4 whitespace-nowrap">Employee</th>
+                        <th className="px-6 py-4 whitespace-nowrap">Category</th>
+                        <th className="px-6 py-4 whitespace-nowrap">Start</th>
+                        <th className="px-6 py-4 whitespace-nowrap">End</th>
+                        <th className="px-6 py-4 whitespace-nowrap">Status</th>
+                        <th className="px-6 py-4">Reviewer Remarks</th>
+                        <th className="px-6 py-4 whitespace-nowrap">Submitted</th>
+                        <th className="px-6 py-4 whitespace-nowrap">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {historyLeaveRequests.map((r) => (
+                        <tr key={r.leave_id} className="hover:bg-slate-50 transition">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <p className="font-semibold text-slate-800">{r.full_name}</p>
+                            <p className="text-xs text-slate-400">{r.email}</p>
+                          </td>
+                          <td className="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">{r.category}</td>
+                          <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{String(r.start_date).slice(0, 10)}</td>
+                          <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{String(r.end_date).slice(0, 10)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap"><LeaveStatusPill status={r.workflow_status} /></td>
+                          <td className="px-6 py-4 text-slate-500 max-w-[220px] truncate">{r.reviewer_remarks || '—'}</td>
+                          <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">{formatDt(r.created_at)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <button type="button" onClick={() => openEditLeave(r)}
+                              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-100">
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : historySubFilter === 'Pending Accounts' ? (
               historyAccounts.length === 0 ? (
                 <p className="px-6 py-8 text-sm text-slate-400 text-center">No account history yet.</p>
               ) : (
