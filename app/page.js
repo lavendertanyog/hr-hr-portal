@@ -69,7 +69,7 @@ export default function Home() {
         setPassword('');
         setConfirmPassword('');
         setLoading(false);
-        setError('Account created. Awaiting admin approval — please wait for Rebecca Lau or hr.admin@nextan.com.sg to approve before signing in.');
+        setError('Account created. Awaiting admin approval from rebecca.lau@nextan.com.sg to approve before signing in.');
       } else {
         const user = { ...payload.data, full_name: deriveNameFromEmail(email.trim().toLowerCase()) };
         const role = String(user.user_role || '').toLowerCase();
