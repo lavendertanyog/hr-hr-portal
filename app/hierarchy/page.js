@@ -406,11 +406,6 @@ function HierarchyContent() {
 
   useEffect(() => { fetchProjectMembers(selectedCode); }, [selectedCode, fetchProjectMembers]);
 
-  const stats = useMemo(() => {
-    const count = (role) => allUsers.filter((u) => userRoles(u).includes(role)).length;
-    return { hr: count('hr'), account_manager: count('account_manager'), manager: count('manager'), staff: count('staff') };
-  }, [allUsers]);
-
   const activeProject = projectHierarchy.find((p) => p.project_code === selectedCode);
 
   const visibleProjects = useMemo(() => {
@@ -442,26 +437,13 @@ function HierarchyContent() {
             : <span className="text-lg font-bold tracking-tight text-blue-900">nextan</span>}
         </div>
       </div>
-      <div className="mb-7 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {[
-          { label: 'HR',               value: stats.hr,              color: 'text-green-700'  },
-          { label: 'Account Managers',  value: stats.account_manager, color: 'text-purple-700' },
-          { label: 'Managers',          value: stats.manager,         color: 'text-blue-700'   },
-          { label: 'Staff',             value: stats.staff,           color: 'text-slate-700'  },
-        ].map((s) => (
-          <div key={s.label} className="rounded-2xl border border-gray-100 bg-white px-6 py-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{s.label}</p>
-            <p className={`mt-3 text-4xl font-semibold ${s.color}`}>{s.value}</p>
-          </div>
-        ))}
-      </div>
       {loading ? <p className="text-sm text-slate-400 py-8">Loading…</p> : (
         projectHierarchy.filter((p) => (p.status || 'ACTIVE').toUpperCase() !== 'INACTIVE').length === 0
           ? <p className="text-sm text-slate-400 py-8">No active projects found.</p>
           : (
           <>
             <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-              <div className="mb-3 flex flex-wrap items-center gap-3">
+              <div className="mb-5 flex flex-wrap items-center gap-3">
                 <input
                   type="text"
                   value={projectSearch}
