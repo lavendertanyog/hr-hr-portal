@@ -5,6 +5,24 @@ import Image from 'next/image';
 import axios from 'axios';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
+const LEAVE_CATEGORIES = ['ANNUAL', 'EMERGENCY', 'SICK'];
+
+function LeaveStatusPill({ status }) {
+  const s = String(status || '').toUpperCase();
+  const map = {
+    APPROVED: 'bg-green-50 text-green-700', REJECTED: 'bg-red-50 text-red-600',
+    PENDING: 'bg-yellow-50 text-yellow-700',
+  };
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${map[s] || 'bg-gray-100 text-gray-600'}`}>{s}</span>;
+}
+
+function formatDt(dt) {
+  if (!dt) return '—';
+  const d = new Date(dt);
+  const datePart = d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric' });
+  const timePart = d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${datePart}, ${timePart}`;
+}
 
 function RoleBadge({ role }) {
   const colors = { manager: 'bg-blue-50 text-blue-700', account_manager: 'bg-purple-50 text-purple-700', hr: 'bg-green-50 text-green-700', staff: 'bg-gray-100 text-gray-600' };
@@ -20,13 +38,27 @@ function StatusBadge({ status }) {
 export default function AdminPage() {
   const [adminId, setAdminId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(null); // null = loading
-  const [tab, setTab] = useState('accounts'); // 'accounts' | 'resets' | 'history'
+  const [tab, setTab] = useState('accounts'); // 'accounts' | 'resets' | 'leave' | 'history'
   const [historySubFilter, setHistorySubFilter] = useState('Pending Accounts'); // 'Pending Accounts' | 'Reset History'
   const [historySearch, setHistorySearch] = useState('');
   const [pendingAccounts, setPendingAccounts] = useState([]);
   const [pendingResets, setPendingResets] = useState([]);
   const [historyAccounts, setHistoryAccounts] = useState([]);
   const [historyResets, setHistoryResets] = useState([]);
+
+  // Leave requests
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [leaveStatusFilter, setLeaveStatusFilter] = useState('ALL');
+  const [leaveCategoryFilter, setLeaveCategoryFilter] = useState('ALL');
+  const [leaveSearch, setLeaveSearch] = useState('');
+  const [leaveMessage, setLeaveMessage] = useState('');
+  const [leaveMessageType, setLeaveMessageType] = useState('');
+  const [editingLeave, setEditingLeave] = useState(null);
+  const [editCategory, setEditCategory] = useState('ANNUAL');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editReason, setEditReason] = useState('');
+  const [leaveSaving, setLeaveSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
   const [logoMissing, setLogoMissing] = useState(false);
@@ -92,12 +124,13 @@ export default function AdminPage() {
     if (!aid) return;
     setLoading(true);
     try {
-      const [accsRes, resetsRes, histAccRes, histResRes] = await Promise.all([
+      const [accsRes, resetsRes, histAccRes, histResRes, leaveRes] = await Promise.all([
         // HR-scoped: only fetches pending Manager & Account Manager registrations
         axios.get(`${BACKEND}/api/v1/hr/pending-registrations?requesterId=${aid}`).catch((e) => e.response || null),
         axios.get(`${BACKEND}/api/v1/admin/pending-resets?adminId=${aid}`).catch(() => null),
         axios.get(`${BACKEND}/api/v1/admin/account-history?adminId=${aid}`).catch(() => null),
         axios.get(`${BACKEND}/api/v1/admin/reset-history?adminId=${aid}`).catch(() => null),
+        axios.get(`${BACKEND}/api/v1/hr/leave-requests?requesterId=${aid}`).catch(() => null),
       ]);
       if (accsRes?.data?.success) { setPendingAccounts(accsRes.data.data || []); setIsAdmin(true); }
       else if (accsRes?.status === 403 || accsRes?.data?.status === 403) { setIsAdmin(false); }
@@ -105,6 +138,7 @@ export default function AdminPage() {
       if (resetsRes?.data?.success) setPendingResets(resetsRes.data.data || []);
       if (histAccRes?.data?.success) setHistoryAccounts(histAccRes.data.data || []);
       if (histResRes?.data?.success) setHistoryResets(histResRes.data.data || []);
+      if (leaveRes?.data?.success) setLeaveRequests(leaveRes.data.data || []);
     } catch {}
     setLoading(false);
   }, []);
@@ -130,11 +164,56 @@ export default function AdminPage() {
     } catch (err) { setFeedback(err.response?.data?.error || 'Action failed.'); }
   };
 
+  const pendingLeaveCount = leaveRequests.filter((r) => String(r.workflow_status).toUpperCase() === 'PENDING').length;
+
+  const filteredLeaveRequests = leaveRequests.filter((r) => {
+    if (leaveStatusFilter !== 'ALL' && String(r.workflow_status).toUpperCase() !== leaveStatusFilter) return false;
+    if (leaveCategoryFilter !== 'ALL' && String(r.category).toUpperCase() !== leaveCategoryFilter) return false;
+    const q = leaveSearch.trim().toLowerCase();
+    if (q && !String(r.full_name || '').toLowerCase().includes(q) && !String(r.email || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const openEditLeave = (r) => {
+    setEditingLeave(r);
+    setEditCategory(String(r.category || 'ANNUAL').toUpperCase());
+    setEditStartDate(String(r.start_date).slice(0, 10));
+    setEditEndDate(String(r.end_date).slice(0, 10));
+    setEditReason(r.reason || '');
+    setLeaveMessage('');
+  };
+
+  const closeEditLeave = () => setEditingLeave(null);
+
+  const handleSaveLeaveEdit = async () => {
+    if (!editingLeave || !adminId) return;
+    if (!editStartDate || !editEndDate) { setLeaveMessage('Please provide both a start and end date.'); setLeaveMessageType('error'); return; }
+    setLeaveSaving(true); setLeaveMessage('');
+    try {
+      await axios.patch(`${BACKEND}/api/v1/leave/${editingLeave.leave_id}`, {
+        userId: editingLeave.user_id,
+        requesterId: adminId,
+        category: editCategory,
+        startDate: editStartDate,
+        endDate: editEndDate,
+        reason: editReason.trim() || undefined,
+      });
+      setLeaveMessage('Leave request updated successfully.'); setLeaveMessageType('success');
+      setEditingLeave(null);
+      await fetchAll(adminId);
+    } catch (err) {
+      setLeaveMessage(err.response?.data?.error || 'Failed to update leave request.'); setLeaveMessageType('error');
+    } finally {
+      setLeaveSaving(false);
+    }
+  };
+
   const displayName = user?.full_name || (user?.email ? user.email.split('@')[0].split('.').map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') : 'HR Admin');
 
   const TABS = [
     { key: 'accounts', label: `Pending Accounts (${pendingAccounts.length})` },
     { key: 'resets', label: `Password Resets (${pendingResets.length})` },
+    { key: 'leave', label: `Leave Requests (${pendingLeaveCount})` },
     { key: 'history', label: 'History' },
   ];
 
@@ -185,10 +264,13 @@ export default function AdminPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Password Resets</p>
           <p className="mt-3 text-4xl font-semibold text-slate-900">{pendingResets.length}</p>
         </button>
-        <div className="rounded-2xl border border-gray-100 bg-white px-6 py-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Approved Accounts</p>
-          <p className="mt-3 text-4xl font-semibold text-slate-900">{historyAccounts.filter((a) => a.account_status === 'active').length}</p>
-        </div>
+        <button type="button" onClick={() => setTab('leave')}
+          className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
+            tab === 'leave' ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
+          }`}>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Leave Requests</p>
+          <p className="mt-3 text-4xl font-semibold text-slate-900">{pendingLeaveCount}</p>
+        </button>
       </div>
 
       {feedback && (
@@ -318,6 +400,86 @@ export default function AdminPage() {
               </tbody>
             </table>
           )
+        ) : tab === 'leave' ? (
+          <div>
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex flex-wrap gap-1.5">
+                {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map((s) => (
+                  <button key={s} type="button" onClick={() => setLeaveStatusFilter(s)}
+                    className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                      leaveStatusFilter === s ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}>
+                    {s.charAt(0) + s.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {['ALL', ...LEAVE_CATEGORIES].map((c) => (
+                  <button key={c} type="button" onClick={() => setLeaveCategoryFilter(c)}
+                    className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                      leaveCategoryFilter === c ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}>
+                    {c.charAt(0) + c.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+              <input type="text" value={leaveSearch} onChange={(e) => setLeaveSearch(e.target.value)}
+                placeholder="Search employee name or email…"
+                className="ml-auto rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64" />
+            </div>
+
+            {leaveMessage && (
+              <div className={`mx-6 mt-4 rounded-2xl px-5 py-3.5 text-sm font-medium border ${
+                leaveMessageType === 'success' ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'
+              }`}>{leaveMessage}</div>
+            )}
+
+            {filteredLeaveRequests.length === 0 ? (
+              <p className="px-6 py-8 text-sm text-slate-400 text-center">
+                {leaveRequests.length === 0 ? 'No leave requests exist yet.' : 'No leave requests match this filter.'}
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    <tr>
+                      <th className="px-6 py-4 whitespace-nowrap">Employee</th>
+                      <th className="px-6 py-4 whitespace-nowrap">Category</th>
+                      <th className="px-6 py-4 whitespace-nowrap">Start</th>
+                      <th className="px-6 py-4 whitespace-nowrap">End</th>
+                      <th className="px-6 py-4 whitespace-nowrap">Status</th>
+                      <th className="px-6 py-4">Reviewer Remarks</th>
+                      <th className="px-6 py-4 whitespace-nowrap">Submitted</th>
+                      <th className="px-6 py-4 whitespace-nowrap">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {filteredLeaveRequests.map((r) => (
+                      <tr key={r.leave_id} className="hover:bg-slate-50 transition">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <p className="font-semibold text-slate-800">{r.full_name}</p>
+                          <p className="text-xs text-slate-400">{r.email}</p>
+                        </td>
+                        <td className="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">{r.category}</td>
+                        <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{String(r.start_date).slice(0, 10)}</td>
+                        <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{String(r.end_date).slice(0, 10)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap"><LeaveStatusPill status={r.workflow_status} /></td>
+                        <td className="px-6 py-4 text-slate-500 max-w-[220px] truncate">{r.reviewer_remarks || '—'}</td>
+                        <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">{formatDt(r.created_at)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button type="button" onClick={() => openEditLeave(r)}
+                            className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-100">
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         ) : tab === 'history' ? (
           <div>
             {/* Sub-filter */}
@@ -512,6 +674,63 @@ export default function AdminPage() {
               <button onClick={submitRoles} disabled={roleSubmitting || selectedRoles.length === 0}
                 className="rounded-2xl bg-[#1a3a8f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12307a] disabled:opacity-60 transition">
                 {roleSubmitting ? 'Saving…' : 'Save Roles'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Leave Request Modal */}
+      {editingLeave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) closeEditLeave(); }}>
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Edit Leave Request</p>
+                <p className="mt-1 text-sm font-semibold text-slate-800">{editingLeave.full_name}</p>
+              </div>
+              <button type="button" onClick={closeEditLeave} className="text-xs font-semibold text-slate-400 hover:text-slate-600">Cancel</button>
+            </div>
+
+            {leaveMessage && (
+              <div className={`mb-5 rounded-2xl px-4 py-3 text-sm font-medium border ${
+                leaveMessageType === 'success' ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'
+              }`}>{leaveMessage}</div>
+            )}
+
+            <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Category</label>
+                <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {LEAVE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Start Date</label>
+                  <input type="date" value={editStartDate} onChange={(e) => setEditStartDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">End Date</label>
+                  <input type="date" value={editEndDate} min={editStartDate || undefined} onChange={(e) => setEditEndDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Reason <span className="font-normal text-slate-400">(optional)</span></label>
+                <textarea rows={3} value={editReason} onChange={(e) => setEditReason(e.target.value)}
+                  placeholder="Brief reason for leave…"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <p className="text-xs text-slate-400">
+                Editing as HR overrides the normal "pending only" restriction — this can be applied to a request in any status.
+              </p>
+              <button type="button" onClick={handleSaveLeaveEdit} disabled={leaveSaving}
+                className="w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-60 transition" style={{ background: '#0c3b8f' }}>
+                {leaveSaving ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </div>
