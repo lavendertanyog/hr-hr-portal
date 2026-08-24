@@ -213,13 +213,11 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
 
   const handleAddToProject = async (userId, projectRole) => {
     try {
+      // Pass the intended project role directly — assigning first and correcting the role
+      // afterward let the backend's "demote the existing Account Manager" side effect fire
+      // against a temporary, wrong default role instead of the one actually being set here.
       await axios.post(`${BACKEND}/api/v1/projects/assign-bulk`, {
-        managerId: requesterId, userIds: [userId], projectCode: project.project_code,
-      });
-      // assign-bulk defaults the project role to the person's own account role — force it to
-      // the level this control represents (a staff member can still be added as a project Manager, etc).
-      await axios.patch(`${BACKEND}/api/v1/projects/assignments/role`, {
-        managerId: requesterId, userId, projectCode: project.project_code, projectRole,
+        managerId: requesterId, userIds: [userId], projectCode: project.project_code, projectRole,
       });
       await onMembersChanged?.();
     } catch (_) {}
