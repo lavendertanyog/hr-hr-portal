@@ -322,7 +322,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
                   ref={(el) => { if (el) managerNodeRefs.current.set(mgr.user_id, el); else managerNodeRefs.current.delete(mgr.user_id); }}
                   user={mgr} role="manager" removable onRemoveFromProject={handleRemoveFromProject} />
                 {group.length > 0 && (
-                  <div className="pt-8 flex flex-col items-center" style={{ maxWidth: 320 }}>
+                  <div className="pt-8 flex flex-col items-center" style={{ maxWidth: 420 }}>
                     <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
                       Reports to {mgr.full_name}
                     </p>
