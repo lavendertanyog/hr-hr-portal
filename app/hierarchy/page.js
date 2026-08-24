@@ -183,7 +183,6 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
 
   const managerNodeRefs = useRef(new Map());
   const staffNodeRefs   = useRef(new Map());
-  const unassignedGroupRef = useRef(null);
   const containerRef    = useRef(null);
   const [lines, setLines]               = useState([]);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
@@ -259,23 +258,6 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
       });
     });
 
-    // Manager row → unassigned staff group. Only drawn when a manager actually exists —
-    // falling back to the AM node here used to draw a line straight through the empty
-    // "+ Add Manager" placeholder, which read as a broken/overlapping connector.
-    const unassignedEl = unassignedGroupRef.current;
-    if (unassignedEl && byRole.manager.length > 0) {
-      const ub = unassignedEl.getBoundingClientRect();
-      byRole.manager.map((m) => managerNodeRefs.current.get(m.user_id))
-        .filter(Boolean).forEach((el, i) => {
-          const b = el.getBoundingClientRect();
-          next.push({
-            key: `unassigned-${i}`, dashed: true,
-            x1: b.left + b.width / 2 - box.left, y1: b.bottom - box.top,
-            x2: ub.left + ub.width / 2 - box.left, y2: ub.top - box.top,
-          });
-        });
-    }
-
     setLines(next);
   }, [byRole.manager, byRole.account_manager, staffByManager]);
 
@@ -346,7 +328,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
               onAdd={(userId) => handleAddToProject(userId, 'manager')} />
           </div>
         </div>
-        <div ref={unassignedGroupRef} className="w-full flex flex-col items-center pt-8">
+        <div className="w-full flex flex-col items-center pt-8">
           <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600 mb-2">
             No Manager Assigned
           </p>
