@@ -30,33 +30,40 @@ const PROJECT_ROLE_OPTIONS = [
   { key: 'hr', label: 'HR' },
 ];
 
-// Row action: primary "Manage Roles" button + a "···" menu for secondary actions
-function RowActions({ user, onManageRoles, onLeaveDays, onProjectRoles, openMenuId, setOpenMenuId }) {
+// Row action: a single "Actions" dropdown — routine actions grouped together, Delete User
+// separated below a divider so it's reachable but harder to mis-click.
+function RowActions({ user, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser, openMenuId, setOpenMenuId }) {
   const isOpen = openMenuId === user.user_id;
   return (
-    <div className="flex items-center gap-2">
-      <button onClick={() => onManageRoles(user)}
-        className="rounded-xl border border-[#1a3a8f] px-4 py-2 text-xs font-semibold text-[#1a3a8f] hover:bg-[#e8edf8] transition">
-        Manage Roles
+    <div className="relative">
+      <button type="button" onClick={() => setOpenMenuId(isOpen ? null : user.user_id)}
+        className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">
+        Actions
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
       </button>
-      <div className="relative">
-        <button type="button" onClick={() => setOpenMenuId(isOpen ? null : user.user_id)}
-          className="flex items-center justify-center rounded-xl border border-slate-200 w-8 h-8 text-slate-500 hover:bg-slate-100 transition">
-          &#8230;
-        </button>
-        {isOpen && (
-          <div className="absolute right-0 z-20 mt-1 w-44 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-            <button type="button" onClick={() => { onProjectRoles(user); setOpenMenuId(null); }}
-              className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-[#1a3a8f] hover:bg-[#e8edf8]">
-              Project Roles
-            </button>
-            <button type="button" onClick={() => { onLeaveDays(user); setOpenMenuId(null); }}
-              className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
-              Leave Days
-            </button>
-          </div>
-        )}
-      </div>
+      {isOpen && (
+        <div className="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+          <button type="button" onClick={() => { onManageRoles(user); setOpenMenuId(null); }}
+            className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            Manage Roles
+          </button>
+          <button type="button" onClick={() => { onProjectRoles(user); setOpenMenuId(null); }}
+            className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            Project Assignments
+          </button>
+          <button type="button" onClick={() => { onLeaveDays(user); setOpenMenuId(null); }}
+            className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            Leave Entitlement
+          </button>
+          <div className="my-1 border-t border-slate-100" />
+          <button type="button" onClick={() => { onDeleteUser(user); setOpenMenuId(null); }}
+            className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-red-600 hover:bg-red-50">
+            Delete User
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -97,6 +104,12 @@ export default function UserRolesPage() {
   const [projectRolesLoading, setProjectRolesLoading] = useState(false);
   const [projectRolesSubmitting, setProjectRolesSubmitting] = useState(false);
   const [projectRolesFeedback, setProjectRolesFeedback] = useState('');
+
+  // Delete user confirmation modal
+  const [deleteModal, setDeleteModal] = useState(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteFeedback, setDeleteFeedback] = useState('');
 
   useEffect(() => {
     try {
@@ -233,6 +246,24 @@ export default function UserRolesPage() {
     } catch (err) {
       setProjectRolesFeedback(err.response?.data?.error || 'Failed to update project roles.');
     } finally { setProjectRolesSubmitting(false); }
+  };
+
+  const openDeleteModal = (u) => {
+    setDeleteModal(u);
+    setDeleteConfirmText('');
+    setDeleteFeedback('');
+  };
+
+  const submitDeleteUser = async () => {
+    if (!deleteModal || deleteConfirmText !== deleteModal.full_name) return;
+    setDeleteSubmitting(true); setDeleteFeedback('');
+    try {
+      await axios.delete(`${BACKEND}/api/v1/hr/users/${deleteModal.user_id}`, { data: { requesterId } });
+      setDeleteModal(null); setDeleteConfirmText('');
+      fetchUsers(requesterId);
+    } catch (err) {
+      setDeleteFeedback(err.response?.data?.error || 'Failed to delete user.');
+    } finally { setDeleteSubmitting(false); }
   };
 
   // Filtered list (search + role filter, used by both List and Grouped views)
@@ -375,7 +406,7 @@ export default function UserRolesPage() {
                         </td>
                         <td className="px-6 py-4">
                           <RowActions user={u} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
-                            onProjectRoles={openProjectRolesModal}
+                            onProjectRoles={openProjectRolesModal} onDeleteUser={openDeleteModal}
                             openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                         </td>
                       </tr>
@@ -433,7 +464,7 @@ export default function UserRolesPage() {
                             </td>
                             <td className="px-6 py-3">
                               <RowActions user={u} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
-                                onProjectRoles={openProjectRolesModal}
+                                onProjectRoles={openProjectRolesModal} onDeleteUser={openDeleteModal}
                                 openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                             </td>
                           </tr>
@@ -616,6 +647,44 @@ export default function UserRolesPage() {
               <button onClick={submitProjectRoles} disabled={projectRolesSubmitting || projectRolesLoading}
                 className="rounded-2xl bg-[#1a3a8f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12307a] disabled:opacity-60 transition">
                 {projectRolesSubmitting ? 'Saving…' : 'Save All'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteModal(null); }}>
+          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100">
+              <h2 className="text-lg font-semibold text-red-600">Delete User</h2>
+              <p className="text-sm text-slate-500 mt-0.5">{deleteModal.full_name}</p>
+              <p className="text-xs text-slate-400">{deleteModal.email}</p>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-slate-600">
+                This permanently deletes this user's account and all of their attendance, leave,
+                and project-assignment records. This action can't be undone.
+              </p>
+              <label className="block text-sm font-semibold text-slate-700 mt-5 mb-2">
+                Type <span className="font-bold">{deleteModal.full_name}</span> to confirm
+              </label>
+              <input value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder={deleteModal.full_name}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
+              {deleteFeedback && (
+                <p className="mt-4 rounded-xl px-4 py-2.5 text-sm font-medium bg-red-50 text-red-700">{deleteFeedback}</p>
+              )}
+            </div>
+            <div className="flex gap-3 justify-end px-6 pb-6 pt-2">
+              <button onClick={() => setDeleteModal(null)}
+                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button onClick={submitDeleteUser} disabled={deleteSubmitting || deleteConfirmText !== deleteModal.full_name}
+                className="rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40 transition">
+                {deleteSubmitting ? 'Deleting…' : 'Delete User'}
               </button>
             </div>
           </div>
