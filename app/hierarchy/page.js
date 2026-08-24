@@ -311,32 +311,41 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
         </TreeRow>
         <Connector />
         <LevelLabel text="Manager" />
-        <TreeRow>
-          {byRole.manager.map((m) => (
-            <OrgNode key={m.user_id}
-              ref={(el) => { if (el) managerNodeRefs.current.set(m.user_id, el); else managerNodeRefs.current.delete(m.user_id); }}
-              user={m} role="manager" removable onRemoveFromProject={handleRemoveFromProject} />
-          ))}
-          <AddPersonNode role="manager" options={candidatePool}
-            onAdd={(userId) => handleAddToProject(userId, 'manager')} />
-        </TreeRow>
-        {byRole.manager.map((mgr) => {
-          const group = staffByManager[mgr.user_id] || [];
-          if (group.length === 0) return null;
-          return (
-            <div key={mgr.user_id} className="w-full flex flex-col items-center pt-8">
-              <LevelLabel text={`Staff — reports to ${mgr.full_name}`} />
-              <TreeRow>{group.map((s) => (
-                <OrgNode key={s.user_id}
-                  ref={(el) => { if (el) staffNodeRefs.current.set(s.user_id, el); else staffNodeRefs.current.delete(s.user_id); }}
-                  user={s} role="staff" editable removable
-                  currentSupervisorId={mgr.user_id} supervisorOptions={supervisorOptions}
-                  onAssignSupervisor={handleAssignSupervisor} onRemoveSupervisor={handleRemoveSupervisor}
-                  onRemoveFromProject={handleRemoveFromProject} />
-              ))}</TreeRow>
-            </div>
-          );
-        })}
+        {/* Each manager and their own staff form a self-contained column, side by side —
+            so a manager's connector lines never have to cross into another manager's branch. */}
+        <div className="w-full flex flex-row flex-wrap justify-center items-start gap-10">
+          {byRole.manager.map((mgr) => {
+            const group = staffByManager[mgr.user_id] || [];
+            return (
+              <div key={mgr.user_id} className="flex flex-col items-center">
+                <OrgNode
+                  ref={(el) => { if (el) managerNodeRefs.current.set(mgr.user_id, el); else managerNodeRefs.current.delete(mgr.user_id); }}
+                  user={mgr} role="manager" removable onRemoveFromProject={handleRemoveFromProject} />
+                {group.length > 0 && (
+                  <div className="pt-8 flex flex-col items-center" style={{ maxWidth: 320 }}>
+                    <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                      Reports to {mgr.full_name}
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-4">
+                      {group.map((s) => (
+                        <OrgNode key={s.user_id}
+                          ref={(el) => { if (el) staffNodeRefs.current.set(s.user_id, el); else staffNodeRefs.current.delete(s.user_id); }}
+                          user={s} role="staff" editable removable
+                          currentSupervisorId={mgr.user_id} supervisorOptions={supervisorOptions}
+                          onAssignSupervisor={handleAssignSupervisor} onRemoveSupervisor={handleRemoveSupervisor}
+                          onRemoveFromProject={handleRemoveFromProject} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div className="flex flex-col items-center">
+            <AddPersonNode role="manager" options={candidatePool}
+              onAdd={(userId) => handleAddToProject(userId, 'manager')} />
+          </div>
+        </div>
         <div ref={unassignedGroupRef} className="w-full flex flex-col items-center pt-8">
           <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600 mb-2">
             No Manager Assigned
