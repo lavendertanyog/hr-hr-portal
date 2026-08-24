@@ -182,7 +182,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
   }, [byRole]);   
 
   const managerNodeRefs = useRef(new Map());
-  const staffGroupRefs  = useRef(new Map());
+  const staffNodeRefs   = useRef(new Map());
   const unassignedGroupRef = useRef(null);
   const containerRef    = useRef(null);
   const [lines, setLines]               = useState([]);
@@ -240,14 +240,24 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
     if (!container) return;
     const box = container.getBoundingClientRect();
     setContainerSize({ width: container.scrollWidth, height: container.scrollHeight });
-    const next = byRole.manager.map((mgr) => {
+    // One line per staff member, straight to their own card — not one line to the group
+    // container (which used to land on whichever card happened to be in the middle).
+    const next = [];
+    byRole.manager.forEach((mgr) => {
       const mEl = managerNodeRefs.current.get(mgr.user_id);
-      const sEl = staffGroupRefs.current.get(mgr.user_id);
-      if (!mEl || !sEl) return null;
+      if (!mEl) return;
       const mb = mEl.getBoundingClientRect();
-      const sb = sEl.getBoundingClientRect();
-      return { key: mgr.user_id, x1: mb.left + mb.width / 2 - box.left, y1: mb.bottom - box.top, x2: sb.left + sb.width / 2 - box.left, y2: sb.top - box.top };
-    }).filter(Boolean);
+      (staffByManager[mgr.user_id] || []).forEach((s) => {
+        const sEl = staffNodeRefs.current.get(s.user_id);
+        if (!sEl) return;
+        const sb = sEl.getBoundingClientRect();
+        next.push({
+          key: `${mgr.user_id}-${s.user_id}`,
+          x1: mb.left + mb.width / 2 - box.left, y1: mb.bottom - box.top,
+          x2: sb.left + sb.width / 2 - box.left, y2: sb.top - box.top,
+        });
+      });
+    });
 
     // Manager row → unassigned staff group. Only drawn when a manager actually exists —
     // falling back to the AM node here used to draw a line straight through the empty
@@ -259,7 +269,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
         .filter(Boolean).forEach((el, i) => {
           const b = el.getBoundingClientRect();
           next.push({
-            key: `unassigned-${i}`,
+            key: `unassigned-${i}`, dashed: true,
             x1: b.left + b.width / 2 - box.left, y1: b.bottom - box.top,
             x2: ub.left + ub.width / 2 - box.left, y2: ub.top - box.top,
           });
@@ -267,7 +277,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
     }
 
     setLines(next);
-  }, [byRole.manager, byRole.account_manager]);
+  }, [byRole.manager, byRole.account_manager, staffByManager]);
 
   useEffect(() => { recompute(); }, [recompute]);
   useEffect(() => { window.addEventListener('resize', recompute); return () => window.removeEventListener('resize', recompute); }, [recompute]);
@@ -285,7 +295,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
           width={containerSize.width} height={containerSize.height}>
           {lines.map((l) => (
             <line key={l.key} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
-              stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="4 3" />
+              stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray={l.dashed ? '4 3' : undefined} />
           ))}
         </svg>
         <LevelLabel text="Account Manager" />
@@ -314,12 +324,12 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
           const group = staffByManager[mgr.user_id] || [];
           if (group.length === 0) return null;
           return (
-            <div key={mgr.user_id}
-              ref={(el) => { if (el) staffGroupRefs.current.set(mgr.user_id, el); else staffGroupRefs.current.delete(mgr.user_id); }}
-              className="w-full flex flex-col items-center pt-8">
+            <div key={mgr.user_id} className="w-full flex flex-col items-center pt-8">
               <LevelLabel text={`Staff — reports to ${mgr.full_name}`} />
               <TreeRow>{group.map((s) => (
-                <OrgNode key={s.user_id} user={s} role="staff" editable removable
+                <OrgNode key={s.user_id}
+                  ref={(el) => { if (el) staffNodeRefs.current.set(s.user_id, el); else staffNodeRefs.current.delete(s.user_id); }}
+                  user={s} role="staff" editable removable
                   currentSupervisorId={mgr.user_id} supervisorOptions={supervisorOptions}
                   onAssignSupervisor={handleAssignSupervisor} onRemoveSupervisor={handleRemoveSupervisor}
                   onRemoveFromProject={handleRemoveFromProject} />
