@@ -32,7 +32,7 @@ const PROJECT_ROLE_OPTIONS = [
 
 // Row action: a single "Actions" dropdown — routine actions grouped together, Delete User
 // separated below a divider so it's reachable but harder to mis-click.
-function RowActions({ user, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser, openMenuId, setOpenMenuId }) {
+function RowActions({ user, onEditUser, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser, openMenuId, setOpenMenuId }) {
   const isOpen = openMenuId === user.user_id;
   return (
     <div className="relative">
@@ -45,6 +45,10 @@ function RowActions({ user, onManageRoles, onLeaveDays, onProjectRoles, onDelete
       </button>
       {isOpen && (
         <div className="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+          <button type="button" onClick={() => { onEditUser(user); setOpenMenuId(null); }}
+            className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            Edit User
+          </button>
           <button type="button" onClick={() => { onManageRoles(user); setOpenMenuId(null); }}
             className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
             Manage Roles
@@ -85,6 +89,13 @@ export default function UserRolesPage() {
   const [page, setPage] = useState(1);
   const [openMenuId, setOpenMenuId] = useState(null);
   const menuRef = useRef(null);
+
+  // Edit user modal (name/email)
+  const [editModal, setEditModal] = useState(null);
+  const [editFullName, setEditFullName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editFeedback, setEditFeedback] = useState('');
 
   // Role modal
   const [roleModal, setRoleModal] = useState(null);
@@ -142,6 +153,30 @@ export default function UserRolesPage() {
   useEffect(() => {
     axios.get(`${BACKEND}/api/v1/projects`).then((r) => setProjects(r.data?.data || [])).catch(() => {});
   }, []);
+
+  const openEditModal = (u) => {
+    setEditModal(u);
+    setEditFullName(u.full_name || '');
+    setEditEmail(u.email || '');
+    setEditFeedback('');
+  };
+
+  const submitEditUser = async () => {
+    if (!editModal) return;
+    setEditSubmitting(true); setEditFeedback('');
+    try {
+      await axios.patch(`${BACKEND}/api/v1/hr/users/${editModal.user_id}`, {
+        requesterId, fullName: editFullName, email: editEmail,
+      });
+      setEditFeedback('User updated successfully.');
+      setTimeout(() => {
+        setEditModal(null); setEditFeedback('');
+        fetchUsers(requesterId);
+      }, 1000);
+    } catch (err) {
+      setEditFeedback(err.response?.data?.error || 'Failed to update user.');
+    } finally { setEditSubmitting(false); }
+  };
 
   const openRoleModal = (u) => {
     const currentRoles = Array.isArray(u.user_roles) && u.user_roles.length > 0
@@ -405,7 +440,7 @@ export default function UserRolesPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <RowActions user={u} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
+                          <RowActions user={u} onEditUser={openEditModal} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
                             onProjectRoles={openProjectRolesModal} onDeleteUser={openDeleteModal}
                             openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                         </td>
@@ -463,7 +498,7 @@ export default function UserRolesPage() {
                               </div>
                             </td>
                             <td className="px-6 py-3">
-                              <RowActions user={u} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
+                              <RowActions user={u} onEditUser={openEditModal} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
                                 onProjectRoles={openProjectRolesModal} onDeleteUser={openDeleteModal}
                                 openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                             </td>
@@ -647,6 +682,53 @@ export default function UserRolesPage() {
               <button onClick={submitProjectRoles} disabled={projectRolesSubmitting || projectRolesLoading}
                 className="rounded-2xl bg-[#1a3a8f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12307a] disabled:opacity-60 transition">
                 {projectRolesSubmitting ? 'Saving…' : 'Save All'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setEditModal(null); }}>
+          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Edit User</h2>
+                <p className="text-xs text-slate-400">{editModal.email}</p>
+              </div>
+              <button onClick={() => setEditModal(null)} aria-label="Close"
+                className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
+                <input value={editFullName} onChange={(e) => setEditFullName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
+                <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              {editFeedback && (
+                <p className={`rounded-xl px-4 py-2.5 text-sm font-medium ${
+                  editFeedback.includes('success') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                }`}>{editFeedback}</p>
+              )}
+            </div>
+            <div className="flex gap-3 justify-end px-6 pb-6 pt-2">
+              <button onClick={() => setEditModal(null)}
+                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button onClick={submitEditUser} disabled={editSubmitting}
+                className="rounded-2xl bg-[#1a3a8f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12307a] disabled:opacity-60 transition">
+                {editSubmitting ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </div>
