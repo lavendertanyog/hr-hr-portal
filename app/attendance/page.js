@@ -27,8 +27,13 @@ function downloadCsv(fileName, csvContent) {
 function formatDt(dt) {
   if (!dt) return '—';
   const d = new Date(dt);
-  const datePart = d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short' });
-  const timePart = d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true });
+  // timeZone is pinned explicitly — 'en-SG' alone only controls formatting style (date order,
+  // AM/PM), NOT which timezone is used. Without this, the displayed hour depends on whatever
+  // timezone the VIEWER's own computer happens to be set to, which can silently show a
+  // completely wrong hour (e.g. an 8am SGT clock-in appearing as 4pm) if that device isn't
+  // correctly configured to Singapore/Malaysia time.
+  const datePart = d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short', timeZone: 'Asia/Singapore' });
+  const timePart = d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
   return `${datePart}, ${timePart}`;
 }
 
@@ -59,15 +64,22 @@ function derivedStatus(row) {
   return row.clock_out_time ? 'COMPLETED' : 'ACTIVE';
 }
 
+// Computed via UTC getters on a manually SGT-shifted instant rather than the local getHours()/
+// getDate(), which only give the right answer if the VIEWER's own device happens to be set to
+// Singapore/Malaysia time — the same class of bug that made clock-in times display up to 8
+// hours off depending on which computer was looking at them.
+function toSGT(dateInput) {
+  return new Date(new Date(dateInput).getTime() + 8 * 60 * 60 * 1000);
+}
 function isOvernightShift(row) {
   if (!row.clock_in_time) return false;
-  const inHour = new Date(row.clock_in_time).getHours();
+  const inHour = toSGT(row.clock_in_time).getUTCHours();
   const isLateNightStart = inHour >= 22 || inHour < 6;
   if (isLateNightStart) return true;
   if (row.clock_out_time) {
-    const inDate = new Date(row.clock_in_time);
-    const outDate = new Date(row.clock_out_time);
-    const crossesMidnight = outDate.getDate() !== inDate.getDate() || outDate.getMonth() !== inDate.getMonth();
+    const inDate = toSGT(row.clock_in_time);
+    const outDate = toSGT(row.clock_out_time);
+    const crossesMidnight = outDate.getUTCDate() !== inDate.getUTCDate() || outDate.getUTCMonth() !== inDate.getUTCMonth();
     if (crossesMidnight) return true;
   }
   return false;
@@ -93,23 +105,26 @@ export default function AttendancePage() {
     } catch {}
   }, []);
 
-  const loadData = async (rid) => {
+  // `silent` skips the loading placeholder — used for the periodic background refresh, so it
+  // doesn't blank the table out from under someone scrolled down reading it. Only the very first
+  // load (nothing on screen yet) needs the placeholder.
+  const loadData = async (rid, { silent } = {}) => {
     if (!rid) return;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await axios.get(`${backendBaseUrl}/api/v1/hr/attendance-logs?requesterId=${rid}`);
       setRows(res.data.data || []);
     } catch {
-      setRows([]);
+      if (!silent) setRows([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     if (!requesterId) return;
     loadData(requesterId);
-    const timer = setInterval(() => loadData(requesterId), 15000);
+    const timer = setInterval(() => loadData(requesterId, { silent: true }), 15000);
     return () => clearInterval(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requesterId, backendBaseUrl]);
