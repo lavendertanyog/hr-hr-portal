@@ -94,9 +94,11 @@ function Modal({ title, onClose, children }) {
 export default function ProjectCodesPage() {
   const [projects, setProjects] = useState([]);
   const [utilisationMap, setUtilisationMap] = useState({});
-  const [managerOnlyUsers, setManagerOnlyUsers] = useState([]);
-  const [accountManagerUsers, setAccountManagerUsers] = useState([]);
-  const [managerUsers, setManagerUsers] = useState([]); // combined, used only for the filter dropdown
+  // Anyone can be assigned as a project's Account Manager or Manager, regardless of their own
+  // role — so both fields in the Issue/Edit modal list every active employee, not just users
+  // already holding a manager/account_manager role.
+  const [allUsers, setAllUsers] = useState([]);
+  const [managerUsers, setManagerUsers] = useState([]); // role-based combined list, used only for the filter dropdown
   const [loading, setLoading] = useState(true);
   const [sessionUser, setSessionUser] = useState(null);
 
@@ -137,18 +139,18 @@ export default function ProjectCodesPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [projectsRes, utilisationRes, managersRes, amRes] = await Promise.all([
+      const [projectsRes, utilisationRes, managersRes, amRes, allUsersRes] = await Promise.all([
         axios.get(`${backendBaseUrl}/api/v1/projects`).catch(() => ({ data: { data: [] } })),
         axios.get(`${backendBaseUrl}/api/v1/projects/utilisation-detail`).catch(() => ({ data: { data: [] } })),
         axios.get(`${backendBaseUrl}/api/v1/users?role=manager`).catch(() => ({ data: { data: [] } })),
         axios.get(`${backendBaseUrl}/api/v1/users?role=account_manager`).catch(() => ({ data: { data: [] } })),
+        axios.get(`${backendBaseUrl}/api/v1/users`).catch(() => ({ data: { data: [] } })),
       ]);
       setProjects(projectsRes.data.data || []);
       const utilMap = {};
       (utilisationRes.data.data || []).forEach((u) => { utilMap[u.project_code] = Number(u.weighted_utilisation_pct || 0); });
       setUtilisationMap(utilMap);
-      setManagerOnlyUsers(managersRes.data.data || []);
-      setAccountManagerUsers(amRes.data.data || []);
+      setAllUsers(allUsersRes.data.data || []);
       const combined = [
         ...(managersRes.data.data || []),
         ...(amRes.data.data || []),
@@ -305,14 +307,14 @@ export default function ProjectCodesPage() {
       <UserMultiSelect
         label={<>Account Manager <span className="text-red-500">*</span></>}
         placeholder="Search by name or email..."
-        users={accountManagerUsers}
+        users={allUsers}
         selected={formAccountManagerIds}
         onChange={setFormAccountManagerIds}
       />
       <UserMultiSelect
         label={<>Manager <span className="text-red-500">*</span></>}
         placeholder="Search by name or email..."
-        users={managerOnlyUsers}
+        users={allUsers}
         selected={formManagerIds}
         onChange={setFormManagerIds}
       />
