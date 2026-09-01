@@ -32,11 +32,14 @@ const PROJECT_ROLE_OPTIONS = [
 
 // Row action: a single "Actions" dropdown — routine actions grouped together, Delete User
 // separated below a divider so it's reachable but harder to mis-click.
-function RowActions({ user, onEditUser, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser, openMenuId, setOpenMenuId }) {
-  const isOpen = openMenuId === user.user_id;
+// rowId, not user.user_id, drives the open/closed state — the Grouped view renders the same
+// user in one row per role they hold, and comparing by user_id alone would open every one of
+// those duplicate rows at once instead of just the row that was actually clicked.
+function RowActions({ user, rowId, onEditUser, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser, openMenuId, setOpenMenuId }) {
+  const isOpen = openMenuId === rowId;
   return (
     <div className="relative">
-      <button type="button" onClick={() => setOpenMenuId(isOpen ? null : user.user_id)}
+      <button type="button" onClick={() => setOpenMenuId(isOpen ? null : rowId)}
         className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">
         Actions
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -440,7 +443,7 @@ export default function UserRolesPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <RowActions user={u} onEditUser={openEditModal} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
+                          <RowActions user={u} rowId={u.user_id} onEditUser={openEditModal} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
                             onProjectRoles={openProjectRolesModal} onDeleteUser={openDeleteModal}
                             openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                         </td>
@@ -498,7 +501,7 @@ export default function UserRolesPage() {
                               </div>
                             </td>
                             <td className="px-6 py-3">
-                              <RowActions user={u} onEditUser={openEditModal} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
+                              <RowActions user={u} rowId={`${key}-${u.user_id}`} onEditUser={openEditModal} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
                                 onProjectRoles={openProjectRolesModal} onDeleteUser={openDeleteModal}
                                 openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                             </td>
