@@ -24,6 +24,16 @@ function downloadCsv(fileName, csvContent) {
   URL.revokeObjectURL(url);
 }
 
+function formatCsvDate(dt) {
+  if (!dt) return '';
+  return new Date(dt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Singapore' });
+}
+
+function formatCsvTime(dt) {
+  if (!dt) return '';
+  return new Date(dt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
+}
+
 function formatDt(dt) {
   if (!dt) return '—';
   const d = new Date(dt);
@@ -90,7 +100,6 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [nameSearch, setNameSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [locationSearch, setLocationSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [requesterId, setRequesterId] = useState('');
@@ -131,11 +140,9 @@ export default function AttendancePage() {
 
   const filteredRows = useMemo(() => {
     const nameQ = nameSearch.trim().toLowerCase();
-    const locQ = locationSearch.trim().toLowerCase();
     return rows.filter((row) => {
       if (statusFilter !== 'ALL' && derivedStatus(row) !== statusFilter) return false;
       if (nameQ && !String(row.full_name || '').toLowerCase().includes(nameQ)) return false;
-      if (locQ && !String(row.location_name || '').toLowerCase().includes(locQ)) return false;
       if (dateFrom) {
         const d = row.clock_in_time ? new Date(row.clock_in_time) : null;
         if (!d || d < new Date(dateFrom)) return false;
@@ -148,33 +155,39 @@ export default function AttendancePage() {
       }
       return true;
     });
-  }, [rows, nameSearch, statusFilter, locationSearch, dateFrom, dateTo]);
+  }, [rows, nameSearch, statusFilter, dateFrom, dateTo]);
 
   const handleExport = () => {
-    const csv = toCsv(filteredRows.map((row) => ({
-      attendance_id: row.attendance_id,
-      full_name: row.full_name,
-      project_code: row.project_code,
-      project_allocations: Array.isArray(row.allocations) && row.allocations.length > 0
-        ? row.allocations.map((a) => `${allocationLabel(a)} (${Number(a.allocated_hours).toFixed(2)}h, ${a.status})`).join('; ')
-        : '',
-      clock_in: row.clock_in_time,
-      clock_out: row.clock_out_time,
-      location: row.location_name,
-      country: row.country_code,
-      hours: row.daily_worktime_hours,
-      ot_hours: row.ot_hours_accrued,
-      status: derivedStatus(row),
-      entry_type: row.entry_type,
-      remark: row.remark,
-    })));
+    const csv = toCsv(filteredRows.map((row) => {
+      const allocations = Array.isArray(row.allocations) ? row.allocations : [];
+      const projectAllocs = allocations.filter((a) => a.project_code);
+      const generalAlloc = allocations.find((a) => !a.project_code);
+      const projectCodes = projectAllocs.length > 0
+        ? projectAllocs.map((a) => a.project_code).join(', ')
+        : (row.project_code || (generalAlloc ? 'General' : ''));
+      const projectDescription = projectAllocs
+        .map((a) => `${a.project_code}: ${a.description || '—'}`)
+        .join('; ');
+      return {
+        full_name: row.full_name,
+        project_codes: projectCodes,
+        clock_in_date: formatCsvDate(row.clock_in_time),
+        clock_in_time: formatCsvTime(row.clock_in_time),
+        clock_out_date: formatCsvDate(row.clock_out_time),
+        clock_out_time: formatCsvTime(row.clock_out_time),
+        hours: row.daily_worktime_hours,
+        ot_hours: row.ot_hours_accrued,
+        general_description: generalAlloc?.description || '',
+        project_description: projectDescription,
+        remark: row.remark,
+      };
+    }));
     if (csv) downloadCsv(`attendance-${new Date().toISOString().slice(0, 10)}.csv`, csv);
   };
 
   const resetFilters = () => {
     setNameSearch('');
     setStatusFilter('ALL');
-    setLocationSearch('');
     setDateFrom('');
     setDateTo('');
   };
@@ -219,17 +232,6 @@ export default function AttendancePage() {
               <option value="COMPLETED">COMPLETED</option>
               <option value="VOIDED">VOIDED</option>
             </select>
-          </div>
-
-          {/* Location */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Location</label>
-            <input
-              value={locationSearch}
-              onChange={(e) => setLocationSearch(e.target.value)}
-              placeholder="Search location…"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
           </div>
 
           {/* Date from */}
@@ -373,10 +375,6 @@ export default function AttendancePage() {
                                   )}
                                 </div>
                               )}
-                            </div>
-                            <div className="min-w-[220px] max-w-full">
-                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Location</p>
-                              <p className="text-slate-700 mt-1 text-sm">{row.location_name ? `${row.location_name}${row.country_code ? ` (${row.country_code})` : ''}` : '—'}</p>
                             </div>
                             <div className="min-w-[100px]">
                               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">OT Hours</p>
