@@ -231,7 +231,7 @@ export default function AdminPage() {
       <div className="p-8">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
           <h2 className="text-lg font-semibold text-red-700">Access Denied</h2>
-          <p className="text-sm text-red-600 mt-1">Only Rebecca Lau or hr.admin@nextan.com.sg can access this page.</p>
+          <p className="text-sm text-red-600 mt-1">You don't have permission to view this page.</p>
         </div>
       </div>
     );
