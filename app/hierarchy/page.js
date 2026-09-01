@@ -91,7 +91,7 @@ const OrgNode = React.forwardRef(function OrgNode(
           </select>
           <button type="button" onClick={() => { onRemoveSupervisor(user.user_id); setAssigning(false); }}
             className="w-full rounded-lg border border-dashed border-red-300 py-1 text-[11px] font-semibold text-red-500 hover:bg-red-50 transition">
-            Remove supervisor
+            Remove Manager
           </button>
         </div>
       )}
@@ -186,8 +186,11 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
   const containerRef    = useRef(null);
   const [lines, setLines]               = useState([]);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [actionError, setActionError]   = useState('');
 
-  const supervisorOptions = [...byRole.account_manager, ...byRole.manager];
+  // Staff report to a Manager, not the project's Account Manager — the AM is a separate
+  // approval tier and shouldn't be selectable as someone's direct supervisor here.
+  const supervisorOptions = byRole.manager;
 
   const memberIds = useMemo(() => new Set(projectMembers.map((m) => m.user_id)), [projectMembers]);
   // Any person in the system can be assigned to any level here — the project role assigned is
@@ -198,20 +201,23 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
   );
 
   const handleAssignSupervisor = async (staffUserId, supervisorId) => {
+    setActionError('');
     try {
       await axios.patch(`${BACKEND}/api/v1/users/set-supervisor`, { managerId: supervisorId, staffIds: [staffUserId] });
       await onMembersChanged?.();
-    } catch (_) {}
+    } catch (err) { setActionError(err.response?.data?.error || 'Failed to assign manager.'); }
   };
 
   const handleRemoveSupervisor = async (staffUserId) => {
+    setActionError('');
     try {
       await axios.patch(`${BACKEND}/api/v1/hr/remove-supervisor`, { requesterId, staffId: staffUserId });
       await onMembersChanged?.();
-    } catch (_) {}
+    } catch (err) { setActionError(err.response?.data?.error || 'Failed to remove manager.'); }
   };
 
   const handleAddToProject = async (userId, projectRole) => {
+    setActionError('');
     try {
       // Pass the intended project role directly — assigning first and correcting the role
       // afterward let the backend's "demote the existing Account Manager" side effect fire
@@ -220,16 +226,17 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
         managerId: requesterId, userIds: [userId], projectCode: project.project_code, projectRole,
       });
       await onMembersChanged?.();
-    } catch (_) {}
+    } catch (err) { setActionError(err.response?.data?.error || 'Failed to add to project.'); }
   };
 
   const handleRemoveFromProject = async (userId) => {
+    setActionError('');
     try {
       await axios.delete(`${BACKEND}/api/v1/assignments/remove`, {
         data: { managerId: requesterId, userId, projectCode: project.project_code },
       });
       await onMembersChanged?.();
-    } catch (_) {}
+    } catch (err) { setActionError(err.response?.data?.error || 'Failed to remove from project.'); }
   };
 
   const recompute = useCallback(() => {
@@ -268,6 +275,12 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">{project.project_code}</p>
         <h2 className="text-xl font-semibold text-slate-900">{project.project_name}</h2>
         <p className="text-xs text-slate-400 mt-1">{project.budget_hours} hrs budget · {project.status || 'ACTIVE'} · {projectMembers.length} assigned</p>
+        {actionError && (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-600">
+            {actionError}
+            <button type="button" onClick={() => setActionError('')} className="flex-shrink-0 text-red-400 hover:text-red-600" aria-label="Dismiss">×</button>
+          </div>
+        )}
       </div>
       <div ref={containerRef} className="relative flex flex-col items-center min-w-fit">
         <svg className="absolute inset-0 z-0 pointer-events-none"

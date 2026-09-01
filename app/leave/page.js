@@ -9,8 +9,8 @@ const CATEGORIES = ['ANNUAL', 'EMERGENCY', 'SICK'];
 function formatDt(dt) {
   if (!dt) return '—';
   const d = new Date(dt);
-  const datePart = d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric' });
-  const timePart = d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const datePart = d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Singapore' });
+  const timePart = d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
   return `${datePart}, ${timePart}`;
 }
 

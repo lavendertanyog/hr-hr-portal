@@ -19,8 +19,9 @@ function LeaveStatusPill({ status }) {
 function formatDt(dt) {
   if (!dt) return '—';
   const d = new Date(dt);
-  const datePart = d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric' });
-  const timePart = d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true });
+  // timeZone pinned explicitly — see AttendanceReminders.js for why 'en-SG' alone isn't enough.
+  const datePart = d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Singapore' });
+  const timePart = d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
   return `${datePart}, ${timePart}`;
 }
 
@@ -322,7 +323,7 @@ export default function AdminPage() {
                           <td className="px-6 py-4 font-semibold text-slate-900">{u.full_name}</td>
                           <td className="px-6 py-4 text-slate-600">{u.email}</td>
                           <td className="px-6 py-4"><RoleBadge role={u.user_role} /></td>
-                          <td className="px-6 py-4 text-xs text-slate-400">{new Date(u.created_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                          <td className="px-6 py-4 text-xs text-slate-400">{new Date(u.created_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' })}</td>
                           <td className="px-6 py-4">
                             <div className="flex gap-2">
                               <button onClick={() => handleAccount(u.user_id, 'approve')}
@@ -376,7 +377,7 @@ export default function AdminPage() {
                           <td className="px-6 py-4 font-semibold text-slate-900">{r.full_name}</td>
                           <td className="px-6 py-4 text-slate-600">{r.email}</td>
                           <td className="px-6 py-4"><RoleBadge role={r.user_role} /></td>
-                          <td className="px-6 py-4 text-xs text-slate-400">{new Date(r.requested_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                          <td className="px-6 py-4 text-xs text-slate-400">{new Date(r.requested_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' })}</td>
                           <td className="px-6 py-4">
                             <div className="flex gap-2">
                               <button onClick={() => handleReset(r.request_id, 'approve')}
@@ -643,8 +644,8 @@ export default function AdminPage() {
                               <td className="px-6 py-4 text-slate-600">{r.email}</td>
                               <td className="px-6 py-4"><RoleBadge role={r.user_role} /></td>
                               <td className="px-6 py-4"><StatusBadge status={r.status} /></td>
-                              <td className="px-6 py-4 text-xs text-slate-400">{new Date(r.requested_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                              <td className="px-6 py-4 text-xs text-slate-400">{r.reviewed_at ? new Date(r.reviewed_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short' }) : '—'}</td>
+                              <td className="px-6 py-4 text-xs text-slate-400">{new Date(r.requested_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' })}</td>
+                              <td className="px-6 py-4 text-xs text-slate-400">{r.reviewed_at ? new Date(r.reviewed_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' }) : '—'}</td>
                             </tr>
                           ))}
                           {totalPages > 1 && (
