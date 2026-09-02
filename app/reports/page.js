@@ -409,7 +409,7 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
             ['Project codes', String(projectCodes.size), codesCaption, '#5B6478'],
           ].map(([label, value, caption, captionColor]) => (
             <div key={label} className="rounded-2xl border border-slate-200 px-5 py-4">
-              <div className="text-3xl font-semibold text-[#10172A]" style={PLEX_MONO}>{value}</div>
+              <div className="text-xl font-semibold text-[#10172A] whitespace-nowrap" style={PLEX_MONO}>{value}</div>
               <div className="text-sm text-[#5B6478] mt-1.5">{label}</div>
               <div className="text-xs font-semibold mt-2" style={{ color: captionColor }}>{caption}</div>
             </div>
