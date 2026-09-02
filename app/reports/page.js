@@ -86,7 +86,7 @@ function niceMax(value) {
   return rounded * pow;
 }
 
-const CHART_W = 800, CHART_H = 300, PLOT_L = 56, PLOT_R = 780, PLOT_T = 20, PLOT_B = 260;
+const CHART_W = 800, CHART_H = 340, PLOT_L = 60, PLOT_R = 780, PLOT_T = 24, PLOT_B = 296;
 
 function ClockInChart({ sessions }) {
   const points = sessions
@@ -189,25 +189,39 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="flex items-center gap-4 px-8 py-5 border-b border-slate-200 bg-[#EAF0FF]">
-        <div className="w-11 h-11 rounded-full bg-[#1540A8] text-white flex items-center justify-center font-semibold text-lg flex-shrink-0">
-          {(employee.full_name || '?').trim().charAt(0).toUpperCase()}
+      <div className="flex items-start justify-between gap-6 px-12 py-9 border-b border-slate-200">
+        <div>
+          <p className="font-mono text-sm font-semibold text-[#1540A8]">nextan <span className="text-slate-400 font-normal">/ HR Portal</span></p>
+          <h2 className="mt-3 font-serif text-4xl font-semibold text-slate-900">Staff Activity Report</h2>
+          <p className="mt-2 text-base text-slate-500 max-w-md">Attendance, project allocation and punctuality summary, prepared for the shareholder review pack.</p>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-slate-900 truncate">{employee.full_name}</p>
-          <p className="text-xs text-slate-500">{employee.email || '—'}</p>
-        </div>
-        <div className="flex flex-wrap gap-1.5 justify-end">
-          {projectCodes.size > 0 ? Array.from(projectCodes).map((c) => (
-            <span key={c} className="text-[11px] font-mono font-medium rounded-full bg-white border border-[#C9D9FB] text-[#0E2E7A] px-2.5 py-0.5">{c}</span>
-          )) : <span className="text-[11px] text-slate-400">No project codes</span>}
+        <div className="text-right text-sm text-slate-500 leading-relaxed whitespace-nowrap">
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-slate-400">Reporting period</p>
+          <p className="font-semibold text-slate-900 text-base">{periodLabel}</p>
+          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.16em] text-slate-400">Generated</p>
+          <p className="font-semibold text-slate-900 text-base">{new Date().toLocaleString('en-SG', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}</p>
         </div>
       </div>
 
-      <div className="px-8 py-6">
-        <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.16em] text-[#1540A8] mb-1">{periodLabel}</p>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Activity summary</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+      <div className="flex items-center gap-5 px-12 py-6 border-b border-[#C9D9FB] bg-[#EAF0FF]">
+        <div className="w-16 h-16 rounded-full bg-[#1540A8] text-white flex items-center justify-center font-serif font-semibold text-2xl flex-shrink-0">
+          {(employee.full_name || '?').trim().charAt(0).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-slate-900 text-xl truncate">{employee.full_name}</p>
+          <p className="text-sm text-slate-500">{employee.email || '—'}</p>
+        </div>
+        <div className="flex flex-wrap gap-2 justify-end">
+          {projectCodes.size > 0 ? Array.from(projectCodes).map((c) => (
+            <span key={c} className="text-sm font-mono font-medium rounded-full bg-white border border-[#C9D9FB] text-[#0E2E7A] px-3.5 py-1">{c}</span>
+          )) : <span className="text-sm text-slate-400">No project codes</span>}
+        </div>
+      </div>
+
+      <div className="px-12 py-10">
+        <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2">At a glance</p>
+        <h3 className="font-serif text-2xl font-semibold text-slate-900 mb-6">Activity summary</h3>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
           {[
             ['Hours logged', `${totalHours.toFixed(2)}h`],
             ['Days worked', String(daysWorked)],
@@ -215,52 +229,55 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
             ['Avg. clock-in', avgClockIn],
             ['Project codes', String(projectCodes.size)],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl border border-slate-200 px-4 py-3">
-              <div className="font-mono text-xl font-semibold text-slate-900">{value}</div>
-              <div className="text-[11px] text-slate-500 mt-1">{label}</div>
+            <div key={label} className="rounded-2xl border border-slate-200 px-5 py-4">
+              <div className="font-mono text-3xl font-semibold text-slate-900">{value}</div>
+              <div className="text-sm text-slate-500 mt-1.5">{label}</div>
             </div>
           ))}
         </div>
 
         {sessions.length === 0 ? (
-          <p className="text-sm text-slate-400 italic mb-2">No attendance sessions logged in this period.</p>
+          <p className="text-base text-slate-400 italic mb-2">No attendance sessions logged in this period.</p>
         ) : (
           <>
-            <div className="grid md:grid-cols-2 gap-6 mb-6">
+            <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2">Visual summary</p>
+            <h3 className="font-serif text-2xl font-semibold text-slate-900 mb-6">When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
+            <div className="grid md:grid-cols-2 gap-10 mb-10">
               <div>
-                <p className="text-sm font-semibold text-slate-700 mb-1">Clock-in time by session</p>
+                <p className="text-base font-semibold text-slate-700 mb-2">Clock-in time by session</p>
                 <ClockInChart sessions={sessions} />
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-700 mb-1">Hours logged per day</p>
+                <p className="text-base font-semibold text-slate-700 mb-2">Hours logged per day</p>
                 <HoursBarChart sessions={sessions} />
               </div>
             </div>
 
             {flagged.length > 0 && (
-              <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">!</span>
-                <p className="text-xs text-amber-800">
+              <div className="mb-10 flex items-start gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-sm font-bold">!</span>
+                <p className="text-sm text-amber-800">
                   {flagged.length} session{flagged.length > 1 ? 's' : ''} auto-flagged as overnight / unusual-hours shifts — see the highlighted rows below.
                 </p>
               </div>
             )}
 
-            <p className="text-sm font-semibold text-slate-700 mb-2">Full activity log</p>
+            <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2">Supporting detail</p>
+            <h3 className="font-serif text-2xl font-semibold text-slate-900 mb-6">Full activity log</h3>
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="min-w-full text-xs">
-                <thead className="bg-[#EAF0FF] text-[#5B6478] uppercase tracking-wider text-[10px]">
+              <table className="min-w-full text-sm">
+                <thead className="bg-[#EAF0FF] text-[#5B6478] uppercase tracking-wider text-xs">
                   <tr>
-                    <th className="px-3 py-2 text-left">Project Code(s)</th>
-                    <th className="px-3 py-2 text-left">Clock In Date</th>
-                    <th className="px-3 py-2 text-left">Clock In Time</th>
-                    <th className="px-3 py-2 text-left">Clock Out Date</th>
-                    <th className="px-3 py-2 text-left">Clock Out Time</th>
-                    <th className="px-3 py-2 text-left">Hours</th>
-                    <th className="px-3 py-2 text-left">OT Hrs</th>
-                    <th className="px-3 py-2 text-left">General Description</th>
-                    <th className="px-3 py-2 text-left">Project Description</th>
-                    <th className="px-3 py-2 text-left">Remark</th>
+                    <th className="px-4 py-3 text-left">Project Code(s)</th>
+                    <th className="px-4 py-3 text-left">Clock In Date</th>
+                    <th className="px-4 py-3 text-left">Clock In Time</th>
+                    <th className="px-4 py-3 text-left">Clock Out Date</th>
+                    <th className="px-4 py-3 text-left">Clock Out Time</th>
+                    <th className="px-4 py-3 text-left">Hours</th>
+                    <th className="px-4 py-3 text-left">OT Hrs</th>
+                    <th className="px-4 py-3 text-left">General Description</th>
+                    <th className="px-4 py-3 text-left">Project Description</th>
+                    <th className="px-4 py-3 text-left">Remark</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -272,34 +289,34 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
                     const overnight = isOvernightShift(s);
                     return (
                       <tr key={s.attendance_id} className={overnight ? 'bg-amber-50/60' : undefined}>
-                        <td className="px-3 py-2 whitespace-nowrap">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           {codes.map((c) => (
-                            <span key={c} className="inline-block font-mono text-[10px] bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-1.5 py-0.5 mr-1 mb-1">{c}</span>
+                            <span key={c} className="inline-block font-mono text-xs bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-2 py-1 mr-1 mb-1">{c}</span>
                           ))}
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap">{formatCsvDate(s.clock_in_time)}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-mono">{formatCsvTime(s.clock_in_time)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{formatCsvDate(s.clock_in_time)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap font-mono">{formatCsvTime(s.clock_in_time)}</td>
                         {s.clock_out_time ? (
                           <>
-                            <td className="px-3 py-2 whitespace-nowrap">{formatCsvDate(s.clock_out_time)}</td>
-                            <td className="px-3 py-2 whitespace-nowrap font-mono">{formatCsvTime(s.clock_out_time)}</td>
+                            <td className="px-4 py-3 whitespace-nowrap">{formatCsvDate(s.clock_out_time)}</td>
+                            <td className="px-4 py-3 whitespace-nowrap font-mono">{formatCsvTime(s.clock_out_time)}</td>
                           </>
                         ) : (
-                          <td className="px-3 py-2 font-semibold text-green-600" colSpan={2}>Ongoing</td>
+                          <td className="px-4 py-3 font-semibold text-green-600" colSpan={2}>Ongoing</td>
                         )}
-                        <td className="px-3 py-2 font-mono whitespace-nowrap">{s.daily_worktime_hours != null ? Number(s.daily_worktime_hours).toFixed(2) : '—'}</td>
-                        <td className={`px-3 py-2 font-mono whitespace-nowrap ${Number(s.ot_hours_accrued) > 0 ? 'text-amber-700 font-semibold' : ''}`}>{s.ot_hours_accrued != null ? Number(s.ot_hours_accrued).toFixed(2) : '—'}</td>
-                        <td className="px-3 py-2 max-w-[180px]">
+                        <td className="px-4 py-3 font-mono whitespace-nowrap">{s.daily_worktime_hours != null ? Number(s.daily_worktime_hours).toFixed(2) : '—'}</td>
+                        <td className={`px-4 py-3 font-mono whitespace-nowrap ${Number(s.ot_hours_accrued) > 0 ? 'text-amber-700 font-semibold' : ''}`}>{s.ot_hours_accrued != null ? Number(s.ot_hours_accrued).toFixed(2) : '—'}</td>
+                        <td className="px-4 py-3 max-w-[200px]">
                           {generalAlloc
                             ? (generalAlloc.description || <span className="text-slate-400 italic">— none —</span>)
                             : <span className="text-slate-400 italic">— n/a —</span>}
                         </td>
-                        <td className="px-3 py-2 max-w-[220px]">
+                        <td className="px-4 py-3 max-w-[240px]">
                           {projectAllocs.length > 0
                             ? projectAllocs.map((a) => <div key={a.project_code}>{a.project_code}: {a.description || <span className="text-slate-400 italic">—</span>}</div>)
                             : <span className="text-slate-400 italic">— n/a —</span>}
                         </td>
-                        <td className="px-3 py-2 max-w-[160px]">{s.remark || <span className="text-slate-400 italic">—</span>}</td>
+                        <td className="px-4 py-3 max-w-[180px]">{s.remark || <span className="text-slate-400 italic">—</span>}</td>
                       </tr>
                     );
                   })}
