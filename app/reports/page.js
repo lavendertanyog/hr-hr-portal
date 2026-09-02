@@ -78,6 +78,16 @@ function getPeriodRange(periodType, anchorDateStr) {
   return { startStr: toDateStr(start), endStr: toDateStr(end), label };
 }
 
+// The anchor date one period back — feeds getPeriodRange again to get a real
+// "vs. prior period" comparison instead of a made-up delta.
+function getPreviousAnchor(periodType, anchorDateStr) {
+  const anchor = parseDateStr(anchorDateStr || toDateStr(new Date()));
+  if (periodType === 'daily') return toDateStr(addDays(anchor, -1));
+  if (periodType === 'weekly') return toDateStr(addDays(anchor, -7));
+  const prevMonth = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() - 1, 1, 12));
+  return toDateStr(prevMonth);
+}
+
 function niceMax(value) {
   if (value <= 0) return 10;
   const pow = Math.pow(10, Math.floor(Math.log10(value)));
@@ -181,12 +191,14 @@ function computeReportStats(sessions) {
   const otHours = sessions.reduce((sum, s) => sum + (Number(s.ot_hours_accrued) || 0), 0);
   const daysWorked = new Set(sessions.filter((s) => s.clock_in_time).map((s) => sgtDateStr(s.clock_in_time))).size;
   const clockInMinutes = sessions.filter((s) => s.clock_in_time).map((s) => sgtMinutes(s.clock_in_time));
-  const avgClockIn = clockInMinutes.length > 0 ? minutesToLabel(clockInMinutes.reduce((a, b) => a + b, 0) / clockInMinutes.length) : '—';
+  const avgClockInMinutes = clockInMinutes.length > 0 ? clockInMinutes.reduce((a, b) => a + b, 0) / clockInMinutes.length : null;
+  const avgClockIn = avgClockInMinutes != null ? minutesToLabel(avgClockInMinutes) : '—';
   const projectCodes = new Set();
   sessions.forEach((s) => (Array.isArray(s.allocations) ? s.allocations : []).forEach((a) => a.project_code && projectCodes.add(a.project_code)));
+  const generalSessionsCount = sessions.filter((s) => (Array.isArray(s.allocations) ? s.allocations : []).some((a) => !a.project_code)).length;
   const flagged = sessions.filter(isOvernightShift);
   const sorted = [...sessions].sort((a, b) => new Date(a.clock_in_time) - new Date(b.clock_in_time));
-  return { totalHours, otHours, daysWorked, avgClockIn, projectCodes, flagged, sorted };
+  return { totalHours, otHours, daysWorked, avgClockIn, avgClockInMinutes, projectCodes, generalSessionsCount, flagged, sorted };
 }
 
 function ActivityLogTable({ sorted }) {
@@ -276,10 +288,10 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
         </div>
       </div>
 
-      <div className="px-8 py-6">
-        <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.16em] text-[#1540A8] mb-1">{periodLabel}</p>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Activity summary</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+      <div className="px-9 py-7">
+        <p className="text-xs font-mono font-semibold uppercase tracking-[0.16em] text-[#1540A8] mb-1.5">{periodLabel}</p>
+        <h3 className="text-2xl font-bold text-slate-900 mb-5">Activity summary</h3>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-9">
           {[
             ['Hours logged', `${totalHours.toFixed(2)}h`],
             ['Days worked', String(daysWorked)],
@@ -287,9 +299,9 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
             ['Avg. clock-in', avgClockIn],
             ['Project codes', String(projectCodes.size)],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl border border-slate-200 px-4 py-3">
-              <div className="font-mono text-xl font-semibold text-slate-900">{value}</div>
-              <div className="text-[11px] text-slate-500 mt-1">{label}</div>
+            <div key={label} className="rounded-2xl border border-slate-200 px-5 py-4">
+              <div className="font-mono text-3xl font-bold text-slate-900">{value}</div>
+              <div className="text-sm text-slate-500 mt-1.5">{label}</div>
             </div>
           ))}
         </div>
@@ -298,21 +310,21 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
           <p className="text-sm text-slate-400 italic mb-2">No attendance sessions logged in this period.</p>
         ) : (
           <>
-            <div className="grid md:grid-cols-2 gap-6 mb-6">
+            <div className="grid md:grid-cols-2 gap-8 mb-9">
               <div>
-                <p className="text-sm font-semibold text-slate-700 mb-1">Clock-in time by session</p>
+                <p className="text-base font-semibold text-slate-900 mb-2">Clock-in time by session</p>
                 <ClockInChart sessions={sessions} />
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-700 mb-1">Hours logged per day</p>
+                <p className="text-base font-semibold text-slate-900 mb-2">Hours logged per day</p>
                 <HoursBarChart sessions={sessions} />
               </div>
             </div>
 
             {flagged.length > 0 && (
-              <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">!</span>
-                <p className="text-xs text-amber-800">
+              <div className="mb-9 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-sm font-bold">!</span>
+                <p className="text-sm text-amber-800">
                   {flagged.length} session{flagged.length > 1 ? 's' : ''} auto-flagged as overnight / unusual-hours shifts — see the highlighted rows below.
                 </p>
               </div>
@@ -327,57 +339,79 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
   );
 }
 
+const FRAUNCES = { fontFamily: "'Fraunces', Georgia, serif" };
+const PLEX_MONO = { fontFamily: "'IBM Plex Mono', ui-monospace, monospace" };
+
 // Print-only report card — the fuller shareholder-report template (masthead, subject strip,
-// serif headings). Rendered off-screen purely so the PDF can capture it; the visible portal
-// page always shows EmployeeReport above instead.
-function EmployeeReportPrint({ employee, sessions, periodLabel }) {
-  const { totalHours, otHours, daysWorked, avgClockIn, projectCodes, flagged, sorted } = computeReportStats(sessions);
+// serif headings, real "vs. prior period" deltas). Rendered off-screen purely so the PDF can
+// capture it; the visible portal page always shows EmployeeReport above instead.
+function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, daysInPeriod = 7 }) {
+  const { totalHours, otHours, daysWorked, avgClockIn, avgClockInMinutes, projectCodes, generalSessionsCount, flagged, sorted } = computeReportStats(sessions);
+
+  const hoursDeltaPct = priorHours > 0 ? ((totalHours - priorHours) / priorHours) * 100 : null;
+  const hoursCaption = hoursDeltaPct == null
+    ? 'No prior period to compare'
+    : `${hoursDeltaPct >= 0 ? '▲' : '▼'} ${Math.abs(hoursDeltaPct).toFixed(0)}% vs. prior period`;
+  const hoursCaptionColor = hoursDeltaPct == null ? '#5B6478' : hoursDeltaPct >= 0 ? '#157F52' : '#B4650C';
+
+  const otCaption = flagged.length > 0 ? `${flagged.length} flagged shift${flagged.length > 1 ? 's' : ''}` : 'No flagged shifts';
+  const otCaptionColor = flagged.length > 0 ? '#B4650C' : '#157F52';
+
+  const clockInCaption = avgClockInMinutes == null ? '—' : avgClockInMinutes <= 555 ? 'Within policy' : 'After 9:15 am policy line';
+  const clockInCaptionColor = avgClockInMinutes == null ? '#5B6478' : avgClockInMinutes <= 555 ? '#157F52' : '#B4650C';
+
+  const codesCaption = generalSessionsCount > 0 ? '+ General work' : 'No general work logged';
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
       <div className="flex items-start justify-between gap-6 px-12 py-9 border-b border-slate-200">
         <div>
-          <p className="font-mono text-sm font-semibold text-[#1540A8]">nextan <span className="text-slate-400 font-normal">/ HR Portal</span></p>
-          <h2 className="mt-3 font-serif text-4xl font-semibold text-slate-900">Staff Activity Report</h2>
-          <p className="mt-2 text-base text-slate-500 max-w-md">Attendance, project allocation and punctuality summary, prepared for the shareholder review pack.</p>
+          <p className="text-sm font-semibold text-[#1540A8]" style={PLEX_MONO}>nextan <span className="text-slate-400 font-normal">/ HR Portal</span></p>
+          <h2 className="mt-3 text-4xl font-semibold text-[#10172A]" style={FRAUNCES}>Staff Activity Report</h2>
+          <p className="mt-2 text-base text-[#5B6478] max-w-md">Attendance, project allocation and punctuality summary, prepared for the shareholder review pack.</p>
         </div>
-        <div className="text-right text-sm text-slate-500 leading-relaxed whitespace-nowrap">
-          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-slate-400">Reporting period</p>
-          <p className="font-semibold text-slate-900 text-base">{periodLabel}</p>
-          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.16em] text-slate-400">Generated</p>
-          <p className="font-semibold text-slate-900 text-base">{new Date().toLocaleString('en-SG', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}</p>
+        <div className="text-right text-sm text-[#5B6478] leading-relaxed whitespace-nowrap">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400" style={PLEX_MONO}>Reporting period</p>
+          <p className="font-semibold text-[#10172A] text-base">{periodLabel}</p>
+          <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-slate-400" style={PLEX_MONO}>Generated</p>
+          <p className="font-semibold text-[#10172A] text-base">{new Date().toLocaleString('en-SG', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}</p>
         </div>
       </div>
 
       <div className="flex items-center gap-5 px-12 py-6 border-b border-[#C9D9FB] bg-[#EAF0FF]">
-        <div className="w-16 h-16 rounded-full bg-[#1540A8] text-white flex items-center justify-center font-serif font-semibold text-2xl flex-shrink-0">
+        <div className="w-16 h-16 rounded-full bg-[#1540A8] text-white flex items-center justify-center font-semibold text-2xl flex-shrink-0" style={FRAUNCES}>
           {(employee.full_name || '?').trim().charAt(0).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-slate-900 text-xl truncate">{employee.full_name}</p>
-          <p className="text-sm text-slate-500">{employee.email || '—'}</p>
+          <p className="font-semibold text-[#10172A] text-xl truncate">{employee.full_name}</p>
+          <p className="text-sm text-[#5B6478]">{employee.email || '—'}</p>
         </div>
         <div className="flex flex-wrap gap-2 justify-end">
           {projectCodes.size > 0 ? Array.from(projectCodes).map((c) => (
-            <span key={c} className="text-sm font-mono font-medium rounded-full bg-white border border-[#C9D9FB] text-[#0E2E7A] px-3.5 py-1">{c}</span>
+            <span key={c} className="text-sm font-medium rounded-full bg-white border border-[#C9D9FB] text-[#0E2E7A] px-3.5 py-1" style={PLEX_MONO}>{c}</span>
           )) : <span className="text-sm text-slate-400">No project codes</span>}
         </div>
       </div>
 
       <div className="px-12 py-10">
-        <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2">At a glance</p>
-        <h3 className="font-serif text-2xl font-semibold text-slate-900 mb-6">Activity summary</h3>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>At a glance</p>
+        <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>Activity summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
           {[
-            ['Hours logged', `${totalHours.toFixed(2)}h`],
-            ['Days worked', String(daysWorked)],
-            ['Overtime', `${otHours.toFixed(2)}h`],
-            ['Avg. clock-in', avgClockIn],
-            ['Project codes', String(projectCodes.size)],
-          ].map(([label, value]) => (
+            ['Hours logged', `${totalHours.toFixed(2)}h`, hoursCaption, hoursCaptionColor],
+            ['Days worked', String(daysWorked), `of ${daysInPeriod} day${daysInPeriod === 1 ? '' : 's'}`, '#5B6478'],
+            ['Overtime', `${otHours.toFixed(2)}h`, otCaption, otCaptionColor],
+            ['Avg. clock-in', avgClockIn, clockInCaption, clockInCaptionColor],
+            ['Project codes', String(projectCodes.size), codesCaption, '#5B6478'],
+          ].map(([label, value, caption, captionColor]) => (
             <div key={label} className="rounded-2xl border border-slate-200 px-5 py-4">
-              <div className="font-mono text-3xl font-semibold text-slate-900">{value}</div>
-              <div className="text-sm text-slate-500 mt-1.5">{label}</div>
+              <div className="text-3xl font-semibold text-[#10172A]" style={PLEX_MONO}>{value}</div>
+              <div className="text-sm text-[#5B6478] mt-1.5">{label}</div>
+              <div className="text-xs font-semibold mt-2" style={{ color: captionColor }}>{caption}</div>
             </div>
           ))}
         </div>
@@ -386,15 +420,15 @@ function EmployeeReportPrint({ employee, sessions, periodLabel }) {
           <p className="text-base text-slate-400 italic mb-2">No attendance sessions logged in this period.</p>
         ) : (
           <>
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2">Visual summary</p>
-            <h3 className="font-serif text-2xl font-semibold text-slate-900 mb-6">When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Visual summary</p>
+            <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
             <div className="grid md:grid-cols-2 gap-10 mb-10">
               <div>
-                <p className="text-base font-semibold text-slate-700 mb-2">Clock-in time by session</p>
+                <p className="text-base font-semibold text-[#10172A] mb-2">Clock-in time by session</p>
                 <ClockInChart sessions={sessions} />
               </div>
               <div>
-                <p className="text-base font-semibold text-slate-700 mb-2">Hours logged per day</p>
+                <p className="text-base font-semibold text-[#10172A] mb-2">Hours logged per day</p>
                 <HoursBarChart sessions={sessions} />
               </div>
             </div>
@@ -408,8 +442,8 @@ function EmployeeReportPrint({ employee, sessions, periodLabel }) {
               </div>
             )}
 
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2">Supporting detail</p>
-            <h3 className="font-serif text-2xl font-semibold text-slate-900 mb-6">Full activity log</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Supporting detail</p>
+            <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>Full activity log</h3>
             <ActivityLogTable sorted={sorted} />
           </>
         )}
@@ -456,6 +490,10 @@ export default function ReportsPage() {
   }, [requesterId, backendBaseUrl]);
 
   const periodRange = useMemo(() => getPeriodRange(periodType, anchorDate), [periodType, anchorDate]);
+  const daysInPeriod = useMemo(() => {
+    const start = parseDateStr(periodRange.startStr), end = parseDateStr(periodRange.endStr);
+    return Math.round((end - start) / 86400000) + 1;
+  }, [periodRange]);
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
@@ -486,6 +524,20 @@ export default function ReportsPage() {
       .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
   }, [employeeFilter, employees, filteredRows]);
 
+  // Prior-period hours per employee, purely so the PDF can show a real "vs. prior period"
+  // delta instead of a made-up one.
+  const priorHoursByUser = useMemo(() => {
+    const priorRange = getPeriodRange(periodType, getPreviousAnchor(periodType, anchorDate));
+    const totals = new Map();
+    for (const r of rows) {
+      if (!r.clock_in_time) continue;
+      const d = sgtDateStr(r.clock_in_time);
+      if (d < priorRange.startStr || d > priorRange.endStr) continue;
+      totals.set(r.user_id, (totals.get(r.user_id) || 0) + (Number(r.daily_worktime_hours) || 0));
+    }
+    return totals;
+  }, [rows, periodType, anchorDate]);
+
   const [generating, setGenerating] = useState(false);
 
   const handleDownload = async () => {
@@ -499,6 +551,9 @@ export default function ReportsPage() {
         import('jspdf'),
         import('html2canvas-pro'),
       ]);
+      // Make sure the print template's Google Fonts (Fraunces / IBM Plex) are actually loaded
+      // before capture — otherwise html2canvas snapshots the fallback font mid-swap.
+      if (document.fonts?.ready) await document.fonts.ready;
 
       const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
       const pageWidth = pdf.internal.pageSize.getWidth();
@@ -630,6 +685,8 @@ export default function ReportsPage() {
             employee={emp}
             sessions={emp.sessions}
             periodLabel={periodRange.label}
+            priorHours={priorHoursByUser.get(emp.user_id) || 0}
+            daysInPeriod={daysInPeriod}
           />
         ))}
       </div>
