@@ -363,12 +363,15 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
   const codesCaption = generalSessionsCount > 0 ? '+ General work' : 'No general work logged';
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div className="bg-white">
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
 
-      <div className="flex items-start justify-between gap-6 px-12 py-9 border-b border-slate-200">
+      {/* Each data-pdf-block is captured and placed on the PDF as its own image, so a page
+          break can only ever fall between blocks — never through the middle of a chart,
+          the KPI grid, or a table row. */}
+      <div data-pdf-block className="flex items-start justify-between gap-6 px-12 pt-10 pb-9 border-b border-slate-200">
         <div>
           <p className="text-sm font-semibold text-[#1540A8]" style={PLEX_MONO}>nextan <span className="text-slate-400 font-normal">/ HR Portal</span></p>
           <h2 className="mt-3 text-4xl font-semibold text-[#10172A]" style={FRAUNCES}>Staff Activity Report</h2>
@@ -382,7 +385,7 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
         </div>
       </div>
 
-      <div className="flex items-center gap-5 px-12 py-6 border-b border-[#C9D9FB] bg-[#EAF0FF]">
+      <div data-pdf-block className="flex items-center gap-5 px-12 py-6 border-b border-[#C9D9FB] bg-[#EAF0FF]">
         <div className="w-16 h-16 rounded-full bg-[#1540A8] text-white flex items-center justify-center font-semibold text-2xl flex-shrink-0" style={FRAUNCES}>
           {(employee.full_name || '?').trim().charAt(0).toUpperCase()}
         </div>
@@ -397,10 +400,10 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
         </div>
       </div>
 
-      <div className="px-12 py-10">
+      <div data-pdf-block className={sessions.length === 0 ? 'px-12 pt-10 pb-10' : 'px-12 pt-10 pb-8'}>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>At a glance</p>
         <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>Activity summary</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {[
             ['Hours logged', `${totalHours.toFixed(2)}h`, hoursCaption, hoursCaptionColor],
             ['Days worked', String(daysWorked), `of ${daysInPeriod} day${daysInPeriod === 1 ? '' : 's'}`, '#5B6478'],
@@ -415,39 +418,46 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
             </div>
           ))}
         </div>
+        {sessions.length === 0 && (
+          <p className="text-base text-slate-400 italic mt-8">No attendance sessions logged in this period.</p>
+        )}
+      </div>
 
-        {sessions.length === 0 ? (
-          <p className="text-base text-slate-400 italic mb-2">No attendance sessions logged in this period.</p>
-        ) : (
-          <>
+      {sessions.length > 0 && (
+        <>
+          <div data-pdf-block className="px-12 pb-6">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Visual summary</p>
-            <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
-            <div className="flex flex-col gap-10 mb-10">
-              <div>
-                <p className="text-base font-semibold text-[#10172A] mb-2">Clock-in time by session</p>
-                <ClockInChart sessions={sessions} />
-              </div>
-              <div>
-                <p className="text-base font-semibold text-[#10172A] mb-2">Hours logged per day</p>
-                <HoursBarChart sessions={sessions} />
-              </div>
-            </div>
+            <h3 className="text-2xl font-semibold text-[#10172A]" style={FRAUNCES}>When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
+          </div>
 
-            {flagged.length > 0 && (
-              <div className="mb-10 flex items-start gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <div data-pdf-block className="px-12 pb-8">
+            <p className="text-base font-semibold text-[#10172A] mb-2">Clock-in time by session</p>
+            <ClockInChart sessions={sessions} />
+          </div>
+
+          <div data-pdf-block className="px-12 pb-8">
+            <p className="text-base font-semibold text-[#10172A] mb-2">Hours logged per day</p>
+            <HoursBarChart sessions={sessions} />
+          </div>
+
+          {flagged.length > 0 && (
+            <div data-pdf-block className="px-12 pb-8">
+              <div className="flex items-start gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
                 <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-sm font-bold">!</span>
                 <p className="text-sm text-amber-800">
                   {flagged.length} session{flagged.length > 1 ? 's' : ''} auto-flagged as overnight / unusual-hours shifts — see the highlighted rows below.
                 </p>
               </div>
-            )}
+            </div>
+          )}
 
+          <div data-pdf-block className="px-12 pb-10">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Supporting detail</p>
             <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>Full activity log</h3>
             <ActivityLogTable sorted={sorted} />
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -560,28 +570,55 @@ export default function ReportsPage() {
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 24;
       const imgWidth = pageWidth - margin * 2;
-      const maxSliceHeight = pageHeight - margin * 2;
-      let anyPageAdded = false;
+      const usableHeight = pageHeight - margin * 2;
+      let cursorY = margin;
 
-      for (const section of sections) {
-        const canvas = await html2canvas(section, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      // Places one already-captured block. A block taller than a full page (e.g. a very
+      // long activity log) still gets sliced across pages — everything else is placed
+      // whole, so a page break can only ever land in the gap between two blocks.
+      const placeCanvas = (canvas) => {
         const pxPerPt = canvas.width / imgWidth;
-        const sliceHeightPx = Math.floor(maxSliceHeight * pxPerPt);
-        let yOffsetPx = 0;
+        const imgHeightPt = canvas.height / pxPerPt;
 
-        while (yOffsetPx < canvas.height) {
-          const thisSliceHeightPx = Math.min(sliceHeightPx, canvas.height - yOffsetPx);
-          const sliceCanvas = document.createElement('canvas');
-          sliceCanvas.width = canvas.width;
-          sliceCanvas.height = thisSliceHeightPx;
-          sliceCanvas.getContext('2d').drawImage(
-            canvas, 0, yOffsetPx, canvas.width, thisSliceHeightPx, 0, 0, canvas.width, thisSliceHeightPx
-          );
+        if (imgHeightPt > usableHeight) {
+          if (cursorY > margin) { pdf.addPage(); cursorY = margin; }
+          const sliceHeightPx = Math.floor(usableHeight * pxPerPt);
+          let yOffsetPx = 0;
+          let first = true;
+          while (yOffsetPx < canvas.height) {
+            const thisSliceHeightPx = Math.min(sliceHeightPx, canvas.height - yOffsetPx);
+            const sliceCanvas = document.createElement('canvas');
+            sliceCanvas.width = canvas.width;
+            sliceCanvas.height = thisSliceHeightPx;
+            sliceCanvas.getContext('2d').drawImage(
+              canvas, 0, yOffsetPx, canvas.width, thisSliceHeightPx, 0, 0, canvas.width, thisSliceHeightPx
+            );
+            if (!first) pdf.addPage();
+            pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', margin, margin, imgWidth, thisSliceHeightPx / pxPerPt);
+            cursorY = margin + thisSliceHeightPx / pxPerPt;
+            yOffsetPx += thisSliceHeightPx;
+            first = false;
+          }
+          return;
+        }
 
-          if (anyPageAdded) pdf.addPage();
-          pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', margin, margin, imgWidth, thisSliceHeightPx / pxPerPt);
-          anyPageAdded = true;
-          yOffsetPx += thisSliceHeightPx;
+        if (cursorY + imgHeightPt > pageHeight - margin) {
+          pdf.addPage();
+          cursorY = margin;
+        }
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, cursorY, imgWidth, imgHeightPt);
+        cursorY += imgHeightPt;
+      };
+
+      let isFirstEmployee = true;
+      for (const employeeWrapper of sections) {
+        if (!isFirstEmployee) { pdf.addPage(); cursorY = margin; }
+        isFirstEmployee = false;
+
+        const blocks = Array.from(employeeWrapper.querySelectorAll(':scope > [data-pdf-block]'));
+        for (const block of blocks.length > 0 ? blocks : [employeeWrapper]) {
+          const canvas = await html2canvas(block, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+          placeCanvas(canvas);
         }
       }
 
