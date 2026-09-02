@@ -176,7 +176,7 @@ function HoursBarChart({ sessions }) {
   );
 }
 
-function EmployeeReport({ employee, sessions, periodLabel }) {
+function computeReportStats(sessions) {
   const totalHours = sessions.reduce((sum, s) => sum + (Number(s.daily_worktime_hours) || 0), 0);
   const otHours = sessions.reduce((sum, s) => sum + (Number(s.ot_hours_accrued) || 0), 0);
   const daysWorked = new Set(sessions.filter((s) => s.clock_in_time).map((s) => sgtDateStr(s.clock_in_time))).size;
@@ -186,6 +186,152 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
   sessions.forEach((s) => (Array.isArray(s.allocations) ? s.allocations : []).forEach((a) => a.project_code && projectCodes.add(a.project_code)));
   const flagged = sessions.filter(isOvernightShift);
   const sorted = [...sessions].sort((a, b) => new Date(a.clock_in_time) - new Date(b.clock_in_time));
+  return { totalHours, otHours, daysWorked, avgClockIn, projectCodes, flagged, sorted };
+}
+
+function ActivityLogTable({ sorted }) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+      <table className="min-w-full text-xs">
+        <thead className="bg-[#EAF0FF] text-[#5B6478] uppercase tracking-wider text-[10px]">
+          <tr>
+            <th className="px-3 py-2 text-left">Project Code(s)</th>
+            <th className="px-3 py-2 text-left">Clock In Date</th>
+            <th className="px-3 py-2 text-left">Clock In Time</th>
+            <th className="px-3 py-2 text-left">Clock Out Date</th>
+            <th className="px-3 py-2 text-left">Clock Out Time</th>
+            <th className="px-3 py-2 text-left">Hours</th>
+            <th className="px-3 py-2 text-left">OT Hrs</th>
+            <th className="px-3 py-2 text-left">General Description</th>
+            <th className="px-3 py-2 text-left">Project Description</th>
+            <th className="px-3 py-2 text-left">Remark</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {sorted.map((s) => {
+            const allocations = Array.isArray(s.allocations) ? s.allocations : [];
+            const projectAllocs = allocations.filter((a) => a.project_code);
+            const generalAlloc = allocations.find((a) => !a.project_code);
+            const codes = projectAllocs.length > 0 ? projectAllocs.map((a) => a.project_code) : (s.project_code ? [s.project_code] : (generalAlloc ? ['General'] : []));
+            const overnight = isOvernightShift(s);
+            return (
+              <tr key={s.attendance_id} className={overnight ? 'bg-amber-50/60' : undefined}>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  {codes.map((c) => (
+                    <span key={c} className="inline-block font-mono text-[10px] bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-1.5 py-0.5 mr-1 mb-1">{c}</span>
+                  ))}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">{formatCsvDate(s.clock_in_time)}</td>
+                <td className="px-3 py-2 whitespace-nowrap font-mono">{formatCsvTime(s.clock_in_time)}</td>
+                {s.clock_out_time ? (
+                  <>
+                    <td className="px-3 py-2 whitespace-nowrap">{formatCsvDate(s.clock_out_time)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap font-mono">{formatCsvTime(s.clock_out_time)}</td>
+                  </>
+                ) : (
+                  <td className="px-3 py-2 font-semibold text-green-600" colSpan={2}>Ongoing</td>
+                )}
+                <td className="px-3 py-2 font-mono whitespace-nowrap">{s.daily_worktime_hours != null ? Number(s.daily_worktime_hours).toFixed(2) : '—'}</td>
+                <td className={`px-3 py-2 font-mono whitespace-nowrap ${Number(s.ot_hours_accrued) > 0 ? 'text-amber-700 font-semibold' : ''}`}>{s.ot_hours_accrued != null ? Number(s.ot_hours_accrued).toFixed(2) : '—'}</td>
+                <td className="px-3 py-2 max-w-[180px]">
+                  {generalAlloc
+                    ? (generalAlloc.description || <span className="text-slate-400 italic">— none —</span>)
+                    : <span className="text-slate-400 italic">— n/a —</span>}
+                </td>
+                <td className="px-3 py-2 max-w-[220px]">
+                  {projectAllocs.length > 0
+                    ? projectAllocs.map((a) => <div key={a.project_code}>{a.project_code}: {a.description || <span className="text-slate-400 italic">—</span>}</div>)
+                    : <span className="text-slate-400 italic">— n/a —</span>}
+                </td>
+                <td className="px-3 py-2 max-w-[160px]">{s.remark || <span className="text-slate-400 italic">—</span>}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// On-screen report card — the original compact layout, unchanged since before the
+// shareholder-template redesign. The fancier template lives only in EmployeeReportPrint,
+// captured off-screen for the PDF, so this stays whatever the portal itself should look like.
+function EmployeeReport({ employee, sessions, periodLabel }) {
+  const { totalHours, otHours, daysWorked, avgClockIn, projectCodes, flagged, sorted } = computeReportStats(sessions);
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="flex items-center gap-4 px-8 py-5 border-b border-slate-200 bg-[#EAF0FF]">
+        <div className="w-11 h-11 rounded-full bg-[#1540A8] text-white flex items-center justify-center font-semibold text-lg flex-shrink-0">
+          {(employee.full_name || '?').trim().charAt(0).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-slate-900 truncate">{employee.full_name}</p>
+          <p className="text-xs text-slate-500">{employee.email || '—'}</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5 justify-end">
+          {projectCodes.size > 0 ? Array.from(projectCodes).map((c) => (
+            <span key={c} className="text-[11px] font-mono font-medium rounded-full bg-white border border-[#C9D9FB] text-[#0E2E7A] px-2.5 py-0.5">{c}</span>
+          )) : <span className="text-[11px] text-slate-400">No project codes</span>}
+        </div>
+      </div>
+
+      <div className="px-8 py-6">
+        <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.16em] text-[#1540A8] mb-1">{periodLabel}</p>
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">Activity summary</h3>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+          {[
+            ['Hours logged', `${totalHours.toFixed(2)}h`],
+            ['Days worked', String(daysWorked)],
+            ['Overtime', `${otHours.toFixed(2)}h`],
+            ['Avg. clock-in', avgClockIn],
+            ['Project codes', String(projectCodes.size)],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-2xl border border-slate-200 px-4 py-3">
+              <div className="font-mono text-xl font-semibold text-slate-900">{value}</div>
+              <div className="text-[11px] text-slate-500 mt-1">{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {sessions.length === 0 ? (
+          <p className="text-sm text-slate-400 italic mb-2">No attendance sessions logged in this period.</p>
+        ) : (
+          <>
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <p className="text-sm font-semibold text-slate-700 mb-1">Clock-in time by session</p>
+                <ClockInChart sessions={sessions} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-700 mb-1">Hours logged per day</p>
+                <HoursBarChart sessions={sessions} />
+              </div>
+            </div>
+
+            {flagged.length > 0 && (
+              <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">!</span>
+                <p className="text-xs text-amber-800">
+                  {flagged.length} session{flagged.length > 1 ? 's' : ''} auto-flagged as overnight / unusual-hours shifts — see the highlighted rows below.
+                </p>
+              </div>
+            )}
+
+            <p className="text-sm font-semibold text-slate-700 mb-2">Full activity log</p>
+            <ActivityLogTable sorted={sorted} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Print-only report card — the fuller shareholder-report template (masthead, subject strip,
+// serif headings). Rendered off-screen purely so the PDF can capture it; the visible portal
+// page always shows EmployeeReport above instead.
+function EmployeeReportPrint({ employee, sessions, periodLabel }) {
+  const { totalHours, otHours, daysWorked, avgClockIn, projectCodes, flagged, sorted } = computeReportStats(sessions);
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -262,66 +408,9 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
               </div>
             )}
 
-            <p className="text-sm font-semibold text-slate-700 mb-2">Full activity log</p>
-            <div className="overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="min-w-full text-xs">
-                <thead className="bg-[#EAF0FF] text-[#5B6478] uppercase tracking-wider text-[10px]">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Project Code(s)</th>
-                    <th className="px-3 py-2 text-left">Clock In Date</th>
-                    <th className="px-3 py-2 text-left">Clock In Time</th>
-                    <th className="px-3 py-2 text-left">Clock Out Date</th>
-                    <th className="px-3 py-2 text-left">Clock Out Time</th>
-                    <th className="px-3 py-2 text-left">Hours</th>
-                    <th className="px-3 py-2 text-left">OT Hrs</th>
-                    <th className="px-3 py-2 text-left">General Description</th>
-                    <th className="px-3 py-2 text-left">Project Description</th>
-                    <th className="px-3 py-2 text-left">Remark</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sorted.map((s) => {
-                    const allocations = Array.isArray(s.allocations) ? s.allocations : [];
-                    const projectAllocs = allocations.filter((a) => a.project_code);
-                    const generalAlloc = allocations.find((a) => !a.project_code);
-                    const codes = projectAllocs.length > 0 ? projectAllocs.map((a) => a.project_code) : (s.project_code ? [s.project_code] : (generalAlloc ? ['General'] : []));
-                    const overnight = isOvernightShift(s);
-                    return (
-                      <tr key={s.attendance_id} className={overnight ? 'bg-amber-50/60' : undefined}>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          {codes.map((c) => (
-                            <span key={c} className="inline-block font-mono text-[10px] bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-1.5 py-0.5 mr-1 mb-1">{c}</span>
-                          ))}
-                        </td>
-                        <td className="px-3 py-2 whitespace-nowrap">{formatCsvDate(s.clock_in_time)}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-mono">{formatCsvTime(s.clock_in_time)}</td>
-                        {s.clock_out_time ? (
-                          <>
-                            <td className="px-3 py-2 whitespace-nowrap">{formatCsvDate(s.clock_out_time)}</td>
-                            <td className="px-3 py-2 whitespace-nowrap font-mono">{formatCsvTime(s.clock_out_time)}</td>
-                          </>
-                        ) : (
-                          <td className="px-3 py-2 font-semibold text-green-600" colSpan={2}>Ongoing</td>
-                        )}
-                        <td className="px-3 py-2 font-mono whitespace-nowrap">{s.daily_worktime_hours != null ? Number(s.daily_worktime_hours).toFixed(2) : '—'}</td>
-                        <td className={`px-3 py-2 font-mono whitespace-nowrap ${Number(s.ot_hours_accrued) > 0 ? 'text-amber-700 font-semibold' : ''}`}>{s.ot_hours_accrued != null ? Number(s.ot_hours_accrued).toFixed(2) : '—'}</td>
-                        <td className="px-3 py-2 max-w-[180px]">
-                          {generalAlloc
-                            ? (generalAlloc.description || <span className="text-slate-400 italic">— none —</span>)
-                            : <span className="text-slate-400 italic">— n/a —</span>}
-                        </td>
-                        <td className="px-3 py-2 max-w-[220px]">
-                          {projectAllocs.length > 0
-                            ? projectAllocs.map((a) => <div key={a.project_code}>{a.project_code}: {a.description || <span className="text-slate-400 italic">—</span>}</div>)
-                            : <span className="text-slate-400 italic">— n/a —</span>}
-                        </td>
-                        <td className="px-3 py-2 max-w-[160px]">{s.remark || <span className="text-slate-400 italic">—</span>}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2">Supporting detail</p>
+            <h3 className="font-serif text-2xl font-semibold text-slate-900 mb-6">Full activity log</h3>
+            <ActivityLogTable sorted={sorted} />
           </>
         )}
       </div>
@@ -400,7 +489,7 @@ export default function ReportsPage() {
   const [generating, setGenerating] = useState(false);
 
   const handleDownload = async () => {
-    const container = document.getElementById('reports-print-area');
+    const container = document.getElementById('reports-pdf-source');
     const sections = container ? Array.from(container.children) : [];
     if (sections.length === 0) return;
 
@@ -530,6 +619,19 @@ export default function ReportsPage() {
             />
           ))
         )}
+      </div>
+
+      {/* Off-screen — never shown, exists only so handleDownload can capture the fuller
+          shareholder-report template into the PDF without changing what the portal displays. */}
+      <div id="reports-pdf-source" style={{ position: 'fixed', top: 0, left: '-99999px', width: '900px' }} aria-hidden="true">
+        {employeesInScope.map((emp) => (
+          <EmployeeReportPrint
+            key={emp.user_id}
+            employee={emp}
+            sessions={emp.sessions}
+            periodLabel={periodRange.label}
+          />
+        ))}
       </div>
     </div>
   );
