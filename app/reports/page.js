@@ -204,19 +204,19 @@ function computeReportStats(sessions) {
 function ActivityLogTable({ sorted }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-200">
-      <table className="min-w-full text-xs">
-        <thead className="bg-[#EAF0FF] text-[#5B6478] uppercase tracking-wider text-[10px]">
+      <table className="min-w-full text-sm">
+        <thead className="bg-[#EAF0FF] text-[#5B6478] uppercase tracking-wider text-xs">
           <tr>
-            <th className="px-3 py-2 text-left">Project Code(s)</th>
-            <th className="px-3 py-2 text-left">Clock In Date</th>
-            <th className="px-3 py-2 text-left">Clock In Time</th>
-            <th className="px-3 py-2 text-left">Clock Out Date</th>
-            <th className="px-3 py-2 text-left">Clock Out Time</th>
-            <th className="px-3 py-2 text-left">Hours</th>
-            <th className="px-3 py-2 text-left">OT Hrs</th>
-            <th className="px-3 py-2 text-left">General Description</th>
-            <th className="px-3 py-2 text-left">Project Description</th>
-            <th className="px-3 py-2 text-left">Remark</th>
+            <th className="px-4 py-2.5 text-left">Project Code(s)</th>
+            <th className="px-4 py-2.5 text-left">Clock In Date</th>
+            <th className="px-4 py-2.5 text-left">Clock In Time</th>
+            <th className="px-4 py-2.5 text-left">Clock Out Date</th>
+            <th className="px-4 py-2.5 text-left">Clock Out Time</th>
+            <th className="px-4 py-2.5 text-left">Hours</th>
+            <th className="px-4 py-2.5 text-left">OT Hrs</th>
+            <th className="px-4 py-2.5 text-left">General Description</th>
+            <th className="px-4 py-2.5 text-left">Project Description</th>
+            <th className="px-4 py-2.5 text-left">Remark</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -228,34 +228,34 @@ function ActivityLogTable({ sorted }) {
             const overnight = isOvernightShift(s);
             return (
               <tr key={s.attendance_id} className={overnight ? 'bg-amber-50/60' : undefined}>
-                <td className="px-3 py-2 whitespace-nowrap">
+                <td className="px-4 py-2.5 whitespace-nowrap">
                   {codes.map((c) => (
-                    <span key={c} className="inline-block font-mono text-[10px] bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-1.5 py-0.5 mr-1 mb-1">{c}</span>
+                    <span key={c} className="inline-block font-mono text-xs bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-2 py-0.5 mr-1 mb-1">{c}</span>
                   ))}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap">{formatCsvDate(s.clock_in_time)}</td>
-                <td className="px-3 py-2 whitespace-nowrap font-mono">{formatCsvTime(s.clock_in_time)}</td>
+                <td className="px-4 py-2.5 whitespace-nowrap">{formatCsvDate(s.clock_in_time)}</td>
+                <td className="px-4 py-2.5 whitespace-nowrap font-mono">{formatCsvTime(s.clock_in_time)}</td>
                 {s.clock_out_time ? (
                   <>
-                    <td className="px-3 py-2 whitespace-nowrap">{formatCsvDate(s.clock_out_time)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap font-mono">{formatCsvTime(s.clock_out_time)}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">{formatCsvDate(s.clock_out_time)}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap font-mono">{formatCsvTime(s.clock_out_time)}</td>
                   </>
                 ) : (
-                  <td className="px-3 py-2 font-semibold text-green-600" colSpan={2}>Ongoing</td>
+                  <td className="px-4 py-2.5 font-semibold text-green-600" colSpan={2}>Ongoing</td>
                 )}
-                <td className="px-3 py-2 font-mono whitespace-nowrap">{s.daily_worktime_hours != null ? Number(s.daily_worktime_hours).toFixed(2) : '—'}</td>
-                <td className={`px-3 py-2 font-mono whitespace-nowrap ${Number(s.ot_hours_accrued) > 0 ? 'text-amber-700 font-semibold' : ''}`}>{s.ot_hours_accrued != null ? Number(s.ot_hours_accrued).toFixed(2) : '—'}</td>
-                <td className="px-3 py-2 max-w-[180px]">
+                <td className="px-4 py-2.5 font-mono whitespace-nowrap">{s.daily_worktime_hours != null ? Number(s.daily_worktime_hours).toFixed(2) : '—'}</td>
+                <td className={`px-4 py-2.5 font-mono whitespace-nowrap ${Number(s.ot_hours_accrued) > 0 ? 'text-amber-700 font-semibold' : ''}`}>{s.ot_hours_accrued != null ? Number(s.ot_hours_accrued).toFixed(2) : '—'}</td>
+                <td className="px-4 py-2.5 max-w-[200px]">
                   {generalAlloc
                     ? (generalAlloc.description || <span className="text-slate-400 italic">— none —</span>)
                     : <span className="text-slate-400 italic">— n/a —</span>}
                 </td>
-                <td className="px-3 py-2 max-w-[220px]">
+                <td className="px-4 py-2.5 max-w-[240px]">
                   {projectAllocs.length > 0
                     ? projectAllocs.map((a) => <div key={a.project_code}>{a.project_code}: {a.description || <span className="text-slate-400 italic">—</span>}</div>)
                     : <span className="text-slate-400 italic">— n/a —</span>}
                 </td>
-                <td className="px-3 py-2 max-w-[160px]">{s.remark || <span className="text-slate-400 italic">—</span>}</td>
+                <td className="px-4 py-2.5 max-w-[180px]">{s.remark || <span className="text-slate-400 italic">—</span>}</td>
               </tr>
             );
           })}
