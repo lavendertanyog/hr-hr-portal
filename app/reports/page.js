@@ -262,8 +262,7 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
               </div>
             )}
 
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2">Supporting detail</p>
-            <h3 className="font-serif text-2xl font-semibold text-slate-900 mb-6">Full activity log</h3>
+            <p className="text-sm font-semibold text-slate-700 mb-2">Full activity log</p>
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
               <table className="min-w-full text-xs">
                 <thead className="bg-[#EAF0FF] text-[#5B6478] uppercase tracking-wider text-[10px]">
