@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import SidebarClient from './SidebarClient';
 
-const SIDEBAR_PATH_PREFIXES = ['/project-codes', '/admin', '/users', '/hierarchy', '/attendance', '/leave'];
+const SIDEBAR_PATH_PREFIXES = ['/project-codes', '/admin', '/users', '/hierarchy', '/attendance', '/leave', '/reports'];
 const MOBILE_MEDIA_QUERY = '(max-width: 860px)';
 
 export default function AppShell({ children }) {
