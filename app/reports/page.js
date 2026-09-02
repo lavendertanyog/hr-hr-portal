@@ -176,7 +176,7 @@ function HoursBarChart({ sessions }) {
   );
 }
 
-function EmployeeReport({ employee, sessions, periodLabel, isLast }) {
+function EmployeeReport({ employee, sessions, periodLabel }) {
   const totalHours = sessions.reduce((sum, s) => sum + (Number(s.daily_worktime_hours) || 0), 0);
   const otHours = sessions.reduce((sum, s) => sum + (Number(s.ot_hours_accrued) || 0), 0);
   const daysWorked = new Set(sessions.filter((s) => s.clock_in_time).map((s) => sgtDateStr(s.clock_in_time))).size;
@@ -188,7 +188,7 @@ function EmployeeReport({ employee, sessions, periodLabel, isLast }) {
   const sorted = [...sessions].sort((a, b) => new Date(a.clock_in_time) - new Date(b.clock_in_time));
 
   return (
-    <div className={`rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden ${isLast ? '' : 'report-page-break'}`}>
+    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="flex items-center gap-4 px-8 py-5 border-b border-slate-200 bg-[#EAF0FF]">
         <div className="w-11 h-11 rounded-full bg-[#1540A8] text-white flex items-center justify-center font-semibold text-lg flex-shrink-0">
           {(employee.full_name || '?').trim().charAt(0).toUpperCase()}
@@ -381,39 +381,77 @@ export default function ReportsPage() {
       .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
   }, [employeeFilter, employees, filteredRows]);
 
-  const handleDownload = () => {
-    const employeeLabel = employeeFilter === 'all' ? 'All employees' : (employees.find((e) => e.user_id === employeeFilter)?.full_name || 'Employee');
-    const entry = { employeeLabel, periodType, rangeLabel: periodRange.label, generatedAt: new Date().toISOString() };
-    const next = [entry, ...history].slice(0, 8);
-    setHistory(next);
-    try { localStorage.setItem('hr_reports_history', JSON.stringify(next)); } catch {}
-    window.print();
+  const [generating, setGenerating] = useState(false);
+
+  const handleDownload = async () => {
+    const container = document.getElementById('reports-print-area');
+    const sections = container ? Array.from(container.children) : [];
+    if (sections.length === 0) return;
+
+    setGenerating(true);
+    try {
+      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+        import('jspdf'),
+        import('html2canvas-pro'),
+      ]);
+
+      const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 24;
+      const imgWidth = pageWidth - margin * 2;
+      const maxSliceHeight = pageHeight - margin * 2;
+      let anyPageAdded = false;
+
+      for (const section of sections) {
+        const canvas = await html2canvas(section, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+        const pxPerPt = canvas.width / imgWidth;
+        const sliceHeightPx = Math.floor(maxSliceHeight * pxPerPt);
+        let yOffsetPx = 0;
+
+        while (yOffsetPx < canvas.height) {
+          const thisSliceHeightPx = Math.min(sliceHeightPx, canvas.height - yOffsetPx);
+          const sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = thisSliceHeightPx;
+          sliceCanvas.getContext('2d').drawImage(
+            canvas, 0, yOffsetPx, canvas.width, thisSliceHeightPx, 0, 0, canvas.width, thisSliceHeightPx
+          );
+
+          if (anyPageAdded) pdf.addPage();
+          pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', margin, margin, imgWidth, thisSliceHeightPx / pxPerPt);
+          anyPageAdded = true;
+          yOffsetPx += thisSliceHeightPx;
+        }
+      }
+
+      const employeeLabel = employeeFilter === 'all' ? 'All employees' : (employees.find((e) => e.user_id === employeeFilter)?.full_name || 'Employee');
+      const slug = (employeeFilter === 'all' ? 'all-employees' : employeeLabel).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      pdf.save(`attendance-report-${slug}-${periodType}-${periodRange.startStr}.pdf`);
+
+      const entry = { employeeLabel, periodType, rangeLabel: periodRange.label, generatedAt: new Date().toISOString() };
+      const next = [entry, ...history].slice(0, 8);
+      setHistory(next);
+      try { localStorage.setItem('hr_reports_history', JSON.stringify(next)); } catch {}
+    } finally {
+      setGenerating(false);
+    }
   };
 
   return (
     <div className="p-8">
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          #reports-print-area, #reports-print-area * { visibility: visible; }
-          #reports-print-area { position: absolute; left: 0; top: 0; width: 100%; }
-          .report-page-break { break-after: page; page-break-after: always; }
-          @page { size: A4; margin: 12mm; }
-        }
-      `}</style>
-
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4 no-print">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
           <h1 className="mt-3 text-4xl font-semibold text-slate-900">Reports</h1>
           <p className="mt-2 text-sm text-slate-500">Generate a shareholder-ready PDF activity report for one employee or all staff.</p>
         </div>
-        <button onClick={handleDownload} disabled={loading} className="rounded-3xl bg-[#1540A8] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">
-          Download PDF
+        <button onClick={handleDownload} disabled={loading || generating} className="rounded-3xl bg-[#1540A8] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">
+          {generating ? 'Generating PDF…' : 'Download PDF'}
         </button>
       </div>
 
-      <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm no-print">
+      <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-3">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Employee</label>
@@ -446,7 +484,7 @@ export default function ReportsPage() {
       </div>
 
       {history.length > 0 && (
-        <div className="mb-8 no-print">
+        <div className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-2">Recently generated (this browser)</p>
           <div className="rounded-3xl border border-slate-200 bg-white divide-y divide-slate-100 shadow-sm">
             {history.map((h, i) => (
@@ -467,13 +505,12 @@ export default function ReportsPage() {
             No attendance records match the selected employee and period.
           </div>
         ) : (
-          employeesInScope.map((emp, i) => (
+          employeesInScope.map((emp) => (
             <EmployeeReport
               key={emp.user_id}
               employee={emp}
               sessions={emp.sessions}
               periodLabel={periodRange.label}
-              isLast={i === employeesInScope.length - 1}
             />
           ))
         )}
