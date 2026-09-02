@@ -422,7 +422,7 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
           <>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Visual summary</p>
             <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
-            <div className="grid md:grid-cols-2 gap-10 mb-10">
+            <div className="flex flex-col gap-10 mb-10">
               <div>
                 <p className="text-base font-semibold text-[#10172A] mb-2">Clock-in time by session</p>
                 <ClockInChart sessions={sessions} />
