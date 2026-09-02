@@ -290,8 +290,8 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
 
       <div className="px-9 py-7">
         <p className="text-xs font-mono font-semibold uppercase tracking-[0.16em] text-[#1540A8] mb-1.5">{periodLabel}</p>
-        <h3 className="text-2xl font-bold text-slate-900 mb-5">Activity summary</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-9">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">Activity summary</h3>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
           {[
             ['Hours logged', `${totalHours.toFixed(2)}h`],
             ['Days worked', String(daysWorked)],
@@ -299,9 +299,9 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
             ['Avg. clock-in', avgClockIn],
             ['Project codes', String(projectCodes.size)],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl border border-slate-200 px-5 py-4">
-              <div className="font-mono text-3xl font-bold text-slate-900">{value}</div>
-              <div className="text-sm text-slate-500 mt-1.5">{label}</div>
+            <div key={label} className="rounded-2xl border border-slate-200 px-4 py-3">
+              <div className="font-mono text-xl font-semibold text-slate-900">{value}</div>
+              <div className="text-xs text-slate-500 mt-1">{label}</div>
             </div>
           ))}
         </div>
