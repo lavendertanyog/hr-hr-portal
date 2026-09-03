@@ -16,11 +16,70 @@ const ALL_ROLES = [
 // Role priority for primary label: hr > account_manager > manager > staff
 const ROLE_PRIORITY = ['hr', 'account_manager', 'manager', 'staff'];
 
+function roleLabel(role) {
+  const def = ALL_ROLES.find((r) => r.key === role);
+  return def ? def.label : String(role || '').split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
 function RoleBadge({ role }) {
   const def = ALL_ROLES.find((r) => r.key === role);
-  const label = def ? def.label : String(role || '').split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   const color = def ? def.color : 'bg-gray-100 text-gray-600';
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${color}`}>{label}</span>;
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${color}`}>{roleLabel(role)}</span>;
+}
+
+// One employee's card in the grid. Only fields the system actually tracks — no invented
+// department/phone/photo — so "Joined" is the account's created_at, not a claimed hire date.
+function EmployeeCard({ user, isSelected, onSelect }) {
+  const roles = Array.isArray(user.user_roles) && user.user_roles.length > 0
+    ? user.user_roles : [user.user_role].filter(Boolean);
+  const primaryRole = ROLE_PRIORITY.find((r) => roles.includes(r)) || roles[0];
+  const initials = (user.full_name || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+  const joined = user.created_at
+    ? new Date(user.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '—';
+
+  return (
+    <button type="button" onClick={onSelect} title="View employee details"
+      className={`text-left rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md ${
+        isSelected ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/20' : 'border-gray-100 hover:border-slate-300'
+      }`}>
+      <div className="flex items-start justify-between mb-3">
+        <div className="w-12 h-12 rounded-full bg-[#e8edf8] text-[#1a3a8f] flex items-center justify-center font-semibold flex-shrink-0">
+          {initials}
+        </div>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          className="text-slate-300">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </div>
+      <p className="font-semibold text-slate-900 truncate">{user.full_name}</p>
+      <p className="text-xs text-slate-400 mb-4">{primaryRole ? roleLabel(primaryRole) : '—'}</p>
+
+      <div className="grid grid-cols-2 gap-3 mb-4 pb-4 border-b border-slate-100">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Joined</p>
+          <p className="text-sm font-medium text-slate-700">{joined}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Leave / yr</p>
+          <p className="text-sm font-medium text-slate-700">{user.leave_entitlement_days ?? 12} days</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+          <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 6-10 7L2 6" />
+        </svg>
+        <span className="truncate">{user.email}</span>
+      </div>
+
+      {roles.length > 1 && (
+        <div className="flex flex-wrap gap-1 mt-3">
+          {roles.map((r) => <RoleBadge key={r} role={r} />)}
+        </div>
+      )}
+    </button>
+  );
 }
 
 const PROJECT_ROLE_OPTIONS = [
@@ -459,60 +518,32 @@ export default function UserRolesPage() {
           </select>
         </div>
 
-        <div>
+        <div className="p-4">
           {loading ? (
-            <p className="px-6 py-8 text-sm text-slate-400">Loading users…</p>
+            <p className="px-2 py-8 text-sm text-slate-400">Loading users…</p>
           ) : filtered.length === 0 ? (
-            <p className="px-6 py-8 text-sm text-slate-400">No users match this filter.</p>
+            <p className="px-2 py-8 text-sm text-slate-400">No users match this filter.</p>
           ) : (
-            <table className="min-w-full text-sm">
-              <thead className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                <tr>
-                  <th className="px-6 py-4">Name</th>
-                  <th className="px-6 py-4">Email</th>
-                  <th className="px-6 py-4">Roles</th>
-                  <th className="px-3 py-4 w-8"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {pageData.map((u) => {
-                  const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0
-                    ? u.user_roles : [u.user_role].filter(Boolean);
-                  return (
-                    <tr key={u.user_id} onClick={() => setSelectedUserId(u.user_id)}
-                      title="View employee details"
-                      className={`group cursor-pointer transition ${selectedUserId === u.user_id ? 'bg-[#e8edf8]' : 'hover:bg-gray-50'}`}>
-                      <td className="px-6 py-4 font-semibold text-slate-900">{u.full_name}</td>
-                      <td className="px-6 py-4 text-slate-600">{u.email}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1">
-                          {roles.map((r) => <RoleBadge key={r} role={r} />)}
-                        </div>
-                      </td>
-                      <td className="px-3 py-4 text-slate-400 group-hover:text-[#1a3a8f] transition">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-
-          {totalPages > 1 && (
-            <div className="px-6 py-3 bg-slate-50 flex items-center justify-between border-t border-gray-100">
-              <span className="text-xs text-slate-500">Page {safePage} of {totalPages} · {filtered.length} users</span>
-              <div className="flex gap-2">
-                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
-                  className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Prev</button>
-                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                  className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Next</button>
-              </div>
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${selectedUserId ? '' : 'xl:grid-cols-3'}`}>
+              {pageData.map((u) => (
+                <EmployeeCard key={u.user_id} user={u} isSelected={selectedUserId === u.user_id}
+                  onSelect={() => setSelectedUserId(u.user_id)} />
+              ))}
             </div>
           )}
         </div>
+
+        {totalPages > 1 && (
+          <div className="px-6 py-3 bg-slate-50 flex items-center justify-between border-t border-gray-100">
+            <span className="text-xs text-slate-500">Page {safePage} of {totalPages} · {filtered.length} users</span>
+            <div className="flex gap-2">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
+                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Prev</button>
+              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Next</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {selectedUserId && (() => {
