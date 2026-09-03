@@ -38,7 +38,7 @@ const PROJECT_ROLE_OPTIONS = [
 function RowActions({ user, rowId, onEditUser, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser, openMenuId, setOpenMenuId }) {
   const isOpen = openMenuId === rowId;
   return (
-    <div className="relative">
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
       <button type="button" onClick={() => setOpenMenuId(isOpen ? null : rowId)}
         className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">
         Actions
@@ -71,6 +71,104 @@ function RowActions({ user, rowId, onEditUser, onManageRoles, onLeaveDays, onPro
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function EditIconButton({ onClick, label }) {
+  return (
+    <button type="button" onClick={onClick} title={label} aria-label={label}
+      className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full text-slate-400 hover:bg-slate-100 hover:text-[#1a3a8f] transition">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      </svg>
+    </button>
+  );
+}
+
+// Side panel — shows an at-a-glance summary of one employee's roles, leave entitlement,
+// and project assignments next to the table, with a pencil icon per section that opens the
+// same edit modals the row-level "Actions" menu already uses, so there's exactly one code
+// path for actually saving each kind of edit.
+function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onEditUser, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser }) {
+  const roles = Array.isArray(user.user_roles) && user.user_roles.length > 0
+    ? user.user_roles : [user.user_role].filter(Boolean);
+  const initials = (user.full_name || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+
+  return (
+    <div className="w-full lg:w-96 flex-shrink-0 rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+      <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex-shrink-0 w-11 h-11 rounded-full bg-[#e8edf8] text-[#1a3a8f] flex items-center justify-center font-semibold text-sm">
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-slate-900 truncate">{user.full_name}</p>
+            <p className="text-xs text-slate-400 truncate">{user.email}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <EditIconButton label="Edit name / email" onClick={() => onEditUser(user)} />
+          <button onClick={onClose} aria-label="Close panel"
+            className="flex items-center justify-center w-7 h-7 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div className="px-6 py-5 space-y-6">
+        {/* Roles */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Roles</p>
+            <EditIconButton label="Manage roles" onClick={() => onManageRoles(user)} />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {roles.map((r) => <RoleBadge key={r} role={r} />)}
+          </div>
+        </div>
+
+        {/* Leave entitlement */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Leave entitlement</p>
+            <EditIconButton label="Edit leave entitlement" onClick={() => onLeaveDays(user)} />
+          </div>
+          <p className="text-2xl font-semibold text-slate-900">{user.leave_entitlement_days ?? 12} <span className="text-sm font-normal text-slate-400">days / year</span></p>
+        </div>
+
+        {/* Project assignments */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Project assignments</p>
+            <EditIconButton label="Manage project assignments" onClick={() => onProjectRoles(user)} />
+          </div>
+          {projectRolesLoading ? (
+            <p className="text-sm text-slate-400">Loading…</p>
+          ) : projectRoles.length === 0 ? (
+            <p className="text-sm text-slate-400 italic">No project assignments.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {projectRoles.map((r) => (
+                <div key={r.project_code} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                  <span className="text-xs font-mono font-medium text-slate-700">{r.project_code}</span>
+                  <RoleBadge role={r.project_role} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="px-6 pb-5 pt-2 border-t border-slate-100">
+        <button onClick={() => onDeleteUser(user)}
+          className="text-xs font-semibold text-red-500 hover:text-red-700 hover:underline">
+          Delete this user
+        </button>
+      </div>
     </div>
   );
 }
@@ -125,6 +223,13 @@ export default function UserRolesPage() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteFeedback, setDeleteFeedback] = useState('');
 
+  // Detail panel — opened by clicking a row (not its Actions menu). selectedUserId drives it
+  // rather than the user object itself, so the panel always reflects fresh data from allUsers
+  // after an edit instead of showing a stale snapshot from the moment the row was clicked.
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [selectedUserProjectRoles, setSelectedUserProjectRoles] = useState([]);
+  const [selectedUserProjectRolesLoading, setSelectedUserProjectRolesLoading] = useState(false);
+
   useEffect(() => {
     try {
       const u = JSON.parse(sessionStorage.getItem('hr_portal_user') || '{}');
@@ -152,6 +257,21 @@ export default function UserRolesPage() {
   }, []);
 
   useEffect(() => { if (requesterId) fetchUsers(requesterId); }, [requesterId, fetchUsers]);
+
+  const fetchSelectedUserProjectRoles = useCallback(async (userId) => {
+    if (!userId || !requesterId) return;
+    setSelectedUserProjectRolesLoading(true);
+    try {
+      const res = await axios.get(`${BACKEND}/api/v1/hr/user-project-roles/${userId}?requesterId=${requesterId}`);
+      setSelectedUserProjectRoles(res.data?.data || []);
+    } catch {
+      setSelectedUserProjectRoles([]);
+    } finally { setSelectedUserProjectRolesLoading(false); }
+  }, [requesterId]);
+
+  useEffect(() => {
+    if (selectedUserId) fetchSelectedUserProjectRoles(selectedUserId);
+  }, [selectedUserId, fetchSelectedUserProjectRoles]);
 
   useEffect(() => {
     axios.get(`${BACKEND}/api/v1/projects`).then((r) => setProjects(r.data?.data || [])).catch(() => {});
@@ -280,6 +400,7 @@ export default function UserRolesPage() {
       setTimeout(() => {
         setProjectRolesModal(null); setProjectRolesFeedback('');
         fetchUsers(requesterId);
+        if (selectedUserId === projectRolesModal.user_id) fetchSelectedUserProjectRoles(selectedUserId);
       }, 1000);
     } catch (err) {
       setProjectRolesFeedback(err.response?.data?.error || 'Failed to update project roles.');
@@ -298,6 +419,7 @@ export default function UserRolesPage() {
     try {
       await axios.delete(`${BACKEND}/api/v1/hr/users/${deleteModal.user_id}`, { data: { requesterId } });
       setDeleteModal(null); setDeleteConfirmText('');
+      if (selectedUserId === deleteModal.user_id) setSelectedUserId(null);
       fetchUsers(requesterId);
     } catch (err) {
       setDeleteFeedback(err.response?.data?.error || 'Failed to delete user.');
@@ -389,7 +511,8 @@ export default function UserRolesPage() {
         }`}>{feedback}</div>
       )}
 
-      <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+      <div className="flex items-start gap-6">
+      <div className={`rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden transition-all ${selectedUserId ? 'flex-1 min-w-0' : 'w-full'}`}>
         {/* Toolbar: search · role filter · view toggle */}
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-100">
           <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
@@ -434,7 +557,8 @@ export default function UserRolesPage() {
                     const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0
                       ? u.user_roles : [u.user_role].filter(Boolean);
                     return (
-                      <tr key={u.user_id} className="hover:bg-gray-50">
+                      <tr key={u.user_id} onClick={() => setSelectedUserId(u.user_id)}
+                        className={`cursor-pointer transition ${selectedUserId === u.user_id ? 'bg-[#e8edf8]' : 'hover:bg-gray-50'}`}>
                         <td className="px-6 py-4 font-semibold text-slate-900">{u.full_name}</td>
                         <td className="px-6 py-4 text-slate-600">{u.email}</td>
                         <td className="px-6 py-4">
@@ -492,7 +616,8 @@ export default function UserRolesPage() {
                         const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0
                           ? u.user_roles : [u.user_role].filter(Boolean);
                         return (
-                          <tr key={u.user_id} className="hover:bg-gray-50">
+                          <tr key={u.user_id} onClick={() => setSelectedUserId(u.user_id)}
+                            className={`cursor-pointer transition ${selectedUserId === u.user_id ? 'bg-[#e8edf8]' : 'hover:bg-gray-50'}`}>
                             <td className="px-6 py-3 font-semibold text-slate-900">{u.full_name}</td>
                             <td className="px-6 py-3 text-slate-600">{u.email}</td>
                             <td className="px-6 py-3">
@@ -515,6 +640,25 @@ export default function UserRolesPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {selectedUserId && (() => {
+        const liveSelectedUser = allUsers.find((u) => u.user_id === selectedUserId);
+        if (!liveSelectedUser) return null;
+        return (
+          <UserDetailPanel
+            user={liveSelectedUser}
+            projectRoles={selectedUserProjectRoles}
+            projectRolesLoading={selectedUserProjectRolesLoading}
+            onClose={() => setSelectedUserId(null)}
+            onEditUser={openEditModal}
+            onManageRoles={openRoleModal}
+            onLeaveDays={openLeaveModal}
+            onProjectRoles={openProjectRolesModal}
+            onDeleteUser={openDeleteModal}
+          />
+        );
+      })()}
       </div>
 
       {/* Role Management Modal */}
