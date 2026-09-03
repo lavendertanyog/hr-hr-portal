@@ -632,6 +632,7 @@ export default function ReportsPage() {
   const [periodType, setPeriodType] = useState('weekly');
   const [anchorDate, setAnchorDate] = useState(() => toDateStr(new Date()));
   const [history, setHistory] = useState([]);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   const backendBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
@@ -713,6 +714,14 @@ export default function ReportsPage() {
 
   const [generating, setGenerating] = useState(false);
 
+  const applyHistoryFilters = (entry) => {
+    if (!entry.filters) return;
+    setEmployeeFilter(entry.filters.employeeFilter);
+    setPeriodType(entry.filters.periodType);
+    setAnchorDate(entry.filters.anchorDate);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleDownload = async () => {
     const container = document.getElementById('reports-pdf-source');
     const sections = container ? Array.from(container.children) : [];
@@ -789,7 +798,10 @@ export default function ReportsPage() {
       const slug = (employeeFilter === 'all' ? 'all-employees' : employeeLabel).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
       pdf.save(`attendance-report-${slug}-${periodType}-${periodRange.startStr}.pdf`);
 
-      const entry = { employeeLabel, periodType, rangeLabel: periodRange.label, generatedAt: new Date().toISOString() };
+      const entry = {
+        employeeLabel, periodType, rangeLabel: periodRange.label, generatedAt: new Date().toISOString(),
+        filters: { employeeFilter, periodType, anchorDate },
+      };
       const next = [entry, ...history].slice(0, 8);
       setHistory(next);
       try { localStorage.setItem('hr_reports_history', JSON.stringify(next)); } catch {}
@@ -800,15 +812,10 @@ export default function ReportsPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-          <h1 className="mt-3 text-4xl font-semibold text-slate-900">Reports</h1>
-          <p className="mt-2 text-sm text-slate-500">Generate a shareholder-ready PDF activity report for one employee or all staff.</p>
-        </div>
-        <button onClick={handleDownload} disabled={loading || generating} className="rounded-3xl bg-[#1540A8] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">
-          {generating ? 'Generating PDF…' : 'Download PDF'}
-        </button>
+      <div className="mb-8">
+        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-900">Reports</h1>
+        <p className="mt-2 text-sm text-slate-500">Generate a shareholder-ready PDF activity report for one employee or all staff.</p>
       </div>
 
       <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -836,33 +843,95 @@ export default function ReportsPage() {
             </label>
             <input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)}
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900" />
+            <p className="mt-1.5 text-xs font-medium text-[#1540A8]">→ {periodRange.label}</p>
           </div>
         </div>
-        <p className="mt-3 text-xs text-slate-500">
-          {employeeFilter === 'all' ? 'All employees' : employees.find((e) => e.user_id === employeeFilter)?.full_name || ''} &middot; {periodRange.label} &middot; {employeesInScope.length} employee{employeesInScope.length === 1 ? '' : 's'} with data
-        </p>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <p className="text-xs text-slate-500">
+            {employeeFilter === 'all' ? 'All employees' : employees.find((e) => e.user_id === employeeFilter)?.full_name || ''} &middot; {periodRange.label} &middot; {loading ? 'loading…' : `${employeesInScope.length} employee${employeesInScope.length === 1 ? '' : 's'} with data`}
+          </p>
+          <button
+            onClick={handleDownload}
+            disabled={loading || generating || employeesInScope.length === 0}
+            title={!loading && employeesInScope.length === 0 ? 'No attendance records to include in a report' : undefined}
+            className="rounded-3xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {generating ? 'Generating PDF…' : 'Download PDF'}
+          </button>
+        </div>
       </div>
 
       {history.length > 0 && (
         <div className="mb-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-2">Recently generated (this browser)</p>
-          <div className="rounded-3xl border border-slate-200 bg-white divide-y divide-slate-100 shadow-sm">
-            {history.map((h, i) => (
-              <div key={i} className="flex items-center justify-between px-5 py-3 text-sm">
-                <span className="text-slate-700">{h.employeeLabel} &middot; {h.periodType} &middot; {h.rangeLabel}</span>
-                <span className="text-xs text-slate-400">{new Date(h.generatedAt).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}</span>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Recently generated (this browser)</p>
+            {history.length > 5 && (
+              <button onClick={() => setHistoryExpanded((v) => !v)} className="text-xs font-semibold text-[#1540A8]">
+                {historyExpanded ? 'Show less' : `Show all (${history.length})`}
+              </button>
+            )}
+          </div>
+          <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider text-xs">
+                <tr>
+                  <th className="px-5 py-3 text-left">Report / Filter</th>
+                  <th className="px-5 py-3 text-left">Period</th>
+                  <th className="px-5 py-3 text-left">Generated on</th>
+                  <th className="px-5 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(historyExpanded ? history : history.slice(0, 5)).map((h, i) => (
+                  <tr key={i}>
+                    <td className="px-5 py-3 text-slate-700 whitespace-nowrap">{h.employeeLabel}</td>
+                    <td className="px-5 py-3 text-slate-500 whitespace-nowrap"><span className="capitalize">{h.periodType}</span> &middot; {h.rangeLabel}</td>
+                    <td className="px-5 py-3 text-xs text-slate-400 whitespace-nowrap">{new Date(h.generatedAt).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}</td>
+                    <td className="px-5 py-3 text-right">
+                      <button
+                        onClick={() => applyHistoryFilters(h)}
+                        disabled={!h.filters}
+                        title={h.filters ? 'Set the filters above to match this report' : 'Filters unavailable for this older entry'}
+                        className="text-xs font-semibold text-[#1540A8] disabled:text-slate-300 disabled:cursor-not-allowed"
+                      >
+                        Load filters
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
       <div id="reports-print-area" className="space-y-6">
         {loading ? (
-          <p className="text-sm text-slate-500">Loading attendance data…</p>
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading attendance data…</div>
         ) : employeesInScope.length === 0 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-            No attendance records match the selected employee and period.
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-8 py-14 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF0FF]">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1540A8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="5" width="18" height="16" rx="2" />
+                <path d="M8 3v4M16 3v4M3 10h18" />
+                <path d="m9 15 6 6M15 15l-6 6" />
+              </svg>
+            </div>
+            <p className="text-base font-semibold text-slate-700">No attendance logged for this period</p>
+            <p className="mx-auto mt-1.5 max-w-sm text-sm text-slate-500">
+              {employeeFilter === 'all' ? 'No employee has' : `${employees.find((e) => e.user_id === employeeFilter)?.full_name || 'This employee'} has no`} clock-in records between <span className="font-medium text-slate-700">{periodRange.label}</span> — either no shifts fell in this range, or logs haven&apos;t synced yet.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <button onClick={() => setAnchorDate(toDateStr(new Date()))} className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Jump to this {periodType === 'daily' ? 'day' : periodType === 'monthly' ? 'month' : 'week'}
+              </button>
+              {employeeFilter !== 'all' && (
+                <button onClick={() => setEmployeeFilter('all')} className="rounded-2xl bg-[#1540A8] px-4 py-2 text-sm font-semibold text-white">
+                  Check all employees instead
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           employeesInScope.map((emp) => (
