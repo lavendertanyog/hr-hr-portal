@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import axios from 'axios';
 
@@ -30,48 +30,6 @@ const PROJECT_ROLE_OPTIONS = [
   { key: 'hr', label: 'HR' },
 ];
 
-// Row action: a single "Actions" dropdown — routine actions grouped together, Delete User
-// separated below a divider so it's reachable but harder to mis-click. The row itself is
-// also clickable (opens the detail side panel), so this stops that click from bubbling up.
-function RowActions({ user, rowId, onEditUser, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser, openMenuId, setOpenMenuId }) {
-  const isOpen = openMenuId === rowId;
-  return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
-      <button type="button" onClick={() => setOpenMenuId(isOpen ? null : rowId)}
-        className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">
-        Actions
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
-      {isOpen && (
-        <div className="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-          <button type="button" onClick={() => { onEditUser(user); setOpenMenuId(null); }}
-            className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            Edit User
-          </button>
-          <button type="button" onClick={() => { onManageRoles(user); setOpenMenuId(null); }}
-            className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            Manage Roles
-          </button>
-          <button type="button" onClick={() => { onProjectRoles(user); setOpenMenuId(null); }}
-            className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            Project Assignments
-          </button>
-          <button type="button" onClick={() => { onLeaveDays(user); setOpenMenuId(null); }}
-            className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            Leave Entitlement
-          </button>
-          <div className="my-1 border-t border-slate-100" />
-          <button type="button" onClick={() => { onDeleteUser(user); setOpenMenuId(null); }}
-            className="block w-full px-4 py-2.5 text-left text-xs font-semibold text-red-600 hover:bg-red-50">
-            Delete User
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function EditIconButton({ onClick, label }) {
   return (
@@ -93,6 +51,7 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onE
   const roles = Array.isArray(user.user_roles) && user.user_roles.length > 0
     ? user.user_roles : [user.user_role].filter(Boolean);
   const initials = (user.full_name || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+  const isHr = roles.includes('hr');
 
   return (
     <div className="w-full lg:w-96 flex-shrink-0 rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
@@ -107,7 +66,7 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onE
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <EditIconButton label="Edit name / email" onClick={() => onEditUser(user)} />
+          {!isHr && <EditIconButton label="Edit name / email" onClick={() => onEditUser(user)} />}
           <button onClick={onClose} aria-label="Close panel"
             className="flex items-center justify-center w-7 h-7 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -161,10 +120,10 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onE
         </div>
       </div>
 
-      <div className="px-6 pb-5 pt-2 border-t border-slate-100">
+      <div className="px-6 pb-6 pt-2 border-t border-slate-100">
         <button onClick={() => onDeleteUser(user)}
-          className="text-xs font-semibold text-red-500 hover:text-red-700 hover:underline">
-          Delete this user
+          className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition">
+          Delete User
         </button>
       </div>
     </div>
@@ -185,8 +144,6 @@ export default function UserRolesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [page, setPage] = useState(1);
-  const [openMenuId, setOpenMenuId] = useState(null);
-  const menuRef = useRef(null);
 
   // Edit user modal (name/email)
   const [editModal, setEditModal] = useState(null);
@@ -234,13 +191,6 @@ export default function UserRolesPage() {
     } catch {}
   }, []);
 
-  useEffect(() => {
-    const closeMenu = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenuId(null);
-    };
-    document.addEventListener('mousedown', closeMenu);
-    return () => document.removeEventListener('mousedown', closeMenu);
-  }, []);
 
   const fetchUsers = useCallback(async (rid) => {
     if (!rid) return;
@@ -509,7 +459,7 @@ export default function UserRolesPage() {
           </select>
         </div>
 
-        <div ref={menuRef}>
+        <div>
           {loading ? (
             <p className="px-6 py-8 text-sm text-slate-400">Loading users…</p>
           ) : filtered.length === 0 ? (
@@ -521,7 +471,6 @@ export default function UserRolesPage() {
                   <th className="px-6 py-4">Name</th>
                   <th className="px-6 py-4">Email</th>
                   <th className="px-6 py-4">Roles</th>
-                  <th className="px-6 py-4">Action</th>
                   <th className="px-3 py-4 w-8"></th>
                 </tr>
               </thead>
@@ -540,13 +489,8 @@ export default function UserRolesPage() {
                           {roles.map((r) => <RoleBadge key={r} role={r} />)}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <RowActions user={u} rowId={u.user_id} onEditUser={openEditModal} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
-                          onProjectRoles={openProjectRolesModal} onDeleteUser={openDeleteModal}
-                          openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
-                      </td>
-                      <td className="px-3 py-4 text-slate-300 group-hover:text-[#1a3a8f] transition">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <td className="px-3 py-4 text-slate-400 group-hover:text-[#1a3a8f] transition">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="9 18 15 12 9 6" />
                         </svg>
                       </td>
