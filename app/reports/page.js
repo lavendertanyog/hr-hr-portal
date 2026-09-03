@@ -318,15 +318,11 @@ function ActivityLogTable({ sorted }) {
       <table className="min-w-full text-sm">
         <thead className="bg-[#EAF0FF] text-[#33415C] font-semibold uppercase tracking-wider text-xs">
           <tr>
-            <th className="px-4 py-2.5 text-left">Project Code(s)</th>
-            <th className="px-4 py-2.5 text-left">Clock In Date</th>
-            <th className="px-4 py-2.5 text-left">Clock In Time</th>
-            <th className="px-4 py-2.5 text-left">Clock Out Date</th>
-            <th className="px-4 py-2.5 text-left">Clock Out Time</th>
+            <th className="px-4 py-2.5 text-left sticky left-0 bg-[#EAF0FF] z-10">Project Code(s)</th>
+            <th className="px-4 py-2.5 text-left">Clock In</th>
+            <th className="px-4 py-2.5 text-left">Clock Out</th>
             <th className="px-4 py-2.5 text-left">Hours</th>
-            <th className="px-4 py-2.5 text-left">OT Hrs</th>
-            <th className="px-4 py-2.5 text-left">General Description</th>
-            <th className="px-4 py-2.5 text-left">Project Description</th>
+            <th className="px-4 py-2.5 text-left">Description</th>
             <th className="px-4 py-2.5 text-left">Remark</th>
           </tr>
         </thead>
@@ -338,9 +334,14 @@ function ActivityLogTable({ sorted }) {
             const codes = projectAllocs.length > 0 ? projectAllocs.map((a) => a.project_code) : (s.project_code ? [s.project_code] : (generalAlloc ? ['General'] : []));
             const overnight = isOvernightShift(s);
             const consolidatedCount = s.__consolidatedCount;
+            const rowBg = overnight ? 'bg-amber-50' : consolidatedCount ? 'bg-slate-50' : 'bg-white';
+            const descriptionLines = [
+              ...(generalAlloc?.description ? [{ key: 'general', label: 'General', text: generalAlloc.description }] : []),
+              ...projectAllocs.filter((a) => a.description).map((a) => ({ key: a.project_code, label: a.project_code, text: a.description })),
+            ];
             return (
-              <tr key={s.attendance_id} className={overnight ? 'bg-amber-50 border-l-4 border-amber-400' : consolidatedCount ? 'bg-slate-50' : undefined}>
-                <td className="px-4 py-2.5 whitespace-nowrap">
+              <tr key={s.attendance_id} className={overnight ? 'border-l-4 border-amber-400' : undefined}>
+                <td className={`px-4 py-2.5 whitespace-nowrap sticky left-0 z-10 ${rowBg}`}>
                   {overnight && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-800 bg-amber-200 rounded-full px-2 py-0.5 mr-1.5 align-middle">
                       ⚠ Flagged
@@ -352,35 +353,44 @@ function ActivityLogTable({ sorted }) {
                     <span key={c} className="inline-block font-mono text-xs bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-2 py-0.5 mr-1 mb-1">{c}</span>
                   ))}
                 </td>
-                <td className="px-4 py-2.5 whitespace-nowrap">{formatCsvDate(s.clock_in_time)}</td>
                 {consolidatedCount ? (
-                  <td className="px-4 py-2.5 text-slate-500 italic" colSpan={3}>{consolidatedCount} admin check-ins, consolidated</td>
+                  <td className={`px-4 py-2.5 text-slate-500 italic ${rowBg}`} colSpan={2}>
+                    {formatCsvDate(s.clock_in_time)} — {consolidatedCount} admin check-ins, consolidated
+                  </td>
                 ) : (
                   <>
-                    <td className="px-4 py-2.5 whitespace-nowrap font-mono">{formatCsvTime(s.clock_in_time)}</td>
+                    <td className={`px-4 py-2.5 whitespace-nowrap ${rowBg}`}>
+                      <div>{formatCsvDate(s.clock_in_time)}</div>
+                      <div className="font-mono text-xs text-slate-500">{formatCsvTime(s.clock_in_time)}</div>
+                    </td>
                     {s.clock_out_time ? (
-                      <>
-                        <td className="px-4 py-2.5 whitespace-nowrap">{formatCsvDate(s.clock_out_time)}</td>
-                        <td className="px-4 py-2.5 whitespace-nowrap font-mono">{formatCsvTime(s.clock_out_time)}</td>
-                      </>
+                      <td className={`px-4 py-2.5 whitespace-nowrap ${rowBg}`}>
+                        <div>{formatCsvDate(s.clock_out_time)}</div>
+                        <div className="font-mono text-xs text-slate-500">{formatCsvTime(s.clock_out_time)}</div>
+                      </td>
                     ) : (
-                      <td className="px-4 py-2.5 font-semibold text-green-600" colSpan={2}>Ongoing</td>
+                      <td className={`px-4 py-2.5 font-semibold text-green-600 ${rowBg}`}>Ongoing</td>
                     )}
                   </>
                 )}
-                <td className="px-4 py-2.5 font-mono whitespace-nowrap">{s.daily_worktime_hours != null ? Number(s.daily_worktime_hours).toFixed(2) : '—'}</td>
-                <td className={`px-4 py-2.5 font-mono whitespace-nowrap ${Number(s.ot_hours_accrued) > 0 ? 'text-amber-700 font-semibold' : ''}`}>{s.ot_hours_accrued != null ? Number(s.ot_hours_accrued).toFixed(2) : '—'}</td>
-                <td className="px-4 py-2.5 max-w-[200px]">
-                  {generalAlloc
-                    ? (generalAlloc.description || <span className="text-slate-400 italic">— none —</span>)
-                    : <span className="text-slate-400 italic">— n/a —</span>}
+                <td className={`px-4 py-2.5 font-mono whitespace-nowrap ${rowBg}`}>
+                  <div>{s.daily_worktime_hours != null ? `${Number(s.daily_worktime_hours).toFixed(2)}h` : '—'}</div>
+                  {Number(s.ot_hours_accrued) > 0 && (
+                    <div className="text-xs font-semibold text-amber-700">+{Number(s.ot_hours_accrued).toFixed(2)}h OT</div>
+                  )}
                 </td>
-                <td className="px-4 py-2.5 max-w-[240px]">
-                  {projectAllocs.length > 0
-                    ? projectAllocs.map((a) => <div key={a.project_code}>{a.project_code}: {a.description || <span className="text-slate-400 italic">—</span>}</div>)
-                    : <span className="text-slate-400 italic">— n/a —</span>}
+                <td className={`px-4 py-2.5 max-w-[260px] ${rowBg}`}>
+                  {consolidatedCount ? (
+                    <span className="text-slate-500 italic">Admin check-ins consolidated</span>
+                  ) : descriptionLines.length > 0 ? (
+                    descriptionLines.map((d) => (
+                      <div key={d.key}>{descriptionLines.length > 1 && <span className="font-semibold">{d.label}: </span>}{d.text}</div>
+                    ))
+                  ) : (
+                    <span className="text-slate-400 italic">—</span>
+                  )}
                 </td>
-                <td className="px-4 py-2.5 max-w-[180px]">{s.remark || <span className="text-slate-400 italic">—</span>}</td>
+                <td className={`px-4 py-2.5 max-w-[180px] ${rowBg}`}>{s.remark || <span className="text-slate-400 italic">—</span>}</td>
               </tr>
             );
           })}
@@ -807,7 +817,7 @@ export default function ReportsPage() {
       // before capture — otherwise html2canvas snapshots the fallback font mid-swap.
       if (document.fonts?.ready) await document.fonts.ready;
 
-      const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pdf = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 24;
@@ -836,7 +846,7 @@ export default function ReportsPage() {
               canvas, 0, yOffsetPx, canvas.width, thisSliceHeightPx, 0, 0, canvas.width, thisSliceHeightPx
             );
             if (!first) pdf.addPage();
-            pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', margin, margin, imgWidth, thisSliceHeightPx / pxPerPt);
+            pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.88), 'JPEG', margin, margin, imgWidth, thisSliceHeightPx / pxPerPt);
             cursorY = margin + thisSliceHeightPx / pxPerPt;
             yOffsetPx += thisSliceHeightPx;
             first = false;
@@ -848,7 +858,7 @@ export default function ReportsPage() {
           pdf.addPage();
           cursorY = margin;
         }
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, cursorY, imgWidth, imgHeightPt);
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.88), 'JPEG', margin, cursorY, imgWidth, imgHeightPt);
         cursorY += imgHeightPt;
       };
 
