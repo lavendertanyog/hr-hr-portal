@@ -31,10 +31,8 @@ const PROJECT_ROLE_OPTIONS = [
 ];
 
 // Row action: a single "Actions" dropdown — routine actions grouped together, Delete User
-// separated below a divider so it's reachable but harder to mis-click.
-// rowId, not user.user_id, drives the open/closed state — the Grouped view renders the same
-// user in one row per role they hold, and comparing by user_id alone would open every one of
-// those duplicate rows at once instead of just the row that was actually clicked.
+// separated below a divider so it's reachable but harder to mis-click. The row itself is
+// also clickable (opens the detail side panel), so this stops that click from bubbling up.
 function RowActions({ user, rowId, onEditUser, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser, openMenuId, setOpenMenuId }) {
   const isOpen = openMenuId === rowId;
   return (
@@ -184,7 +182,6 @@ export default function UserRolesPage() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
 
-  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grouped'
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [page, setPage] = useState(1);
@@ -439,19 +436,6 @@ export default function UserRolesPage() {
   const safePage = Math.min(page, totalPages);
   const pageData = filtered.slice((safePage - 1) * 10, safePage * 10);
 
-  // By-role grouping (search still applies within each group)
-  const searchedUsers = allUsers.filter((u) => {
-    const q = searchQuery.trim().toLowerCase();
-    return !q || (u.full_name + ' ' + u.email).toLowerCase().includes(q);
-  });
-  const byRole = ALL_ROLES.map(({ key, label, color }) => ({
-    key, label, color,
-    users: searchedUsers.filter((u) => {
-      const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0 ? u.user_roles : [u.user_role];
-      return roles.includes(key);
-    }),
-  })).filter((g) => roleFilter === 'ALL' || g.key === roleFilter);
-
   const displayName = requesterUser?.full_name || 'HR Admin';
 
   const roleCounts = ALL_ROLES.map(({ key, label, color }) => ({
@@ -523,123 +507,68 @@ export default function UserRolesPage() {
             <option value="ALL">Filter by Role</option>
             {ALL_ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
           </select>
-          <div className="ml-auto flex gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
-            <button type="button" onClick={() => setViewMode('list')}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${viewMode === 'list' ? 'bg-white shadow-sm text-[#1a3a8f]' : 'text-slate-500'}`}>
-              List
-            </button>
-            <button type="button" onClick={() => setViewMode('grouped')}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${viewMode === 'grouped' ? 'bg-white shadow-sm text-[#1a3a8f]' : 'text-slate-500'}`}>
-              Grouped
-            </button>
-          </div>
         </div>
 
-        {/* ─── List view ─── */}
-        {viewMode === 'list' ? (
-          <div ref={menuRef}>
-            {loading ? (
-              <p className="px-6 py-8 text-sm text-slate-400">Loading users…</p>
-            ) : filtered.length === 0 ? (
-              <p className="px-6 py-8 text-sm text-slate-400">No users match this filter.</p>
-            ) : (
-              <table className="min-w-full text-sm">
-                <thead className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  <tr>
-                    <th className="px-6 py-4">Name</th>
-                    <th className="px-6 py-4">Email</th>
-                    <th className="px-6 py-4">Roles</th>
-                    <th className="px-6 py-4">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {pageData.map((u) => {
-                    const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0
-                      ? u.user_roles : [u.user_role].filter(Boolean);
-                    return (
-                      <tr key={u.user_id} onClick={() => setSelectedUserId(u.user_id)}
-                        className={`cursor-pointer transition ${selectedUserId === u.user_id ? 'bg-[#e8edf8]' : 'hover:bg-gray-50'}`}>
-                        <td className="px-6 py-4 font-semibold text-slate-900">{u.full_name}</td>
-                        <td className="px-6 py-4 text-slate-600">{u.email}</td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-1">
-                            {roles.map((r) => <RoleBadge key={r} role={r} />)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <RowActions user={u} rowId={u.user_id} onEditUser={openEditModal} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
-                            onProjectRoles={openProjectRolesModal} onDeleteUser={openDeleteModal}
-                            openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
+        <div ref={menuRef}>
+          {loading ? (
+            <p className="px-6 py-8 text-sm text-slate-400">Loading users…</p>
+          ) : filtered.length === 0 ? (
+            <p className="px-6 py-8 text-sm text-slate-400">No users match this filter.</p>
+          ) : (
+            <table className="min-w-full text-sm">
+              <thead className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                <tr>
+                  <th className="px-6 py-4">Name</th>
+                  <th className="px-6 py-4">Email</th>
+                  <th className="px-6 py-4">Roles</th>
+                  <th className="px-6 py-4">Action</th>
+                  <th className="px-3 py-4 w-8"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {pageData.map((u) => {
+                  const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0
+                    ? u.user_roles : [u.user_role].filter(Boolean);
+                  return (
+                    <tr key={u.user_id} onClick={() => setSelectedUserId(u.user_id)}
+                      title="View employee details"
+                      className={`group cursor-pointer transition ${selectedUserId === u.user_id ? 'bg-[#e8edf8]' : 'hover:bg-gray-50'}`}>
+                      <td className="px-6 py-4 font-semibold text-slate-900">{u.full_name}</td>
+                      <td className="px-6 py-4 text-slate-600">{u.email}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {roles.map((r) => <RoleBadge key={r} role={r} />)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <RowActions user={u} rowId={u.user_id} onEditUser={openEditModal} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
+                          onProjectRoles={openProjectRolesModal} onDeleteUser={openDeleteModal}
+                          openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
+                      </td>
+                      <td className="px-3 py-4 text-slate-300 group-hover:text-[#1a3a8f] transition">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
 
-            {totalPages > 1 && (
-              <div className="px-6 py-3 bg-slate-50 flex items-center justify-between border-t border-gray-100">
-                <span className="text-xs text-slate-500">Page {safePage} of {totalPages} · {filtered.length} users</span>
-                <div className="flex gap-2">
-                  <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
-                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Prev</button>
-                  <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Next</button>
-                </div>
+          {totalPages > 1 && (
+            <div className="px-6 py-3 bg-slate-50 flex items-center justify-between border-t border-gray-100">
+              <span className="text-xs text-slate-500">Page {safePage} of {totalPages} · {filtered.length} users</span>
+              <div className="flex gap-2">
+                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
+                  className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Prev</button>
+                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+                  className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Next</button>
               </div>
-            )}
-          </div>
-        ) : (
-          /* ─── Grouped view ─── */
-          <div className="divide-y divide-gray-100" ref={menuRef}>
-            {byRole.map(({ key, label, color, users: roleUsers }) => (
-              <div key={key}>
-                <div className="flex items-center gap-3 px-6 py-4 bg-gray-50">
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${color}`}>{label}</span>
-                  <span className="text-sm text-slate-500">{roleUsers.length} {roleUsers.length === 1 ? 'user' : 'users'}</span>
-                </div>
-                {roleUsers.length === 0 ? (
-                  <p className="px-6 py-4 text-sm text-slate-400">No users assigned to this role.</p>
-                ) : (
-                  <table className="min-w-full text-sm">
-                    <thead className="border-b border-gray-100 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      <tr>
-                        <th className="px-6 py-3">Name</th>
-                        <th className="px-6 py-3">Email</th>
-                        <th className="px-6 py-3">All Roles</th>
-                        <th className="px-6 py-3">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {roleUsers.map((u) => {
-                        const roles = Array.isArray(u.user_roles) && u.user_roles.length > 0
-                          ? u.user_roles : [u.user_role].filter(Boolean);
-                        return (
-                          <tr key={u.user_id} onClick={() => setSelectedUserId(u.user_id)}
-                            className={`cursor-pointer transition ${selectedUserId === u.user_id ? 'bg-[#e8edf8]' : 'hover:bg-gray-50'}`}>
-                            <td className="px-6 py-3 font-semibold text-slate-900">{u.full_name}</td>
-                            <td className="px-6 py-3 text-slate-600">{u.email}</td>
-                            <td className="px-6 py-3">
-                              <div className="flex flex-wrap gap-1">
-                                {roles.map((r) => <RoleBadge key={r} role={r} />)}
-                              </div>
-                            </td>
-                            <td className="px-6 py-3">
-                              <RowActions user={u} rowId={`${key}-${u.user_id}`} onEditUser={openEditModal} onManageRoles={openRoleModal} onLeaveDays={openLeaveModal}
-                                onProjectRoles={openProjectRolesModal} onDeleteUser={openDeleteModal}
-                                openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
       {selectedUserId && (() => {
