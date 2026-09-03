@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 
 function formatCsvDate(dt) {
@@ -136,21 +136,30 @@ function ClockInChart({ sessions }) {
   const ticks = Array.from({ length: 4 }, (_, i) => axisMin + ((axisMax - axisMin) * i) / 3);
   const coords = points.map((p, i) => ({ cx: x(i), cy: y(p.minutes), ...p }));
 
+  const areaPath = `M${coords[0].cx},${PLOT_B} ${coords.map((c) => `L${c.cx},${c.cy}`).join(' ')} L${coords[coords.length - 1].cx},${PLOT_B} Z`;
+
   return (
     <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} className="w-full h-auto">
+      <defs>
+        <linearGradient id="clockInFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#1540A8" stopOpacity="0.14" />
+          <stop offset="100%" stopColor="#1540A8" stopOpacity="0" />
+        </linearGradient>
+      </defs>
       {ticks.map((t, i) => (
         <g key={i}>
           <line x1={PLOT_L} y1={y(t)} x2={PLOT_R} y2={y(t)} stroke="#E2E6EF" strokeWidth="1" />
           <text x="0" y={y(t) + 4} fontSize="11" fontWeight="500" fill="#5B6478" fontFamily="ui-monospace, monospace">{minutesToLabel(t)}</text>
         </g>
       ))}
+      <path d={areaPath} fill="url(#clockInFill)" />
       <polyline
-        fill="none" stroke="#1540A8" strokeWidth="2"
+        fill="none" stroke="#1540A8" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"
         points={coords.map((c) => `${c.cx},${c.cy}`).join(' ')}
       />
       {coords.map((c, i) => (
         <g key={i}>
-          <circle cx={c.cx} cy={c.cy} r="4.5" fill="#fff" stroke="#1540A8" strokeWidth="2.4" />
+          <circle cx={c.cx} cy={c.cy} r="5" fill="#fff" stroke="#1540A8" strokeWidth="2.5" />
           <text x={c.cx} y={PLOT_B + 22} fontSize="10.5" fontWeight="500" fill="#5B6478" textAnchor="middle" fontFamily="ui-monospace, monospace">{c.dateLabel}</text>
         </g>
       ))}
@@ -178,6 +187,12 @@ function HoursBarChart({ sessions }) {
 
   return (
     <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} className="w-full h-auto">
+      <defs>
+        <linearGradient id="barFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#2E5FCB" />
+          <stop offset="100%" stopColor="#1540A8" />
+        </linearGradient>
+      </defs>
       {Array.from({ length: ticks + 1 }, (_, i) => {
         const v = (max * i) / ticks;
         return (
@@ -194,7 +209,7 @@ function HoursBarChart({ sessions }) {
         const labelY = Math.max(yFor(val) - 8, PLOT_T - 14);
         return (
           <g key={d}>
-            <rect x={cx - barWidth / 2} y={yFor(val)} width={barWidth} height={Math.max(barH, 1)} rx="3" fill="#1540A8" />
+            <rect x={cx - barWidth / 2} y={yFor(val)} width={barWidth} height={Math.max(barH, 1)} rx="5" fill="url(#barFill)" />
             <text x={cx} y={labelY} fontSize="10.5" fontWeight="600" fill="#10172A" textAnchor="middle" fontFamily="ui-monospace, monospace">{val.toFixed(1)}h</text>
             <text x={cx} y={PLOT_B + 22} fontSize="10.5" fontWeight="500" fill="#5B6478" textAnchor="middle" fontFamily="ui-monospace, monospace">{d.slice(5)}</text>
           </g>
@@ -324,8 +339,13 @@ function ActivityLogTable({ sorted }) {
             const overnight = isOvernightShift(s);
             const consolidatedCount = s.__consolidatedCount;
             return (
-              <tr key={s.attendance_id} className={overnight ? 'bg-amber-50/60' : consolidatedCount ? 'bg-slate-50' : undefined}>
+              <tr key={s.attendance_id} className={overnight ? 'bg-amber-50 border-l-4 border-amber-400' : consolidatedCount ? 'bg-slate-50' : undefined}>
                 <td className="px-4 py-2.5 whitespace-nowrap">
+                  {overnight && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-800 bg-amber-200 rounded-full px-2 py-0.5 mr-1.5 align-middle">
+                      ⚠ Flagged
+                    </span>
+                  )}
                   {consolidatedCount ? (
                     <span className="inline-block font-mono text-xs bg-slate-100 border border-slate-200 text-slate-600 rounded px-2 py-0.5">General (admin)</span>
                   ) : codes.map((c) => (
@@ -370,6 +390,31 @@ function ActivityLogTable({ sorted }) {
   );
 }
 
+// Collapsible wrapper for a section of the on-screen report — lets HR scan the high-level
+// totals first, then open a section for the line-by-line detail. Print/PDF is unaffected;
+// this only wraps EmployeeReport's on-screen sections.
+function CollapsibleSection({ title, defaultOpen = true, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 text-left mb-2"
+        aria-expanded={open}
+      >
+        <span className="text-sm font-semibold text-slate-700">{title}</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round"
+          className={`flex-shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
 // On-screen report card — the original compact layout, unchanged since before the
 // shareholder-template redesign. The fancier template lives only in EmployeeReportPrint,
 // captured off-screen for the PDF, so this stays whatever the portal itself should look like.
@@ -394,49 +439,58 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
       </div>
 
       <div className="px-9 py-7">
-        <p className="text-xs font-mono font-semibold uppercase tracking-[0.16em] text-[#1540A8] mb-1.5">{periodLabel}</p>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Activity summary</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-          {[
-            ['Hours logged', `${totalHours.toFixed(2)}h`],
-            ['Days worked', String(daysWorked)],
-            ['Overtime', `${otHours.toFixed(2)}h`],
-            ['Avg. clock-in', avgClockIn],
-            ['Project codes', String(projectCodes.size)],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl border border-slate-200 px-4 py-3">
-              <div className="font-mono text-xl font-semibold text-slate-900">{value}</div>
-              <div className="text-xs text-slate-500 mt-1">{label}</div>
+        <p className="text-xs font-mono font-semibold uppercase tracking-[0.16em] text-[#1540A8] mb-3">{periodLabel}</p>
+
+        <div className="mb-6">
+          <CollapsibleSection title="Activity summary" defaultOpen>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[
+                ['Hours logged', `${totalHours.toFixed(2)}h`],
+                ['Days worked', String(daysWorked)],
+                ['Overtime', `${otHours.toFixed(2)}h`],
+                ['Avg. clock-in', avgClockIn],
+                ['Project codes', String(projectCodes.size)],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-2xl border border-slate-200 px-4 py-3">
+                  <div className="font-mono text-xl font-semibold text-slate-900">{value}</div>
+                  <div className="text-xs text-slate-500 mt-1">{label}</div>
+                </div>
+              ))}
             </div>
-          ))}
+          </CollapsibleSection>
         </div>
 
         {sessions.length === 0 ? (
           <p className="text-sm text-slate-400 italic mb-2">No attendance sessions logged in this period.</p>
         ) : (
           <>
-            <div className="grid md:grid-cols-2 gap-8 mb-9">
-              <div>
-                <p className="text-base font-semibold text-slate-900 mb-2">Clock-in time by session</p>
-                <ClockInChart sessions={sessions} />
-              </div>
-              <div>
-                <p className="text-base font-semibold text-slate-900 mb-2">Hours logged per day</p>
-                <HoursBarChart sessions={sessions} />
-              </div>
+            <div className="mb-6">
+              <CollapsibleSection title="Visual charts" defaultOpen>
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div>
+                    <p className="text-base font-semibold text-slate-900 mb-2">Clock-in time by session</p>
+                    <ClockInChart sessions={sessions} />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-slate-900 mb-2">Hours logged per day</p>
+                    <HoursBarChart sessions={sessions} />
+                  </div>
+                </div>
+
+                {flagged.length > 0 && (
+                  <div className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+                    <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-sm font-bold">!</span>
+                    <p className="text-sm text-amber-800">
+                      {flagged.length} session{flagged.length > 1 ? 's' : ''} auto-flagged as overnight / unusual-hours shifts — see the highlighted rows below.
+                    </p>
+                  </div>
+                )}
+              </CollapsibleSection>
             </div>
 
-            {flagged.length > 0 && (
-              <div className="mb-9 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-sm font-bold">!</span>
-                <p className="text-sm text-amber-800">
-                  {flagged.length} session{flagged.length > 1 ? 's' : ''} auto-flagged as overnight / unusual-hours shifts — see the highlighted rows below.
-                </p>
-              </div>
-            )}
-
-            <p className="text-sm font-semibold text-slate-700 mb-2">Full activity log</p>
-            <ActivityLogTable sorted={sorted} />
+            <CollapsibleSection title="Full activity log" defaultOpen>
+              <ActivityLogTable sorted={sorted} />
+            </CollapsibleSection>
           </>
         )}
       </div>
@@ -713,6 +767,11 @@ export default function ReportsPage() {
   }, [rows, periodType, anchorDate]);
 
   const [generating, setGenerating] = useState(false);
+  // Keeps the actual generated PDF in memory (keyed by history entry timestamp) for this
+  // browser tab's session only, so "Download" on a Recently Generated row is instant instead
+  // of re-running the whole capture. Blobs can't survive a page reload or localStorage, so
+  // older / reloaded entries fall back to "Load filters" instead.
+  const blobCacheRef = useRef(new Map());
 
   const applyHistoryFilters = (entry) => {
     if (!entry.filters) return;
@@ -720,6 +779,17 @@ export default function ReportsPage() {
     setPeriodType(entry.filters.periodType);
     setAnchorDate(entry.filters.anchorDate);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const redownloadFromCache = (entry) => {
+    const cached = blobCacheRef.current.get(entry.generatedAt);
+    if (!cached) return;
+    const url = URL.createObjectURL(cached.blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = cached.filename;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleDownload = async () => {
@@ -796,10 +866,14 @@ export default function ReportsPage() {
 
       const employeeLabel = employeeFilter === 'all' ? 'All employees' : (employees.find((e) => e.user_id === employeeFilter)?.full_name || 'Employee');
       const slug = (employeeFilter === 'all' ? 'all-employees' : employeeLabel).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      pdf.save(`attendance-report-${slug}-${periodType}-${periodRange.startStr}.pdf`);
+      const filename = `attendance-report-${slug}-${periodType}-${periodRange.startStr}.pdf`;
+      pdf.save(filename);
+
+      const generatedAt = new Date().toISOString();
+      blobCacheRef.current.set(generatedAt, { blob: pdf.output('blob'), filename });
 
       const entry = {
-        employeeLabel, periodType, rangeLabel: periodRange.label, generatedAt: new Date().toISOString(),
+        employeeLabel, periodType, rangeLabel: periodRange.label, generatedAt,
         filters: { employeeFilter, periodType, anchorDate },
       };
       const next = [entry, ...history].slice(0, 8);
@@ -818,7 +892,7 @@ export default function ReportsPage() {
         <p className="mt-2 text-sm text-slate-500">Generate a shareholder-ready PDF activity report for one employee or all staff.</p>
       </div>
 
-      <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="sticky top-0 z-20 mb-8 rounded-3xl border border-slate-200 bg-white p-4 shadow-md">
         <div className="grid gap-3 md:grid-cols-3">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Employee</label>
@@ -888,15 +962,28 @@ export default function ReportsPage() {
                     <td className="px-5 py-3 text-slate-700 whitespace-nowrap">{h.employeeLabel}</td>
                     <td className="px-5 py-3 text-slate-500 whitespace-nowrap"><span className="capitalize">{h.periodType}</span> &middot; {h.rangeLabel}</td>
                     <td className="px-5 py-3 text-xs text-slate-400 whitespace-nowrap">{new Date(h.generatedAt).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}</td>
-                    <td className="px-5 py-3 text-right">
-                      <button
-                        onClick={() => applyHistoryFilters(h)}
-                        disabled={!h.filters}
-                        title={h.filters ? 'Set the filters above to match this report' : 'Filters unavailable for this older entry'}
-                        className="text-xs font-semibold text-[#1540A8] disabled:text-slate-300 disabled:cursor-not-allowed"
-                      >
-                        Load filters
-                      </button>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center justify-end gap-4">
+                        <button
+                          onClick={() => redownloadFromCache(h)}
+                          disabled={!blobCacheRef.current.has(h.generatedAt)}
+                          title={blobCacheRef.current.has(h.generatedAt) ? 'Download this exact PDF again' : 'Only available for reports generated earlier this session — use Load filters instead'}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#1540A8] disabled:text-slate-300 disabled:cursor-not-allowed"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+                          </svg>
+                          Download
+                        </button>
+                        <button
+                          onClick={() => applyHistoryFilters(h)}
+                          disabled={!h.filters}
+                          title={h.filters ? 'Set the filters above to match this report' : 'Filters unavailable for this older entry'}
+                          className="text-xs font-semibold text-[#1540A8] disabled:text-slate-300 disabled:cursor-not-allowed"
+                        >
+                          Load filters
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
