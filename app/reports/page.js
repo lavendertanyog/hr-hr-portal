@@ -88,6 +88,23 @@ function getPreviousAnchor(periodType, anchorDateStr) {
   return toDateStr(prevMonth);
 }
 
+// Real, approved leave overlapping the period — used to explain a low-hours reading
+// instead of leaving a shareholder to guess whether it means low productivity.
+function getLeaveNote(leaveRequests, userId, startStr, endStr) {
+  const overlapping = leaveRequests.filter((l) => {
+    if (l.user_id !== userId || String(l.workflow_status).toUpperCase() !== 'APPROVED') return false;
+    const lStart = String(l.start_date).slice(0, 10), lEnd = String(l.end_date).slice(0, 10);
+    return lStart <= endStr && lEnd >= startStr;
+  });
+  if (overlapping.length === 0) return null;
+  const totalDays = overlapping.reduce((sum, l) => {
+    const s = parseDateStr(String(l.start_date).slice(0, 10)), e = parseDateStr(String(l.end_date).slice(0, 10));
+    return sum + Math.round((e - s) / 86400000) + 1;
+  }, 0);
+  const category = (overlapping[0].category || 'leave').toLowerCase();
+  return `${totalDays} day${totalDays === 1 ? '' : 's'} of approved ${category} leave overlaps this period`;
+}
+
 function niceMax(value) {
   if (value <= 0) return 10;
   const pow = Math.pow(10, Math.floor(Math.log10(value)));
@@ -96,7 +113,7 @@ function niceMax(value) {
   return rounded * pow;
 }
 
-const CHART_W = 800, CHART_H = 340, PLOT_L = 60, PLOT_R = 780, PLOT_T = 24, PLOT_B = 296;
+const CHART_W = 800, CHART_H = 340, PLOT_L = 70, PLOT_R = 780, PLOT_T = 36, PLOT_B = 296;
 
 function ClockInChart({ sessions }) {
   const points = sessions
@@ -124,7 +141,7 @@ function ClockInChart({ sessions }) {
       {ticks.map((t, i) => (
         <g key={i}>
           <line x1={PLOT_L} y1={y(t)} x2={PLOT_R} y2={y(t)} stroke="#E2E6EF" strokeWidth="1" />
-          <text x="6" y={y(t) + 4} fontSize="10" fill="#8890A3" fontFamily="ui-monospace, monospace">{minutesToLabel(t)}</text>
+          <text x="0" y={y(t) + 4} fontSize="11" fontWeight="500" fill="#5B6478" fontFamily="ui-monospace, monospace">{minutesToLabel(t)}</text>
         </g>
       ))}
       <polyline
@@ -134,7 +151,7 @@ function ClockInChart({ sessions }) {
       {coords.map((c, i) => (
         <g key={i}>
           <circle cx={c.cx} cy={c.cy} r="4.5" fill="#fff" stroke="#1540A8" strokeWidth="2.4" />
-          <text x={c.cx} y={PLOT_B + 18} fontSize="9.5" fill="#8890A3" textAnchor="middle" fontFamily="ui-monospace, monospace">{c.dateLabel}</text>
+          <text x={c.cx} y={PLOT_B + 22} fontSize="10.5" fontWeight="500" fill="#5B6478" textAnchor="middle" fontFamily="ui-monospace, monospace">{c.dateLabel}</text>
         </g>
       ))}
     </svg>
@@ -166,7 +183,7 @@ function HoursBarChart({ sessions }) {
         return (
           <g key={i}>
             <line x1={PLOT_L} y1={yFor(v)} x2={PLOT_R} y2={yFor(v)} stroke="#E2E6EF" strokeWidth="1" />
-            <text x="6" y={yFor(v) + 4} fontSize="10" fill="#8890A3" fontFamily="ui-monospace, monospace">{v.toFixed(0)}h</text>
+            <text x="0" y={yFor(v) + 4} fontSize="11" fontWeight="500" fill="#5B6478" fontFamily="ui-monospace, monospace">{v.toFixed(0)}h</text>
           </g>
         );
       })}
@@ -174,11 +191,12 @@ function HoursBarChart({ sessions }) {
         const val = byDate.get(d);
         const cx = PLOT_L + slot * i + slot / 2;
         const barH = PLOT_B - yFor(val);
+        const labelY = Math.max(yFor(val) - 8, PLOT_T - 14);
         return (
           <g key={d}>
             <rect x={cx - barWidth / 2} y={yFor(val)} width={barWidth} height={Math.max(barH, 1)} rx="3" fill="#1540A8" />
-            <text x={cx} y={yFor(val) - 6} fontSize="9.5" fill="#5B6478" textAnchor="middle" fontFamily="ui-monospace, monospace">{val.toFixed(1)}h</text>
-            <text x={cx} y={PLOT_B + 18} fontSize="9.5" fill="#8890A3" textAnchor="middle" fontFamily="ui-monospace, monospace">{d.slice(5)}</text>
+            <text x={cx} y={labelY} fontSize="10.5" fontWeight="600" fill="#10172A" textAnchor="middle" fontFamily="ui-monospace, monospace">{val.toFixed(1)}h</text>
+            <text x={cx} y={PLOT_B + 22} fontSize="10.5" fontWeight="500" fill="#5B6478" textAnchor="middle" fontFamily="ui-monospace, monospace">{d.slice(5)}</text>
           </g>
         );
       })}
@@ -198,14 +216,92 @@ function computeReportStats(sessions) {
   const generalSessionsCount = sessions.filter((s) => (Array.isArray(s.allocations) ? s.allocations : []).some((a) => !a.project_code)).length;
   const flagged = sessions.filter(isOvernightShift);
   const sorted = [...sessions].sort((a, b) => new Date(a.clock_in_time) - new Date(b.clock_in_time));
-  return { totalHours, otHours, daysWorked, avgClockIn, avgClockInMinutes, projectCodes, generalSessionsCount, flagged, sorted };
+
+  // Billable = time actually allocated to a project code; non-billable = General/admin work.
+  // Falls back to the session-level project_code when a session has no per-allocation
+  // breakdown (older entries), since that's still real recorded data either way.
+  // Classified per session, not per allocation — `accumulated_hours` on an allocation is a
+  // running lifetime total for that project code, not scoped to this period, so summing it
+  // across sessions double-counts and can exceed the session's own daily_worktime_hours.
+  // A session counts as billable if any of its allocations name a project code; a mixed
+  // session's hours split evenly across the codes it touched for the project breakdown below.
+  let billableHours = 0, nonBillableHours = 0;
+  const projectHoursMap = new Map();
+  sessions.forEach((s) => {
+    const allocations = Array.isArray(s.allocations) ? s.allocations : [];
+    const sessionHours = Number(s.daily_worktime_hours) || 0;
+    const codes = allocations.filter((a) => a.project_code).map((a) => a.project_code);
+    const codesList = codes.length > 0 ? codes : (s.project_code ? [s.project_code] : []);
+    if (codesList.length > 0) {
+      billableHours += sessionHours;
+      const share = sessionHours / codesList.length;
+      codesList.forEach((code) => projectHoursMap.set(code, (projectHoursMap.get(code) || 0) + share));
+    } else {
+      nonBillableHours += sessionHours;
+    }
+  });
+  const projectHours = Array.from(projectHoursMap.entries())
+    .map(([code, hours]) => ({ code, hours }))
+    .sort((a, b) => b.hours - a.hours);
+
+  return {
+    totalHours, otHours, daysWorked, avgClockIn, avgClockInMinutes, projectCodes, generalSessionsCount,
+    flagged, sorted, billableHours, nonBillableHours, projectHours,
+  };
+}
+
+const MICRO_SESSION_HOURS = 0.1; // ~6 minutes
+
+// For the shareholder-facing PDF only: same-day General/admin sessions under six minutes
+// each (a quick check-in, a one-line status update) get folded into one "Admin check-ins"
+// row per day instead of listing every tiny entry, which otherwise reads as fragmented
+// focus rather than what it actually is — routine admin overhead.
+function consolidateMicroSessions(sorted) {
+  const kept = [];
+  const microByDate = new Map();
+
+  for (const s of sorted) {
+    const allocations = Array.isArray(s.allocations) ? s.allocations : [];
+    const isGeneralOnly = allocations.length > 0 ? allocations.every((a) => !a.project_code) : !s.project_code;
+    const hours = Number(s.daily_worktime_hours) || 0;
+    if (isGeneralOnly && s.clock_out_time && hours > 0 && hours < MICRO_SESSION_HOURS) {
+      const dateKey = sgtDateStr(s.clock_in_time);
+      if (!microByDate.has(dateKey)) {
+        microByDate.set(dateKey, { dateKey, firstClockIn: s.clock_in_time, hours: 0, count: 0, descriptions: [], remarks: [] });
+      }
+      const bucket = microByDate.get(dateKey);
+      bucket.hours += hours;
+      bucket.count += 1;
+      const desc = allocations.find((a) => !a.project_code)?.description;
+      if (desc) bucket.descriptions.push(desc);
+      if (s.remark) bucket.remarks.push(s.remark);
+    } else {
+      kept.push(s);
+    }
+  }
+
+  for (const bucket of microByDate.values()) {
+    kept.push({
+      attendance_id: `consolidated-${bucket.dateKey}`,
+      __consolidatedCount: bucket.count,
+      clock_in_time: bucket.firstClockIn,
+      clock_out_time: bucket.firstClockIn,
+      daily_worktime_hours: bucket.hours,
+      ot_hours_accrued: 0,
+      allocations: [{ description: bucket.descriptions.join('; ') || null }],
+      remark: bucket.remarks.join('; ') || null,
+      project_code: null,
+    });
+  }
+
+  return kept.sort((a, b) => new Date(a.clock_in_time) - new Date(b.clock_in_time));
 }
 
 function ActivityLogTable({ sorted }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-200">
       <table className="min-w-full text-sm">
-        <thead className="bg-[#EAF0FF] text-[#5B6478] uppercase tracking-wider text-xs">
+        <thead className="bg-[#EAF0FF] text-[#33415C] font-semibold uppercase tracking-wider text-xs">
           <tr>
             <th className="px-4 py-2.5 text-left">Project Code(s)</th>
             <th className="px-4 py-2.5 text-left">Clock In Date</th>
@@ -226,22 +322,31 @@ function ActivityLogTable({ sorted }) {
             const generalAlloc = allocations.find((a) => !a.project_code);
             const codes = projectAllocs.length > 0 ? projectAllocs.map((a) => a.project_code) : (s.project_code ? [s.project_code] : (generalAlloc ? ['General'] : []));
             const overnight = isOvernightShift(s);
+            const consolidatedCount = s.__consolidatedCount;
             return (
-              <tr key={s.attendance_id} className={overnight ? 'bg-amber-50/60' : undefined}>
+              <tr key={s.attendance_id} className={overnight ? 'bg-amber-50/60' : consolidatedCount ? 'bg-slate-50' : undefined}>
                 <td className="px-4 py-2.5 whitespace-nowrap">
-                  {codes.map((c) => (
+                  {consolidatedCount ? (
+                    <span className="inline-block font-mono text-xs bg-slate-100 border border-slate-200 text-slate-600 rounded px-2 py-0.5">General (admin)</span>
+                  ) : codes.map((c) => (
                     <span key={c} className="inline-block font-mono text-xs bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-2 py-0.5 mr-1 mb-1">{c}</span>
                   ))}
                 </td>
                 <td className="px-4 py-2.5 whitespace-nowrap">{formatCsvDate(s.clock_in_time)}</td>
-                <td className="px-4 py-2.5 whitespace-nowrap font-mono">{formatCsvTime(s.clock_in_time)}</td>
-                {s.clock_out_time ? (
-                  <>
-                    <td className="px-4 py-2.5 whitespace-nowrap">{formatCsvDate(s.clock_out_time)}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap font-mono">{formatCsvTime(s.clock_out_time)}</td>
-                  </>
+                {consolidatedCount ? (
+                  <td className="px-4 py-2.5 text-slate-500 italic" colSpan={3}>{consolidatedCount} admin check-ins, consolidated</td>
                 ) : (
-                  <td className="px-4 py-2.5 font-semibold text-green-600" colSpan={2}>Ongoing</td>
+                  <>
+                    <td className="px-4 py-2.5 whitespace-nowrap font-mono">{formatCsvTime(s.clock_in_time)}</td>
+                    {s.clock_out_time ? (
+                      <>
+                        <td className="px-4 py-2.5 whitespace-nowrap">{formatCsvDate(s.clock_out_time)}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap font-mono">{formatCsvTime(s.clock_out_time)}</td>
+                      </>
+                    ) : (
+                      <td className="px-4 py-2.5 font-semibold text-green-600" colSpan={2}>Ongoing</td>
+                    )}
+                  </>
                 )}
                 <td className="px-4 py-2.5 font-mono whitespace-nowrap">{s.daily_worktime_hours != null ? Number(s.daily_worktime_hours).toFixed(2) : '—'}</td>
                 <td className={`px-4 py-2.5 font-mono whitespace-nowrap ${Number(s.ot_hours_accrued) > 0 ? 'text-amber-700 font-semibold' : ''}`}>{s.ot_hours_accrued != null ? Number(s.ot_hours_accrued).toFixed(2) : '—'}</td>
@@ -345,13 +450,20 @@ const PLEX_MONO = { fontFamily: "'IBM Plex Mono', ui-monospace, monospace" };
 // Print-only report card — the fuller shareholder-report template (masthead, subject strip,
 // serif headings, real "vs. prior period" deltas). Rendered off-screen purely so the PDF can
 // capture it; the visible portal page always shows EmployeeReport above instead.
-function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, daysInPeriod = 7 }) {
-  const { totalHours, otHours, daysWorked, avgClockIn, avgClockInMinutes, projectCodes, generalSessionsCount, flagged, sorted } = computeReportStats(sessions);
+function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, daysInPeriod = 7, leaveNote = null }) {
+  const {
+    totalHours, otHours, daysWorked, avgClockIn, avgClockInMinutes, projectCodes, generalSessionsCount,
+    flagged, sorted, billableHours, nonBillableHours, projectHours,
+  } = computeReportStats(sessions);
+
+  const billablePct = totalHours > 0 ? (billableHours / totalHours) * 100 : 0;
+  const firstName = (employee.full_name || 'They').trim().split(' ')[0];
 
   const hoursDeltaPct = priorHours > 0 ? ((totalHours - priorHours) / priorHours) * 100 : null;
-  const hoursCaption = hoursDeltaPct == null
+  let hoursCaption = hoursDeltaPct == null
     ? 'No prior period to compare'
     : `${hoursDeltaPct >= 0 ? '▲' : '▼'} ${Math.abs(hoursDeltaPct).toFixed(0)}% vs. prior period`;
+  if (leaveNote) hoursCaption += ` — ${leaveNote}`;
   const hoursCaptionColor = hoursDeltaPct == null ? '#5B6478' : hoursDeltaPct >= 0 ? '#157F52' : '#B4650C';
 
   const otCaption = flagged.length > 0 ? `${flagged.length} flagged shift${flagged.length > 1 ? 's' : ''}` : 'No flagged shifts';
@@ -361,6 +473,14 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
   const clockInCaptionColor = avgClockInMinutes == null ? '#5B6478' : avgClockInMinutes <= 555 ? '#157F52' : '#B4650C';
 
   const codesCaption = generalSessionsCount > 0 ? '+ General work' : 'No general work logged';
+
+  const execSummary = sessions.length === 0
+    ? `${firstName} logged no attendance sessions during ${periodLabel}.${leaveNote ? ` ${leaveNote}.` : ''}`
+    : `${firstName} logged ${totalHours.toFixed(1)}h across ${daysWorked} of ${daysInPeriod} days this period, `
+      + `${billablePct.toFixed(0)}% of it billed to ${projectCodes.size} active project code${projectCodes.size === 1 ? '' : 's'}`
+      + `${nonBillableHours > 0 ? ` and ${nonBillableHours.toFixed(1)}h on general/admin work` : ''}. `
+      + `${leaveNote ? `${leaveNote}. ` : ''}`
+      + `${flagged.length > 0 ? `${flagged.length} session${flagged.length > 1 ? 's were' : ' was'} auto-flagged for unusual hours — see below for context.` : 'No attendance anomalies were flagged this period.'}`;
 
   return (
     <div className="bg-white">
@@ -378,9 +498,9 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
           <p className="mt-2 text-base text-[#5B6478] max-w-md">Attendance, project allocation and punctuality summary, prepared for the shareholder review pack.</p>
         </div>
         <div className="text-right text-sm text-[#5B6478] leading-relaxed whitespace-nowrap">
-          <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400" style={PLEX_MONO}>Reporting period</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#5B6478]" style={PLEX_MONO}>Reporting period</p>
           <p className="font-semibold text-[#10172A] text-base">{periodLabel}</p>
-          <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-slate-400" style={PLEX_MONO}>Generated</p>
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#5B6478]" style={PLEX_MONO}>Generated</p>
           <p className="font-semibold text-[#10172A] text-base">{new Date().toLocaleString('en-SG', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}</p>
         </div>
       </div>
@@ -400,12 +520,19 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
         </div>
       </div>
 
+      <div data-pdf-block className="px-12 pt-9 pb-9 border-b border-slate-200 bg-slate-50">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Executive summary</p>
+        <p className="text-base text-[#10172A] leading-relaxed max-w-3xl">{execSummary}</p>
+      </div>
+
       <div data-pdf-block className={sessions.length === 0 ? 'px-12 pt-10 pb-10' : 'px-12 pt-10 pb-8'}>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>At a glance</p>
         <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>Activity summary</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             ['Hours logged', `${totalHours.toFixed(2)}h`, hoursCaption, hoursCaptionColor],
+            ['Billable hours', `${billableHours.toFixed(2)}h`, `${billablePct.toFixed(0)}% of hours logged`, '#157F52'],
+            ['Non-billable', `${nonBillableHours.toFixed(2)}h`, 'General / admin work', '#5B6478'],
             ['Days worked', String(daysWorked), `of ${daysInPeriod} day${daysInPeriod === 1 ? '' : 's'}`, '#5B6478'],
             ['Overtime', `${otHours.toFixed(2)}h`, otCaption, otCaptionColor],
             ['Avg. clock-in', avgClockIn, clockInCaption, clockInCaptionColor],
@@ -440,21 +567,55 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
             <HoursBarChart sessions={sessions} />
           </div>
 
+          {projectHours.length > 0 && (
+            <div data-pdf-block className="px-12 pb-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Project activity breakdown</p>
+              <h3 className="text-2xl font-semibold text-[#10172A] mb-1" style={FRAUNCES}>Where the billable hours went</h3>
+              <p className="text-xs text-[#5B6478] mb-5">Hours per project code — a proxy for activity, not a milestone or completion measure (not tracked in this system).</p>
+              <div className="flex flex-col gap-2.5">
+                {projectHours.map(({ code, hours }) => {
+                  const pct = billableHours > 0 ? (hours / billableHours) * 100 : 0;
+                  return (
+                    <div key={code} className="flex items-center gap-3">
+                      <span className="text-xs font-medium rounded bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] px-2 py-1 w-28 flex-shrink-0 text-center" style={PLEX_MONO}>{code}</span>
+                      <div className="flex-1 h-5 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full rounded-full bg-[#1540A8]" style={{ width: `${Math.max(pct, 3)}%` }} />
+                      </div>
+                      <span className="text-sm font-semibold text-[#10172A] w-20 flex-shrink-0 text-right" style={PLEX_MONO}>{hours.toFixed(2)}h</span>
+                      <span className="text-xs text-[#5B6478] w-12 flex-shrink-0 text-right">{pct.toFixed(0)}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {flagged.length > 0 && (
             <div data-pdf-block className="px-12 pb-8">
               <div className="flex items-start gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
                 <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-sm font-bold">!</span>
-                <p className="text-sm text-amber-800">
-                  {flagged.length} session{flagged.length > 1 ? 's' : ''} auto-flagged as overnight / unusual-hours shifts — see the highlighted rows below.
-                </p>
+                <div className="flex-1">
+                  <p className="text-sm text-amber-800 mb-2">
+                    {flagged.length} session{flagged.length > 1 ? 's' : ''} auto-flagged as overnight / unusual-hours shifts — see the highlighted rows below.
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {flagged.map((s) => (
+                      <p key={s.attendance_id} className="text-xs text-amber-900">
+                        <span className="font-semibold">{formatCsvDate(s.clock_in_time)}:</span>{' '}
+                        {s.remark ? s.remark : <span className="italic">no context on file — recommend a note or manager approval status be added</span>}
+                      </p>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           <div data-pdf-block className="px-12 pb-10">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Supporting detail</p>
-            <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>Full activity log</h3>
-            <ActivityLogTable sorted={sorted} />
+            <h3 className="text-2xl font-semibold text-[#10172A] mb-1" style={FRAUNCES}>Full activity log</h3>
+            <p className="text-xs text-[#5B6478] mb-5">Same-day admin check-ins under six minutes are consolidated into one row.</p>
+            <ActivityLogTable sorted={consolidateMicroSessions(sorted)} />
           </div>
         </>
       )}
@@ -465,6 +626,7 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
 export default function ReportsPage() {
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [leaveRequests, setLeaveRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [requesterId, setRequesterId] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('all');
@@ -490,12 +652,14 @@ export default function ReportsPage() {
     Promise.all([
       axios.get(`${backendBaseUrl}/api/v1/hr/attendance-logs?requesterId=${requesterId}`),
       axios.get(`${backendBaseUrl}/api/v1/hr/active-users?requesterId=${requesterId}`),
+      axios.get(`${backendBaseUrl}/api/v1/hr/leave-requests?requesterId=${requesterId}`),
     ])
-      .then(([logsRes, usersRes]) => {
+      .then(([logsRes, usersRes, leaveRes]) => {
         setRows(logsRes.data.data || []);
         setEmployees(usersRes.data.data || []);
+        setLeaveRequests(leaveRes.data.data || []);
       })
-      .catch(() => { setRows([]); setEmployees([]); })
+      .catch(() => { setRows([]); setEmployees([]); setLeaveRequests([]); })
       .finally(() => setLoading(false));
   }, [requesterId, backendBaseUrl]);
 
@@ -724,6 +888,7 @@ export default function ReportsPage() {
             periodLabel={periodRange.label}
             priorHours={priorHoursByUser.get(emp.user_id) || 0}
             daysInPeriod={daysInPeriod}
+            leaveNote={getLeaveNote(leaveRequests, emp.user_id, periodRange.startStr, periodRange.endStr)}
           />
         ))}
       </div>
