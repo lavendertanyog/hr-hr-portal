@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Image from 'next/image';
 import axios from 'axios';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
@@ -192,7 +191,6 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onE
 export default function UserRolesPage() {
   const [requesterId, setRequesterId] = useState(null);
   const [requesterUser, setRequesterUser] = useState(null);
-  const [logoMissing, setLogoMissing] = useState(false);
 
   // Data
   const [allUsers, setAllUsers] = useState([]);
@@ -458,22 +456,12 @@ export default function UserRolesPage() {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-7 flex items-start justify-between">
-        <div>
-          <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-          <h1 className="mt-3 text-4xl font-semibold text-slate-950">User Role Management</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Assign and manage multiple roles for any Nextan employee. Changes take effect on their next login.
-          </p>
-        </div>
-        <div className="hidden md:block">
-          {!logoMissing ? (
-            <Image src="/nextan-logo.png" alt="Nextan" width={140} height={44}
-              className="object-contain opacity-80" onError={() => setLogoMissing(true)} />
-          ) : (
-            <span className="text-lg font-bold tracking-tight text-blue-900">nextan</span>
-          )}
-        </div>
+      <div className="mb-7">
+        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-950">User Role Management</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          Assign and manage multiple roles for any Nextan employee. Changes take effect on their next login.
+        </p>
       </div>
 
       {/* Stat cards — click to filter the table below; "All Users" resets the filter */}

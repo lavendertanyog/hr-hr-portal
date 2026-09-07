@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Image from 'next/image';
 import axios from 'axios';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
@@ -62,7 +61,6 @@ export default function AdminPage() {
   const [leaveSaving, setLeaveSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
-  const [logoMissing, setLogoMissing] = useState(false);
   const [user, setUser] = useState(null);
   // Pagination
   const [accountsPage, setAccountsPage] = useState(1);
@@ -240,19 +238,10 @@ export default function AdminPage() {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-7 flex items-start justify-between">
-        <div>
-          <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-          <h1 className="mt-3 text-4xl font-semibold text-slate-950">Welcome back, {displayName}</h1>
-          <p className="mt-2 text-sm text-slate-500">Approve accounts and password resets, or review past decisions.</p>
-        </div>
-        <div className="hidden md:block">
-          {!logoMissing ? (
-            <Image src="/nextan-logo.png" alt="Nextan" width={140} height={44} className="object-contain opacity-80" onError={() => setLogoMissing(true)} />
-          ) : (
-            <span className="text-lg font-bold tracking-tight text-blue-900">nextan</span>
-          )}
-        </div>
+      <div className="mb-7">
+        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-950">Welcome back, {displayName}</h1>
+        <p className="mt-2 text-sm text-slate-500">Approve accounts and password resets, or review past decisions.</p>
       </div>
 
       {/* Stat cards — Pending Accounts / Password Resets act as filters into the tabs below */}

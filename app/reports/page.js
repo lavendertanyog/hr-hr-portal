@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import Image from 'next/image';
 import axios from 'axios';
 
 function formatCsvDate(dt) {
@@ -978,7 +977,6 @@ function RangeCalendarPopover({ initialStart, initialEnd, onApply, onClose }) {
 }
 
 export default function ReportsPage() {
-  const [logoMissing, setLogoMissing] = useState(false);
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -1265,20 +1263,10 @@ export default function ReportsPage() {
         </div>
       )}
 
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-          <h1 className="mt-3 text-4xl font-semibold text-slate-900">Reports</h1>
-          <p className="mt-2 text-sm text-slate-500">Generate a shareholder-ready PDF activity report for one employee or all staff.</p>
-        </div>
-        <div className="hidden md:block">
-          {!logoMissing ? (
-            <Image src="/nextan-logo.png" alt="Nextan" width={140} height={44}
-              className="object-contain opacity-80" onError={() => setLogoMissing(true)} />
-          ) : (
-            <span className="text-lg font-bold tracking-tight text-blue-900">nextan</span>
-          )}
-        </div>
+      <div className="mb-8">
+        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-900">Reports</h1>
+        <p className="mt-2 text-sm text-slate-500">Generate a shareholder-ready PDF activity report for one employee or all staff.</p>
       </div>
 
       <div className="sticky top-0 z-20 mb-8 rounded-3xl border border-slate-200 bg-white p-4 shadow-md">
