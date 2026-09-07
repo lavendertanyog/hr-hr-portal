@@ -115,6 +115,19 @@ function niceMax(value) {
 
 const CHART_W = 800, CHART_H = 340, PLOT_L = 70, PLOT_R = 780, PLOT_T = 36, PLOT_B = 296;
 
+// Same palette as the staff dashboard's Weekly/Monthly Project Log, so a project reads the
+// same color whether a shareholder sees it here or a staffer sees it on their own dashboard.
+const TIMELINE_PROJECT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+const TIMELINE_GENERAL_COLOR = '#898781';
+const TIMELINE_HOUR_TICKS = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24];
+
+function timelineHourLabel(h) {
+  const wrapped = ((h % 24) + 24) % 24;
+  const period = wrapped < 12 ? 'AM' : 'PM';
+  const display = wrapped % 12 === 0 ? 12 : wrapped % 12;
+  return `${display} ${period}`;
+}
+
 function ClockInChart({ sessions }) {
   const points = sessions
     .filter((s) => s.clock_in_time)
@@ -212,6 +225,118 @@ function HoursBarChart({ sessions }) {
             <rect x={cx - barWidth / 2} y={yFor(val)} width={barWidth} height={Math.max(barH, 1)} rx="5" fill="url(#barFill)" />
             <text x={cx} y={labelY} fontSize="10.5" fontWeight="600" fill="#10172A" textAnchor="middle" fontFamily="ui-monospace, monospace">{val.toFixed(1)}h</text>
             <text x={cx} y={PLOT_B + 22} fontSize="10.5" fontWeight="500" fill="#5B6478" textAnchor="middle" fontFamily="ui-monospace, monospace">{d.slice(5)}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// One row per calendar day worked, with a horizontal bar spanning each session's real clock-in
+// → clock-out time on a 24-hour axis — a Gantt-style timeline instead of two separate charts,
+// matching the staff dashboard's Weekly/Monthly Project Log at a glance. A session's bar is
+// segmented by project in the order its allocations were worked, with any untracked leftover
+// time (staff extended past what was allocated) rendered as General.
+function SessionTimelineChart({ sessions, startStr, endStr }) {
+  const withClockIn = sessions.filter((s) => s.clock_in_time);
+  if (withClockIn.length === 0) {
+    return <p className="text-sm text-slate-400 italic">No attendance sessions in this period.</p>;
+  }
+
+  const colorIndex = new Map();
+  withClockIn.forEach((s) => {
+    (Array.isArray(s.allocations) ? s.allocations : []).forEach((a) => {
+      if (a.project_code && !colorIndex.has(a.project_code)) colorIndex.set(a.project_code, colorIndex.size);
+    });
+  });
+  const colorForProject = (code) => {
+    if (!code) return TIMELINE_GENERAL_COLOR;
+    const idx = colorIndex.get(code);
+    return TIMELINE_PROJECT_COLORS[(idx ?? 0) % TIMELINE_PROJECT_COLORS.length];
+  };
+  const hasGeneral = withClockIn.some((s) => {
+    const allocations = Array.isArray(s.allocations) ? s.allocations : [];
+    return allocations.length === 0 || allocations.some((a) => !a.project_code);
+  });
+  const legendItems = Array.from(colorIndex.keys()).map((code) => ({ code, color: colorForProject(code) }));
+  if (hasGeneral) legendItems.push({ code: 'General', color: TIMELINE_GENERAL_COLOR });
+
+  const byDay = new Map();
+  withClockIn.forEach((s) => {
+    const day = sgtDateStr(s.clock_in_time);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(s);
+  });
+
+  // Show every calendar day in the reporting period (not just the ones with data) so a week or
+  // month reads as a consistent grid, same as the staff dashboard's own Project Log. Falls back
+  // to worked-days-only if no range was given, or if it's implausibly long to render as rows.
+  let dayKeys;
+  if (startStr && endStr) {
+    dayKeys = [];
+    let cursor = parseDateStr(startStr);
+    const end = parseDateStr(endStr);
+    while (cursor <= end && dayKeys.length < 31) {
+      dayKeys.push(toDateStr(cursor));
+      cursor = addDays(cursor, 1);
+    }
+    dayKeys.forEach((k) => { if (!byDay.has(k)) byDay.set(k, []); });
+  } else {
+    dayKeys = Array.from(byDay.keys()).sort();
+  }
+  dayKeys.forEach((k) => byDay.get(k).sort((a, b) => new Date(a.clock_in_time) - new Date(b.clock_in_time)));
+
+  const rowH = Math.max(18, Math.min(34, 320 / dayKeys.length));
+  const plotT = 34, plotL = 70, plotR = 780;
+  const plotB = plotT + rowH * dayKeys.length;
+  const chartH = plotB + 32;
+  const xForMinutes = (m) => plotL + (m / 1440) * (plotR - plotL);
+
+  return (
+    <svg viewBox={`0 0 ${CHART_W} ${chartH}`} className="w-full h-auto">
+      <g>
+        {legendItems.map((item, i) => (
+          <g key={item.code} transform={`translate(${plotL + i * 130}, 12)`}>
+            <circle cx="0" cy="0" r="5" fill={item.color} />
+            <text x="12" y="4" fontSize="11.5" fontWeight="600" fill="#33415C">{item.code}</text>
+          </g>
+        ))}
+      </g>
+      {TIMELINE_HOUR_TICKS.map((h) => (
+        <g key={h}>
+          <line x1={xForMinutes(h * 60)} y1={plotT} x2={xForMinutes(h * 60)} y2={plotB} stroke="#E2E6EF" strokeWidth="1" />
+          <text x={xForMinutes(h * 60)} y={plotB + 20} fontSize="10.5" fontWeight="500" fill="#5B6478" textAnchor="middle" fontFamily="ui-monospace, monospace">{timelineHourLabel(h)}</text>
+        </g>
+      ))}
+      {dayKeys.map((day, i) => {
+        const y = plotT + i * rowH;
+        const label = dayKeys.length <= 7
+          ? new Date(day + 'T00:00:00').toLocaleDateString('en-SG', { weekday: 'short', timeZone: 'UTC' })
+          : formatCsvDate(day).slice(0, 5);
+        return (
+          <g key={day}>
+            <line x1={plotL} y1={y + rowH} x2={plotR} y2={y + rowH} stroke="#F1F3F8" strokeWidth="1" />
+            <text x={plotL - 10} y={y + rowH / 2 + 4} fontSize="11" fontWeight="500" fill="#5B6478" textAnchor="end">{label}</text>
+            {byDay.get(day).map((s) => {
+              const startMin = sgtMinutes(s.clock_in_time);
+              const rawEndMin = s.clock_out_time ? sgtMinutes(s.clock_out_time) : null;
+              const endMin = rawEndMin != null && sgtDateStr(s.clock_out_time) === day && rawEndMin > startMin ? rawEndMin : 1440;
+              const span = endMin - startMin;
+              const allocations = Array.isArray(s.allocations) ? s.allocations : [];
+              const segs = allocations.map((a) => ({ code: a.project_code || null, minutes: Number(a.accumulated_hours || 0) * 60 }));
+              const allocated = segs.reduce((sum, seg) => sum + seg.minutes, 0);
+              const leftover = Math.max(0, span - allocated);
+              if (leftover > 0.5 || segs.length === 0) segs.push({ code: null, minutes: leftover || span });
+              let cursor = startMin;
+              return segs.map((seg, si) => {
+                const x1 = xForMinutes(cursor);
+                cursor += seg.minutes;
+                const x2 = xForMinutes(cursor);
+                return (
+                  <rect key={`${s.attendance_id}-${si}`} x={x1} y={y + rowH * 0.22} width={Math.max(x2 - x1, 1.5)} height={rowH * 0.56} rx="3" fill={colorForProject(seg.code)} />
+                );
+              });
+            })}
           </g>
         );
       })}
@@ -428,7 +553,7 @@ function CollapsibleSection({ title, defaultOpen = true, children }) {
 // On-screen report card — the original compact layout, unchanged since before the
 // shareholder-template redesign. The fancier template lives only in EmployeeReportPrint,
 // captured off-screen for the PDF, so this stays whatever the portal itself should look like.
-function EmployeeReport({ employee, sessions, periodLabel }) {
+function EmployeeReport({ employee, sessions, periodLabel, startStr, endStr }) {
   const { totalHours, otHours, daysWorked, avgClockIn, projectCodes, flagged, sorted } = computeReportStats(sessions);
 
   return (
@@ -476,15 +601,9 @@ function EmployeeReport({ employee, sessions, periodLabel }) {
           <>
             <div className="mb-6">
               <CollapsibleSection title="Visual charts" defaultOpen>
-                <div className="grid md:grid-cols-2 gap-8">
-                  <div>
-                    <p className="text-base font-semibold text-slate-900 mb-2">Clock-in time by session</p>
-                    <ClockInChart sessions={sessions} />
-                  </div>
-                  <div>
-                    <p className="text-base font-semibold text-slate-900 mb-2">Hours logged per day</p>
-                    <HoursBarChart sessions={sessions} />
-                  </div>
+                <div>
+                  <p className="text-base font-semibold text-slate-900 mb-2">Daily activity timeline</p>
+                  <SessionTimelineChart sessions={sessions} startStr={startStr} endStr={endStr} />
                 </div>
 
                 {flagged.length > 0 && (
@@ -514,7 +633,7 @@ const PLEX_MONO = { fontFamily: "'IBM Plex Mono', ui-monospace, monospace" };
 // Print-only report card — the fuller shareholder-report template (masthead, subject strip,
 // serif headings, real "vs. prior period" deltas). Rendered off-screen purely so the PDF can
 // capture it; the visible portal page always shows EmployeeReport above instead.
-function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, daysInPeriod = 7, leaveNote = null }) {
+function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr, priorHours = 0, daysInPeriod = 7, leaveNote = null }) {
   const {
     totalHours, otHours, daysWorked, avgClockIn, avgClockInMinutes, projectCodes, generalSessionsCount,
     flagged, sorted, billableHours, nonBillableHours, projectHours,
@@ -621,13 +740,8 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, priorHours = 0, 
           <div data-pdf-block className="px-12 pb-8">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Visual summary</p>
             <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
-            <p className="text-base font-semibold text-[#10172A] mb-2">Clock-in time by session</p>
-            <ClockInChart sessions={sessions} />
-          </div>
-
-          <div data-pdf-block className="px-12 pb-8">
-            <p className="text-base font-semibold text-[#10172A] mb-2">Hours logged per day</p>
-            <HoursBarChart sessions={sessions} />
+            <p className="text-base font-semibold text-[#10172A] mb-2">Daily activity timeline</p>
+            <SessionTimelineChart sessions={sessions} startStr={startStr} endStr={endStr} />
           </div>
 
           {projectHours.length > 0 && (
@@ -1037,6 +1151,8 @@ export default function ReportsPage() {
               employee={emp}
               sessions={emp.sessions}
               periodLabel={periodRange.label}
+              startStr={periodRange.startStr}
+              endStr={periodRange.endStr}
             />
           ))
         )}
@@ -1051,6 +1167,8 @@ export default function ReportsPage() {
             employee={emp}
             sessions={emp.sessions}
             periodLabel={periodRange.label}
+            startStr={periodRange.startStr}
+            endStr={periodRange.endStr}
             priorHours={priorHoursByUser.get(emp.user_id) || 0}
             daysInPeriod={daysInPeriod}
             leaveNote={getLeaveNote(leaveRequests, emp.user_id, periodRange.startStr, periodRange.endStr)}
