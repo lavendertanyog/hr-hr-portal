@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import axios from 'axios';
 
 function formatCsvDate(dt) {
@@ -876,6 +877,8 @@ function monthMatrix(viewMonth) {
 // native date input), or click a second, later date to select a genuinely custom multi-day
 // range. Selection is kept in local draft state until "Apply", so browsing other months while
 // picking doesn't half-commit a range.
+const CALENDAR_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 function RangeCalendarPopover({ initialStart, initialEnd, onApply, onClose }) {
   const [viewMonth, setViewMonth] = useState(() => {
     const d = parseDateStr(initialStart || toDateStr(new Date()));
@@ -886,8 +889,13 @@ function RangeCalendarPopover({ initialStart, initialEnd, onApply, onClose }) {
   const [hoverDate, setHoverDate] = useState(null);
 
   const days = useMemo(() => monthMatrix(viewMonth), [viewMonth]);
-  const monthLabel = viewMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   const todayStr = toDateStr(new Date());
+  // A fixed 21-year span around the real current year (not the viewed month) so the year list
+  // doesn't recenter itself and jump around as you browse.
+  const yearOptions = useMemo(() => {
+    const base = new Date().getFullYear();
+    return Array.from({ length: 21 }, (_, i) => base - 10 + i);
+  }, []);
 
   const handleDayClick = (dateStr) => {
     if (!draftStart || draftEnd) { setDraftStart(dateStr); setDraftEnd(null); return; }
@@ -898,15 +906,30 @@ function RangeCalendarPopover({ initialStart, initialEnd, onApply, onClose }) {
   const previewEnd = draftEnd || (draftStart && hoverDate && hoverDate > draftStart ? hoverDate : null);
 
   return (
-    <div className="absolute z-50 mt-1 w-[300px] rounded-2xl border border-slate-200 bg-white shadow-xl p-3" onMouseLeave={() => setHoverDate(null)}>
-      <div className="flex items-center justify-between mb-2">
+    <div className="absolute z-50 mt-1 w-full min-w-[260px] rounded-2xl border border-slate-200 bg-white shadow-xl p-3" onMouseLeave={() => setHoverDate(null)}>
+      <div className="flex items-center justify-between mb-2 gap-1">
         <button type="button" onClick={() => setViewMonth(new Date(Date.UTC(viewMonth.getUTCFullYear(), viewMonth.getUTCMonth() - 1, 1, 12)))}
-          aria-label="Previous month" className="flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:bg-slate-100">
+          aria-label="Previous month" className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:bg-slate-100">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
         </button>
-        <p className="text-sm font-semibold text-slate-900">{monthLabel}</p>
+        {/* Month and year as selects (rather than plain text) so you can jump straight to a
+            distant month or year instead of only stepping one month at a time. */}
+        <div className="flex items-center gap-1 min-w-0">
+          <select value={viewMonth.getUTCMonth()}
+            onChange={(e) => setViewMonth(new Date(Date.UTC(viewMonth.getUTCFullYear(), Number(e.target.value), 1, 12)))}
+            aria-label="Month"
+            className="rounded-lg bg-transparent text-sm font-semibold text-slate-900 py-1 pl-1.5 pr-0.5 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            {CALENDAR_MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
+          </select>
+          <select value={viewMonth.getUTCFullYear()}
+            onChange={(e) => setViewMonth(new Date(Date.UTC(Number(e.target.value), viewMonth.getUTCMonth(), 1, 12)))}
+            aria-label="Year"
+            className="rounded-lg bg-transparent text-sm font-semibold text-slate-900 py-1 pl-0.5 pr-1.5 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
         <button type="button" onClick={() => setViewMonth(new Date(Date.UTC(viewMonth.getUTCFullYear(), viewMonth.getUTCMonth() + 1, 1, 12)))}
-          aria-label="Next month" className="flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:bg-slate-100">
+          aria-label="Next month" className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:bg-slate-100">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
         </button>
       </div>
@@ -924,28 +947,28 @@ function RangeCalendarPopover({ initialStart, initialEnd, onApply, onClose }) {
             <button key={dateStr} type="button"
               onMouseEnter={() => setHoverDate(dateStr)}
               onClick={() => handleDayClick(dateStr)}
-              className={`h-7 rounded-lg text-xs transition ${!inMonth ? 'text-slate-300' : 'text-slate-700'} ${
-                isStart || isEnd ? 'bg-[#1540A8] text-white font-semibold'
-                  : within ? 'bg-[#EEF4FF] text-[#0c3b8f]'
-                  : dateStr === todayStr ? 'font-semibold text-[#1540A8] hover:bg-slate-100'
-                  : 'hover:bg-slate-100'
+              className={`h-7 text-xs transition ${!inMonth ? 'text-slate-300' : 'text-slate-700'} ${
+                isStart || isEnd ? 'rounded-lg bg-[#1540A8] text-white font-semibold'
+                  : within ? 'rounded-lg bg-[#EEF4FF] text-[#0c3b8f]'
+                  : dateStr === todayStr ? 'rounded-full bg-amber-100 text-amber-700 font-semibold hover:bg-amber-200'
+                  : 'rounded-lg hover:bg-slate-100'
               }`}>
               {d.getUTCDate()}
             </button>
           );
         })}
       </div>
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
-        <p className="text-xs text-slate-500 truncate">
+      <div className="mt-3 border-t border-slate-100 pt-3">
+        <p className="text-xs text-slate-500 truncate mb-2.5">
           {!draftStart ? 'Pick a start date' : !draftEnd ? 'Pick an end date, or apply for one day' : `${draftStart} → ${draftEnd}`}
         </p>
-        <div className="flex-shrink-0 flex gap-2">
-          <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">
+        <div className="flex gap-2">
+          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">
             Cancel
           </button>
           <button type="button" disabled={!draftStart}
             onClick={() => onApply(draftStart, draftEnd || draftStart)}
-            className="rounded-xl bg-[#1540A8] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition">
+            className="flex-1 rounded-xl bg-[#1540A8] px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition">
             Apply
           </button>
         </div>
@@ -955,6 +978,7 @@ function RangeCalendarPopover({ initialStart, initialEnd, onApply, onClose }) {
 }
 
 export default function ReportsPage() {
+  const [logoMissing, setLogoMissing] = useState(false);
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -1241,10 +1265,20 @@ export default function ReportsPage() {
         </div>
       )}
 
-      <div className="mb-8">
-        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-        <h1 className="mt-3 text-4xl font-semibold text-slate-900">Reports</h1>
-        <p className="mt-2 text-sm text-slate-500">Generate a shareholder-ready PDF activity report for one employee or all staff.</p>
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
+          <h1 className="mt-3 text-4xl font-semibold text-slate-900">Reports</h1>
+          <p className="mt-2 text-sm text-slate-500">Generate a shareholder-ready PDF activity report for one employee or all staff.</p>
+        </div>
+        <div className="hidden md:block">
+          {!logoMissing ? (
+            <Image src="/nextan-logo.png" alt="Nextan" width={140} height={44}
+              className="object-contain opacity-80" onError={() => setLogoMissing(true)} />
+          ) : (
+            <span className="text-lg font-bold tracking-tight text-blue-900">nextan</span>
+          )}
+        </div>
       </div>
 
       <div className="sticky top-0 z-20 mb-8 rounded-3xl border border-slate-200 bg-white p-4 shadow-md">
@@ -1261,7 +1295,7 @@ export default function ReportsPage() {
               toggle is gone — Quick select (below) is now what sets the period type, alongside
               the resolved range. */}
           <div ref={calendarRef} className="relative flex-1 basis-0 min-w-[240px]">
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Period / range</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Date</label>
             <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 px-1.5 py-1.5">
               <button type="button" onClick={() => setAnchorDate(getPreviousAnchor(periodType, anchorDate))}
                 disabled={periodType === 'custom'}
@@ -1277,7 +1311,7 @@ export default function ReportsPage() {
                 <svg className="flex-shrink-0 text-slate-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
-                <span className="text-sm font-bold text-slate-900 truncate">{periodRange.label}</span>
+                <span className="text-sm font-normal text-slate-900 truncate">{periodRange.label}</span>
               </button>
               <button type="button" onClick={() => setAnchorDate(getNextAnchor(periodType, anchorDate))}
                 disabled={nextDisabled || periodType === 'custom'}
@@ -1306,16 +1340,28 @@ export default function ReportsPage() {
               the anchor date, keeping whatever period type is already active; the rest also set
               the period type (weekly/monthly). */}
           <div ref={quickSelectRef} className="relative flex-1 basis-0 min-w-[150px]">
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Quick select</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Period</label>
             <button type="button" onClick={() => setQuickSelectOpen((o) => !o)}
-              className="w-full flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold text-slate-900 hover:bg-slate-100 transition">
-              <span className="truncate">{quickRanges.find((q) => q.key === activeQuickRangeKey)?.label || 'Custom'}</span>
+              className="w-full flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-normal text-slate-900 hover:bg-slate-100 transition">
+              <span className="truncate">
+                {periodType === 'custom' && customRange?.start === todayStr && customRange?.end === todayStr
+                  ? 'Today'
+                  : quickRanges.find((q) => q.key === activeQuickRangeKey)?.label || 'Custom'}
+              </span>
               <svg className="flex-shrink-0 text-slate-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
             </button>
             {quickSelectOpen && (
               <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-                <button type="button" onClick={() => { setAnchorDate(toDateStr(new Date())); if (periodType === 'custom') setPeriodType('weekly'); setQuickSelectOpen(false); }}
-                  className="block w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 border-b border-slate-100">
+                <button type="button" onClick={() => {
+                    setAnchorDate(todayStr);
+                    setCustomRange({ start: todayStr, end: todayStr });
+                    setPeriodType('custom');
+                    setQuickSelectOpen(false);
+                  }}
+                  className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 border-b border-slate-100 ${
+                    periodType === 'custom' && customRange?.start === todayStr && customRange?.end === todayStr
+                      ? 'bg-[#EEF4FF] text-[#0c3b8f] font-semibold' : 'text-slate-700'
+                  }`}>
                   Today
                 </button>
                 {quickRanges.map((q) => (
@@ -1419,22 +1465,26 @@ export default function ReportsPage() {
       <div id="reports-print-area" className="space-y-6">
         {loading ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading attendance data…</div>
-        ) : employeesInScope.length === 0 ? (
+        ) : employeesInScope.length === 0 ? (() => {
+          const fmtFull = (dateStr) => parseDateStr(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+          const dateRangeText = periodRange.startStr === periodRange.endStr
+            ? `on ${fmtFull(periodRange.startStr)}`
+            : `between ${fmtFull(periodRange.startStr)} - ${fmtFull(periodRange.endStr)}`;
+          return (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-8 py-14 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF0FF]">
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1540A8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="5" width="18" height="16" rx="2" />
-                <path d="M8 3v4M16 3v4M3 10h18" />
-                <path d="m9 15 6 6M15 15l-6 6" />
+                <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
               </svg>
             </div>
             <p className="text-base font-semibold text-slate-700">No attendance logged for this period</p>
             <p className="mx-auto mt-1.5 max-w-sm text-sm text-slate-500">
-              {employeeFilter === 'all' ? 'No employee has' : `${employees.find((e) => e.user_id === employeeFilter)?.full_name || 'This employee'} has no`} clock-in records between <span className="font-medium text-slate-700">{periodRange.label}</span> — either no shifts fell in this range, or logs haven&apos;t synced yet.
+              {employeeFilter === 'all' ? 'No employee has' : `${employees.find((e) => e.user_id === employeeFilter)?.full_name || 'This employee'} has no`} clock-in records {dateRangeText} — either no shifts fell in this range, or logs haven&apos;t synced yet.
             </p>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-              <button onClick={() => setAnchorDate(toDateStr(new Date()))} className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-                Jump to this {periodType === 'daily' ? 'day' : periodType === 'monthly' ? 'month' : 'week'}
+              <button onClick={() => { setAnchorDate(toDateStr(new Date())); if (periodType === 'custom') setPeriodType('weekly'); }}
+                className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Jump to today
               </button>
               {employeeFilter !== 'all' && (
                 <button onClick={() => setEmployeeFilter('all')} className="rounded-2xl bg-[#1540A8] px-4 py-2 text-sm font-semibold text-white">
@@ -1443,7 +1493,8 @@ export default function ReportsPage() {
               )}
             </div>
           </div>
-        ) : (
+          );
+        })() : (
           employeesInScope.map((emp) => (
             <EmployeeReport
               key={emp.user_id}
