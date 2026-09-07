@@ -126,10 +126,13 @@ function AddPersonNode({ role, options, onAdd }) {
   if (open) {
     return (
       <div className="relative" style={{ minWidth: 180, maxWidth: 220 }}>
+        <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
         <input ref={inputRef} type="text" value={query} onChange={(e) => setQuery(e.target.value)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder="Search name…"
-          className="w-full rounded-xl border-2 border-dashed border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-700 focus:outline-none" />
+          className="w-full rounded-xl border-2 border-dashed border-blue-300 bg-white pl-9 pr-3 py-2 text-xs font-semibold text-blue-700 focus:outline-none" />
         <div className="absolute z-30 mt-1 w-full max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
           {filtered.length === 0 ? (
             <p className="px-3 py-2 text-[11px] text-slate-400">No matches</p>
@@ -456,13 +459,18 @@ function HierarchyContent() {
           <>
             <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="mb-5 flex flex-wrap items-center gap-3">
-                <input
-                  type="text"
-                  value={projectSearch}
-                  onChange={(e) => { setProjectSearch(e.target.value); }}
-                  placeholder="Search project or person name…"
-                  className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60"
-                />
+                <div className="relative">
+                  <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={projectSearch}
+                    onChange={(e) => { setProjectSearch(e.target.value); }}
+                    placeholder="Search project or person name…"
+                    className="rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60"
+                  />
+                </div>
                 <span className="ml-auto text-xs text-slate-400">{visibleProjects.length} project{visibleProjects.length !== 1 ? 's' : ''}</span>
               </div>
               <div className="overflow-hidden" style={isCollapsed ? { maxHeight: COLLAPSED_ROWS_HEIGHT } : undefined}>

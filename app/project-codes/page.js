@@ -42,13 +42,16 @@ function UserMultiSelect({ label, placeholder, users, selected, onChange }) {
       {/* ref only wraps the input + dropdown panel, so clicking the label, chips, or any
           other whitespace on the page (not just outside the whole field) closes the menu */}
       <div ref={ref} className="relative">
+        <svg className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
         <input
           type="text"
           value={search}
           onFocus={() => setOpen(true)}
           onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
           placeholder={placeholder}
-          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         {open && (
           <div className="absolute z-50 mt-1 max-h-52 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
@@ -335,13 +338,18 @@ export default function ProjectCodesPage() {
       <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         {/* Unified toolbar: search · status filter · manager filter … + Issue New Code */}
         <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-slate-100">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search code or project name..."
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-          />
+          <div className="relative">
+            <svg className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search code or project name..."
+              className="rounded-2xl border border-slate-200 bg-white pl-10 pr-4 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+            />
+          </div>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="ALL">Status: All</option>

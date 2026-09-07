@@ -508,9 +508,14 @@ export default function UserRolesPage() {
       <div className={`rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden transition-all ${selectedUserId ? 'flex-1 min-w-0' : 'w-full'}`}>
         {/* Toolbar: search · role filter · view toggle */}
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-100">
-          <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-            placeholder="Search users…"
-            className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60" />
+          <div className="relative">
+            <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+              placeholder="Search users…"
+              className="rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60" />
+          </div>
           <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
             className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
             <option value="ALL">Filter by Role</option>
