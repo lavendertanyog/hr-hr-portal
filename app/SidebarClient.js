@@ -1,27 +1,45 @@
-﻿"use client";
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import Image from 'next/image';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 
 function deriveNameFromEmail(email) {
-  return String(email || '')
-    .split('@')[0].split('.').filter(Boolean)
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
+  return String(email || '').split('@')[0].split('.').filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ');
 }
 
 const NAV = [
-  { label: 'Approvals', href: '/admin' },
-  { label: 'User Roles', href: '/users' },
-  { label: 'Hierarchy', href: '/hierarchy' },
-  { label: 'Projects', href: '/project-codes' },
-  { label: 'Attendance', href: '/attendance' },
-  { label: 'Reports', href: '/reports' },
+  { label: 'Approvals', href: '/admin', icon: 'check' },
+  { label: 'People', href: '/people', icon: 'users' },
+  { label: 'Projects', href: '/project-codes', icon: 'folder' },
+  { label: 'Attendance', href: '/attendance', icon: 'clock' },
+  { label: 'Reports', href: '/reports', icon: 'chart' },
+  { label: 'Calendar', href: '/calendar', icon: 'calendar' },
 ];
 
-function formatRole(role) {
-  return String(role || '').split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+function NavIcon({ name, size = 20 }) {
+  const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  switch (name) {
+    case 'check':
+      return <svg {...common}><circle cx="12" cy="12" r="9" /><polyline points="8 12 11 15 16 9" /></svg>;
+    case 'users':
+      return <svg {...common}><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
+    case 'sitemap':
+      return <svg {...common}><rect x="9" y="3" width="6" height="6" rx="1" /><rect x="3" y="15" width="6" height="6" rx="1" /><rect x="15" y="15" width="6" height="6" rx="1" /><path d="M12 9v3M6 15v-3h12v3" /></svg>;
+    case 'folder':
+      return <svg {...common}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>;
+    case 'clock':
+      return <svg {...common}><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 15" /></svg>;
+    case 'chart':
+      return <svg {...common}><line x1="12" y1="20" x2="12" y2="10" /><line x1="18" y1="20" x2="18" y2="4" /><line x1="6" y1="20" x2="6" y2="16" /></svg>;
+    case 'calendar':
+      return <svg {...common}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
+    case 'settings':
+      return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>;
+    default:
+      return null;
+  }
 }
 
 // Module-level: resets on every full page reload.
@@ -31,7 +49,9 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [logoMissing, setLogoMissing] = useState(false);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     try {
@@ -41,7 +61,6 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
   }, [pathname]);
 
   // Role verification: runs once on initial page load (module var = 0) then every 60s via interval.
-  // Removed the per-navigation fetch — it was firing on every link click and causing UI lag.
   useEffect(() => {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
@@ -64,17 +83,23 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
         .catch(() => {}); // ignore AbortError
     };
 
-    // Run once on mount (catches revocation on page load)
     const ctrl = new AbortController();
     verify(ctrl.signal);
 
-    // Then every 60 seconds
     const id = setInterval(() => {
       const c = new AbortController();
       verify(c.signal);
     }, 60_000);
 
     return () => { ctrl.abort(); clearInterval(id); };
+  }, []);
+
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
   const handleLogout = () => {
@@ -87,13 +112,10 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
   const displayName = user?.full_name || deriveNameFromEmail(user?.email) || 'HR';
   const initials = displayName.split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('') || 'HR';
 
-  const sidebarStyle = isDrawer
-    ? { width: 280, minHeight: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 50, boxShadow: '0 20px 60px rgba(15,23,42,0.18)' }
-    : { width: 240, minHeight: '100vh', borderRight: '1px solid #e5e7eb' };
-
-  return (
-    <aside className="flex flex-col bg-white" style={sidebarStyle}>
-      {isDrawer && (
+  // Mobile drawer keeps the original full-width list layout — the icon rail below is desktop-only.
+  if (isDrawer) {
+    return (
+      <aside className="flex flex-col bg-white" style={{ width: 280, minHeight: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 50, boxShadow: '0 20px 60px rgba(15,23,42,0.18)' }}>
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <span className="text-sm font-semibold text-slate-900">Navigation</span>
           <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100">
@@ -103,70 +125,136 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
             </svg>
           </button>
         </div>
-      )}
 
-      {/* Logo */}
-      <div className="flex items-center justify-center" style={{ padding: '28px 24px 20px' }}>
-        {!logoMissing ? (
-          <Image
-            src="/nextan-logo.png"
-            alt="Nextan"
-            width={150}
-            height={45}
-            className="object-contain"
-            onError={() => setLogoMissing(true)}
-          />
-        ) : (
-          <span className="text-lg font-bold text-blue-900 tracking-tight">nextan</span>
-        )}
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 px-3" style={{ paddingTop: 8 }}>
-        {NAV.map((item) => {
-          const active = pathname.startsWith(item.href);
-          return (
-            <Link key={item.href} href={item.href}
-              className="flex items-center rounded-2xl text-sm font-medium transition-colors"
-              style={{
-                padding: '13px 18px', marginBottom: 6,
-                background: active ? '#e8edf8' : 'white',
-                color: active ? '#1a3a8f' : '#374151',
-                fontWeight: active ? 600 : 500,
-              }}>
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Profile block */}
-      <div className="px-3 pb-5 pt-3" style={{ borderTop: '1px solid #f0f0f0' }}>
-        <div className="flex items-center gap-3 rounded-2xl" style={{ background: '#f5f7fc', padding: '12px 14px' }}>
-          <div className="flex items-center justify-center rounded-full text-white text-sm font-bold flex-shrink-0"
-            style={{ width: 38, height: 38, background: '#1a3a8f', fontSize: 13 }}>
-            {initials}
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <p className="text-sm font-semibold truncate" style={{ color: '#111827', lineHeight: 1.3 }}>{displayName}</p>
-            <p className="text-xs truncate" style={{ color: '#6b7280', marginTop: 1 }}>HR</p>
-          </div>
-
-          {/* Logout button */}
-          <button
-            onClick={handleLogout}
-            title="Log out"
-            className="flex-shrink-0 flex items-center justify-center rounded-lg transition hover:bg-red-50"
-            style={{ width: 30, height: 30, color: '#9ca3af' }}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-          </button>
+        <div className="flex items-center justify-center" style={{ padding: '28px 24px 20px' }}>
+          <img src="/nextan-logo.png" alt="Nextan" width={150} height={45} className="object-contain" />
         </div>
-      </div>
-    </aside>
+
+        <nav className="flex-1 px-3" style={{ paddingTop: 8 }}>
+          {NAV.map((item) => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <Link key={item.href} href={item.href}
+                className="flex items-center gap-3 rounded-2xl text-sm font-medium transition-colors"
+                style={{
+                  padding: '13px 18px',
+                  marginBottom: 6,
+                  background: active ? '#e8edf8' : 'white',
+                  color: active ? '#1a3a8f' : '#374151',
+                  fontWeight: active ? 600 : 500,
+                }}>
+                <NavIcon name={item.icon} size={18} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="px-3 pb-5 pt-3" style={{ borderTop: '1px solid #f0f0f0' }}>
+          <div className="flex items-center gap-3 rounded-2xl" style={{ background: '#f5f7fc', padding: '12px 14px' }}>
+            <Link href="/profile" className="flex items-center gap-3 flex-1 overflow-hidden" title="View profile">
+              <div className="flex items-center justify-center rounded-full text-white text-sm font-bold flex-shrink-0"
+                style={{ width: 38, height: 38, background: '#1a3a8f', fontSize: 13 }}>
+                {initials}
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-sm font-semibold truncate" style={{ color: '#111827', lineHeight: 1.3 }}>{displayName}</p>
+                <p className="text-xs truncate" style={{ color: '#6b7280', marginTop: 1 }}>HR</p>
+              </div>
+            </Link>
+            <button onClick={handleLogout} title="Log out"
+              className="flex-shrink-0 flex items-center justify-center rounded-lg transition hover:bg-red-50"
+              style={{ width: 30, height: 30, color: '#9ca3af' }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
+  // Desktop: pill-shaped icon rail, floating with a tight margin, pure-CSS stadium (no SVG,
+  // no JS-measured height — the fixed top/bottom offsets alone define its shape, so nothing
+  // can drift out of sync). Nav items cluster near the top. The active item is a modestly
+  // wider capsule, same color as the content pane, that pokes just past the rail's edge —
+  // a small, restrained highlight rather than a large separate shape. Settings sits pinned to
+  // the very bottom of this SAME element so the navy always shows behind/around it, clipped by
+  // its own overflow wrapper so only the top half is visible.
+  const PAGE_BG = '#ffffff';
+  const RAIL_W = 140;
+  const MARGIN = 10;
+
+  return (
+    <div style={{ width: MARGIN + RAIL_W, flexShrink: 0, position: 'relative' }}>
+      {/* No background of its own — the page behind it is already navy (see AppShell),
+          so there's no seam between this rail and the rest of the backdrop to misalign. */}
+      <aside
+        className="flex flex-col"
+        style={{
+          position: 'fixed', top: MARGIN, bottom: MARGIN, left: MARGIN, width: RAIL_W,
+          zIndex: 30,
+        }}
+      >
+        {/* Logo */}
+        <div className="flex items-center justify-center" style={{ paddingTop: 28, paddingBottom: 4 }}>
+          {!logoMissing ? (
+            <img src="/nextan-logo.png" alt="Nextan" width={156} height={48}
+              className="object-contain brightness-0 invert"
+              onError={() => setLogoMissing(true)} />
+          ) : (
+            <span className="text-sm font-bold text-white tracking-tight">nextan</span>
+          )}
+        </div>
+
+        <nav className="flex flex-col items-center overflow-y-auto hide-native-scrollbar" style={{ paddingTop: 20, flex: 1, minHeight: 0 }}>
+          {NAV.map((item) => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <Link key={item.href} href={item.href}
+                title={item.label}
+                className="flex flex-col items-center justify-center transition-all flex-shrink-0"
+                style={{
+                  width: active ? 80 : 69,
+                  height: active ? 132 : 69,
+                  borderRadius: active ? 40 : 18,
+                  margin: active ? '18px 0' : '6px 0',
+                  gap: 7,
+                  background: active ? PAGE_BG : 'transparent',
+                  color: active ? '#16307a' : '#aab8e0',
+                }}>
+                <NavIcon name={item.icon} size={active ? 20 : 18} />
+                <span style={{ fontSize: 11, fontWeight: active ? 600 : 500, lineHeight: 1 }}>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Settings / profile — a half pill flush against the bottom edge: rounded top,
+            flat bottom, no gap, so it reads as cut off by the screen's edge. */}
+        <div ref={menuRef} style={{ position: 'relative', flexShrink: 0, left: (RAIL_W - 72) / 2, width: 72 }}>
+          <button type="button" onClick={() => setMenuOpen((v) => !v)} aria-label="Settings"
+            className="flex items-center justify-center"
+            style={{
+              width: 72, height: 93, borderRadius: '36px 36px 0 0',
+              background: '#f0c9dc', color: '#16307a', border: 'none', cursor: 'pointer',
+            }}>
+            <NavIcon name="settings" size={18} />
+          </button>
+          {menuOpen && (
+            <div className="absolute rounded-2xl border border-slate-200 bg-white shadow-lg py-2 z-30"
+              style={{ bottom: 101, left: 0, width: 150 }}>
+              <Link href="/profile" onClick={() => setMenuOpen(false)}
+                className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Profile</Link>
+              <button type="button" onClick={handleLogout}
+                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Log out</button>
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>
   );
 }

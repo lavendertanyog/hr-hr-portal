@@ -23,6 +23,27 @@ export default function Home() {
   const [error, setError] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
   const [logoMissing, setLogoMissing] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState('');
+  const [resending, setResending] = useState(false);
+
+  const handleResendVerification = async () => {
+    setResending(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: unverifiedEmail, portalUrl: window.location.origin }),
+      });
+      const payload = await res.json();
+      setInfoMessage(res.ok ? 'If an unverified account exists for that email, a new verification link has been sent.' : (payload.error || 'Failed to resend.'));
+      setUnverifiedEmail('');
+    } catch {
+      setError('Unable to reach server. Try again.');
+    } finally {
+      setResending(false);
+    }
+  };
 
   useEffect(() => {
     try {
@@ -32,7 +53,7 @@ export default function Home() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(''); setInfoMessage('');
+    setError(''); setInfoMessage(''); setUnverifiedEmail('');
     if (!email || (mode !== 'reset' && !password)) { setError('Email and password are required.'); return; }
     if (!email.toLowerCase().endsWith('@nextan.com.sg')) { setError('Only @nextan.com.sg emails are allowed.'); return; }
     if (mode === 'signup' && password !== confirmPassword) { setError('Passwords do not match.'); return; }
@@ -44,7 +65,7 @@ export default function Home() {
       const body = mode === 'reset'
         ? { email: email.trim().toLowerCase(), portalUrl: window.location.origin }
         : mode === 'signup'
-          ? { email: email.trim().toLowerCase(), password, userRole: 'hr' }
+          ? { email: email.trim().toLowerCase(), password, userRole: 'hr', portalUrl: window.location.origin }
           : { email: email.trim().toLowerCase(), password };
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
@@ -53,6 +74,7 @@ export default function Home() {
       });
       const payload = await res.json();
       if (!res.ok) {
+        if (payload.unverified) setUnverifiedEmail(email.trim().toLowerCase());
         setError(payload.error || payload.detail || 'Authentication failed.');
         setLoading(false);
         return;
@@ -63,13 +85,13 @@ export default function Home() {
         setPassword('');
         setConfirmPassword('');
         setLoading(false);
-        setInfoMessage('If an account exists for that email, a reset link has been sent — check your inbox.');
+        setInfoMessage('If an account exists for that email, a temporary password has been sent — check your inbox and log in with it.');
       } else if (mode === 'signup') {
         setMode('login');
         setPassword('');
         setConfirmPassword('');
         setLoading(false);
-        setError('Account created. Awaiting admin approval from rebecca.lau@nextan.com.sg to approve before signing in.');
+        setInfoMessage('Account created. Check your email for a link to verify your account before signing in.');
       } else {
         const user = { ...payload.data, full_name: deriveNameFromEmail(email.trim().toLowerCase()) };
         const role = String(user.user_role || '').toLowerCase();
@@ -112,7 +134,7 @@ export default function Home() {
             <h2 className="text-3xl font-bold mb-3">Nextan HR Portal</h2>
             <button
               type="button"
-              onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+              onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setUnverifiedEmail(''); }}
               className="mt-8 px-5 py-2 rounded-full border border-white/40 text-sm font-medium hover:bg-white/10 transition"
             >
               {mode === 'login' ? 'Create Account' : 'Back to Sign In'}
@@ -123,7 +145,7 @@ export default function Home() {
         {/* Right white panel */}
         <div className="flex flex-col justify-center w-full md:w-1/2 bg-white p-10 md:p-12">
           <h1 className="text-4xl font-bold text-slate-900 mb-2">{mode === 'login' ? 'Hello Again!' : mode === 'signup' ? 'Create Account' : 'Forgot Password'}</h1>
-          <p className="text-slate-500 text-base mb-8">{mode === 'login' ? 'Welcome Back' : mode === 'signup' ? 'Register with your Nextan email' : 'Enter your email and we’ll send you a reset link'}</p>
+          <p className="text-slate-500 text-base mb-8">{mode === 'login' ? 'Welcome Back' : mode === 'signup' ? 'Register with your Nextan email' : 'Enter your email and we’ll send you a temporary password'}</p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
@@ -200,11 +222,17 @@ export default function Home() {
                   <input type="checkbox" className="rounded border-slate-300" />
                   Remember Me
                 </label>
-                <button type="button" className="text-cyan-700 hover:underline" onClick={() => { setMode('reset'); setError(''); setInfoMessage(''); }}>Forgot password</button>
+                <button type="button" className="text-cyan-700 hover:underline" onClick={() => { setMode('reset'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); }}>Forgot password</button>
               </div>
             )}
 
             {error && <p className="text-red-500 text-xs">{error}</p>}
+            {unverifiedEmail && (
+              <button type="button" onClick={handleResendVerification} disabled={resending}
+                className="text-cyan-700 hover:underline text-xs disabled:opacity-60">
+                {resending ? 'Sending…' : 'Resend verification email'}
+              </button>
+            )}
 
             <button
               type="submit"
@@ -212,30 +240,24 @@ export default function Home() {
               className="w-full py-3.5 rounded-xl font-bold text-white text-base transition"
               style={{ background: '#0c3b8f' }}
             >
-              {loading ? 'Please wait\u2026' : mode === 'login' ? 'LOGIN' : mode === 'signup' ? 'SIGN UP' : 'SEND RESET LINK'}
+              {loading ? 'Please wait\u2026' : mode === 'login' ? 'LOGIN' : mode === 'signup' ? 'SIGN UP' : 'SEND TEMPORARY PASSWORD'}
             </button>
           </form>
 
           {infoMessage && <p className="text-center text-emerald-700 text-sm mt-4">{infoMessage}</p>}
 
-          {mode === 'login' && (
-            <p className="text-center text-xs text-slate-400 mt-3">
-              If the button is stuck on &ldquo;Please wait&rdquo;, or refresh the page and try again.
-            </p>
-          )}
-
           <p className="text-center text-base text-slate-700 mt-6">
             {mode === 'login' ? (
               <>No account?{' '}
-                <button className="text-blue-700 font-semibold" onClick={() => { setMode('signup'); setError(''); setInfoMessage(''); }}>Sign up</button>
+                <button className="text-blue-700 font-semibold" onClick={() => { setMode('signup'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); }}>Sign up</button>
               </>
             ) : mode === 'signup' ? (
               <>Already have an account?{' '}
-                <button className="text-blue-700 font-semibold" onClick={() => { setMode('login'); setError(''); setInfoMessage(''); }}>Sign in</button>
+                <button className="text-blue-700 font-semibold" onClick={() => { setMode('login'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); }}>Sign in</button>
               </>
             ) : (
               <>Remember your password?{' '}
-                <button className="text-blue-700 font-semibold" onClick={() => { setMode('login'); setError(''); setInfoMessage(''); }}>Back to login</button>
+                <button className="text-blue-700 font-semibold" onClick={() => { setMode('login'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); }}>Back to login</button>
               </>
             )}
           </p>

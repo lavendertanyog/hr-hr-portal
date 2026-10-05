@@ -114,6 +114,10 @@ function getLeaveNote(leaveRequests, userId, startStr, endStr) {
   return `${totalDays} day${totalDays === 1 ? '' : 's'} of approved ${category} leave overlaps this period`;
 }
 
+function fmtHours(n) {
+  return `${(Number(n) || 0).toFixed(2)}h`;
+}
+
 function niceMax(value) {
   if (value <= 0) return 10;
   const pow = Math.pow(10, Math.floor(Math.log10(value)));
@@ -639,10 +643,71 @@ function EmployeeReport({ employee, sessions, periodLabel, startStr, endStr }) {
 const FRAUNCES = { fontFamily: "'Fraunces', Georgia, serif" };
 const PLEX_MONO = { fontFamily: "'IBM Plex Mono', ui-monospace, monospace" };
 
+// Per-employee budget utilisation table — mirrors the "Project activity breakdown" block's
+// header style, sourced from GET /api/v1/reports/budget-usage/:userId (same allocation/
+// tracked-hours/extension computation as the Account Manager portal's staff-usage report,
+// just scoped to one employee across all of their projects instead of one AM's ownership).
+function BudgetUtilisationSection({ budgetRows }) {
+  if (!budgetRows || budgetRows.length === 0) return null;
+  return (
+    <div data-pdf-block className="px-12 pb-8">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Budget utilisation</p>
+      <h3 className="text-2xl font-semibold text-[#10172A] mb-1" style={FRAUNCES}>Allocated hours vs. hours tracked</h3>
+      <p className="text-xs text-[#5B6478] mb-5">Approved weekly allocation compared against hours actually logged against each project, including any approved hour extensions.</p>
+      <div className="overflow-hidden rounded-2xl border border-slate-200">
+        <table className="min-w-full text-sm">
+          <thead className="bg-[#EAF0FF] text-[#33415C] font-semibold uppercase tracking-wider text-xs">
+            <tr>
+              <th className="px-4 py-2.5 text-left">Project</th>
+              <th className="px-4 py-2.5 text-right">Allocated</th>
+              <th className="px-4 py-2.5 text-right">Used</th>
+              <th className="px-4 py-2.5 text-left w-40">% Used</th>
+              <th className="px-4 py-2.5 text-right">Extension</th>
+              <th className="px-4 py-2.5 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {budgetRows.map((row) => {
+              const pct = Number(row.percent_used) || 0;
+              const barColor = row.over_budget ? '#DC2626' : pct >= 85 ? '#B4650C' : '#157F52';
+              return (
+                <tr key={row.project_code}>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <span className="inline-block font-mono text-xs bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-2 py-0.5">{row.project_code}</span>
+                    <div className="text-xs text-[#5B6478] mt-1">{row.project_name}</div>
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono whitespace-nowrap" style={PLEX_MONO}>{fmtHours(row.allocated_hours)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono whitespace-nowrap" style={PLEX_MONO}>{fmtHours(row.used_hours)}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden min-w-[64px]">
+                        <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(pct, 2), 100)}%`, backgroundColor: barColor }} />
+                      </div>
+                      <span className="text-xs font-semibold text-[#10172A] w-12 flex-shrink-0 text-right" style={PLEX_MONO}>{pct.toFixed(0)}%</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono whitespace-nowrap" style={PLEX_MONO}>{row.extension_hours > 0 ? fmtHours(row.extension_hours) : '—'}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <span className={`text-[11px] font-bold uppercase tracking-wide rounded-full px-2.5 py-1 ${
+                      row.over_budget ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {row.over_budget ? 'Over budget' : 'On track'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // Print-only report card — the fuller shareholder-report template (masthead, subject strip,
 // serif headings, real "vs. prior period" deltas). Rendered off-screen purely so the PDF can
 // capture it; the visible portal page always shows EmployeeReport above instead.
-function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr, priorHours = 0, daysInPeriod = 7, leaveNote = null }) {
+function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr, priorHours = 0, daysInPeriod = 7, leaveNote = null, budgetRows = [] }) {
   const {
     totalHours, otHours, daysWorked, avgClockIn, avgClockInMinutes, projectCodes, generalSessionsCount,
     flagged, sorted, billableHours, nonBillableHours, projectHours,
@@ -712,14 +777,19 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
         </div>
       </div>
 
-      <div data-pdf-block className="px-12 pt-9 pb-9 border-b border-slate-200 bg-slate-50">
+      <div data-pdf-block className="px-12 pt-7 pb-7 border-b border-slate-200 bg-slate-50">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Executive summary</p>
         <p className="text-base text-[#10172A] leading-relaxed max-w-3xl">{execSummary}</p>
       </div>
 
-      <div data-pdf-block className={sessions.length === 0 ? 'px-12 pt-10 pb-10' : 'px-12 pt-10 pb-8'}>
+      {/* Activity summary and Visual summary are separate blocks — a merged block risked the
+          PDF packer's page-boundary slicing (used for any block taller than the space left on
+          the page) landing mid-chart, cutting the axis labels away from the plotted bars.
+          Keeping the chart in its own block means only a whole block ever gets sliced, never
+          the inside of the chart image itself. */}
+      <div data-pdf-block className={sessions.length === 0 ? 'px-12 pt-8 pb-8' : 'px-12 pt-8 pb-6'}>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>At a glance</p>
-        <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>Activity summary</h3>
+        <h3 className="text-2xl font-semibold text-[#10172A] mb-4" style={FRAUNCES}>Activity summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             ['Hours logged', `${totalHours.toFixed(2)}h`, hoursCaption, hoursCaptionColor],
@@ -730,7 +800,7 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
             ['Avg. clock-in', avgClockIn, clockInCaption, clockInCaptionColor],
             ['Project codes', String(projectCodes.size), codesCaption, '#5B6478'],
           ].map(([label, value, caption, captionColor]) => (
-            <div key={label} className="rounded-2xl border border-slate-200 px-5 py-4">
+            <div key={label} className="rounded-2xl border border-slate-200 px-5 py-3.5">
               <div className="text-xl font-semibold text-[#10172A] whitespace-nowrap" style={PLEX_MONO}>{value}</div>
               <div className="text-sm text-[#5B6478] mt-1.5">{label}</div>
               <div className="text-xs font-semibold mt-2" style={{ color: captionColor }}>{caption}</div>
@@ -738,21 +808,21 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
           ))}
         </div>
         {sessions.length === 0 && (
-          <p className="text-base text-slate-400 italic mt-8">No attendance sessions logged in this period.</p>
+          <p className="text-base text-slate-400 italic mt-6">No attendance sessions logged in this period.</p>
         )}
       </div>
 
       {sessions.length > 0 && (
-        <>
-          {/* Heading and its first chart share one block — a heading alone can fit at the
-              bottom of a page while its content spills to the next, orphaning the title. */}
-          <div data-pdf-block className="px-12 pb-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Visual summary</p>
-            <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
-            <p className="text-base font-semibold text-[#10172A] mb-2">Daily activity timeline</p>
-            <SessionTimelineChart sessions={sessions} startStr={startStr} endStr={endStr} />
-          </div>
+        <div data-pdf-block data-pdf-atomic className="px-12 pt-2 pb-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Visual summary</p>
+          <h3 className="text-2xl font-semibold text-[#10172A] mb-4" style={FRAUNCES}>When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
+          <p className="text-base font-semibold text-[#10172A] mb-2">Daily activity timeline</p>
+          <SessionTimelineChart sessions={sessions} startStr={startStr} endStr={endStr} />
+        </div>
+      )}
 
+      {sessions.length > 0 && (
+        <>
           {projectHours.length > 0 && (
             <div data-pdf-block className="px-12 pb-8">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Project activity breakdown</p>
@@ -775,6 +845,8 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
               </div>
             </div>
           )}
+
+          <BudgetUtilisationSection budgetRows={budgetRows} />
 
           {flagged.length > 0 && (
             <div data-pdf-block className="px-12 pb-8">
@@ -980,6 +1052,7 @@ export default function ReportsPage() {
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [leaveRequests, setLeaveRequests] = useState([]);
+  const [budgetByUser, setBudgetByUser] = useState({}); // user_id -> budget-usage rows, fetched lazily per employee in scope
   const [loading, setLoading] = useState(true);
   const [requesterId, setRequesterId] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('all');
@@ -1096,6 +1169,31 @@ export default function ReportsPage() {
       .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
   }, [employeeFilter, employees, filteredRows]);
 
+  // Budget/project usage data for the "Budget utilisation" PDF section — fetched per employee
+  // currently in scope, in parallel, and cached by user_id so switching filters back and forth
+  // doesn't re-fetch employees already loaded.
+  useEffect(() => {
+    const missing = employeesInScope.map((e) => e.user_id).filter((id) => !(id in budgetByUser));
+    if (missing.length === 0) return;
+    Promise.all(missing.map((id) =>
+      axios.get(`${backendBaseUrl}/api/v1/reports/budget-usage/${id}`)
+        .then((res) => [id, res.data.data || []])
+        .catch(() => [id, []])
+    )).then((results) => {
+      setBudgetByUser((prev) => {
+        const next = { ...prev };
+        results.forEach(([id, data]) => { next[id] = data; });
+        return next;
+      });
+    });
+  }, [employeesInScope, backendBaseUrl, budgetByUser]);
+
+  // True once every employee currently in scope has its budget-usage data cached — gates the
+  // Download button so a click right after switching employees/filters can't capture the print
+  // template before that fetch resolves, which would silently omit the Budget Utilisation section
+  // with no indication anything was missing.
+  const budgetDataReady = employeesInScope.every((e) => e.user_id in budgetByUser);
+
   // Prior-period hours per employee, purely so the PDF can show a real "vs. prior period"
   // delta instead of a made-up one.
   const priorHoursByUser = useMemo(() => {
@@ -1165,44 +1263,58 @@ export default function ReportsPage() {
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 24;
       const imgWidth = pageWidth - margin * 2;
-      const usableHeight = pageHeight - margin * 2;
       let cursorY = margin;
 
-      // Places one already-captured block. A block taller than a full page (e.g. a very
-      // long activity log) still gets sliced across pages — everything else is placed
-      // whole, so a page break can only ever land in the gap between two blocks.
-      const placeCanvas = (canvas) => {
+      // Places one already-captured block. A block that doesn't fit in whatever space is
+      // left on the current page is sliced across the page boundary and continues filling
+      // the next page, rather than being bumped whole to a fresh page — bumping whole wastes
+      // the leftover space above it, which is what produced the recurring "blank space, content
+      // pushed to page 2" look. A tiny sliver of leftover space (<60pt) isn't worth slicing into,
+      // so that case just page-breaks first. Slicing degrades gracefully for most content (the
+      // same mechanism already handled blocks taller than a full page, e.g. a long activity log)
+      // — but a block marked `atomic` (a chart, where a mid-image cut would separate the plotted
+      // bars from their own axis labels) is never sliced: it's bumped whole to a fresh page
+      // instead, even if that wastes some space, since a cut chart is worse than a blank gap.
+      const placeCanvas = (canvas, atomic) => {
         const pxPerPt = canvas.width / imgWidth;
         const imgHeightPt = canvas.height / pxPerPt;
+        const remaining = pageHeight - margin - cursorY;
 
-        if (imgHeightPt > usableHeight) {
-          if (cursorY > margin) { pdf.addPage(); cursorY = margin; }
-          const sliceHeightPx = Math.floor(usableHeight * pxPerPt);
-          let yOffsetPx = 0;
-          let first = true;
-          while (yOffsetPx < canvas.height) {
-            const thisSliceHeightPx = Math.min(sliceHeightPx, canvas.height - yOffsetPx);
-            const sliceCanvas = document.createElement('canvas');
-            sliceCanvas.width = canvas.width;
-            sliceCanvas.height = thisSliceHeightPx;
-            sliceCanvas.getContext('2d').drawImage(
-              canvas, 0, yOffsetPx, canvas.width, thisSliceHeightPx, 0, 0, canvas.width, thisSliceHeightPx
-            );
-            if (!first) pdf.addPage();
-            pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.88), 'JPEG', margin, margin, imgWidth, thisSliceHeightPx / pxPerPt);
-            cursorY = margin + thisSliceHeightPx / pxPerPt;
-            yOffsetPx += thisSliceHeightPx;
-            first = false;
-          }
+        if (imgHeightPt <= remaining) {
+          pdf.addImage(canvas.toDataURL('image/jpeg', 0.88), 'JPEG', margin, cursorY, imgWidth, imgHeightPt);
+          cursorY += imgHeightPt;
           return;
         }
 
-        if (cursorY + imgHeightPt > pageHeight - margin) {
+        if (atomic && imgHeightPt <= pageHeight - margin * 2) {
+          pdf.addPage();
+          cursorY = margin;
+          pdf.addImage(canvas.toDataURL('image/jpeg', 0.88), 'JPEG', margin, cursorY, imgWidth, imgHeightPt);
+          cursorY += imgHeightPt;
+          return;
+        }
+
+        if (remaining < 60 && cursorY > margin) {
           pdf.addPage();
           cursorY = margin;
         }
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.88), 'JPEG', margin, cursorY, imgWidth, imgHeightPt);
-        cursorY += imgHeightPt;
+
+        let yOffsetPx = 0;
+        while (yOffsetPx < canvas.height) {
+          const spaceLeftPt = pageHeight - margin - cursorY;
+          const sliceHeightPx = Math.min(Math.floor(spaceLeftPt * pxPerPt), canvas.height - yOffsetPx);
+          if (sliceHeightPx <= 0) { pdf.addPage(); cursorY = margin; continue; }
+          const sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceHeightPx;
+          sliceCanvas.getContext('2d').drawImage(
+            canvas, 0, yOffsetPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx
+          );
+          pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.88), 'JPEG', margin, cursorY, imgWidth, sliceHeightPx / pxPerPt);
+          cursorY += sliceHeightPx / pxPerPt;
+          yOffsetPx += sliceHeightPx;
+          if (yOffsetPx < canvas.height) { pdf.addPage(); cursorY = margin; }
+        }
       };
 
       let isFirstEmployee = true;
@@ -1213,7 +1325,7 @@ export default function ReportsPage() {
         const blocks = Array.from(employeeWrapper.querySelectorAll(':scope > [data-pdf-block]'));
         for (const block of blocks.length > 0 ? blocks : [employeeWrapper]) {
           const canvas = await html2canvas(block, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-          placeCanvas(canvas);
+          placeCanvas(canvas, block.hasAttribute('data-pdf-atomic'));
         }
       }
 
@@ -1263,7 +1375,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      <div className="mb-8">
+      <div className="mb-10 pl-3">
         <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
         <h1 className="mt-3 text-4xl font-semibold text-slate-900">Reports</h1>
         <p className="mt-2 text-sm text-slate-500">Generate a shareholder-ready PDF activity report for one employee or all staff.</p>
@@ -1378,17 +1490,21 @@ export default function ReportsPage() {
           )}
           <button
             onClick={handleDownload}
-            disabled={loading || generating || employeesInScope.length === 0}
-            title={!loading && employeesInScope.length === 0 ? 'No attendance records to include in a report' : undefined}
+            disabled={loading || generating || employeesInScope.length === 0 || !budgetDataReady}
+            title={
+              !loading && employeesInScope.length === 0 ? 'No attendance records to include in a report'
+              : !budgetDataReady ? 'Loading budget data…'
+              : undefined
+            }
             className="flex items-center gap-2 rounded-3xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {generating && (
+            {(generating || (!budgetDataReady && employeesInScope.length > 0)) && (
               <svg className="animate-spin flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
                 <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
               </svg>
             )}
-            {generating ? 'Generating PDF…' : 'Download PDF'}
+            {generating ? 'Generating PDF…' : !budgetDataReady && employeesInScope.length > 0 ? 'Loading…' : 'Download PDF'}
           </button>
         </div>
       </div>
@@ -1510,6 +1626,7 @@ export default function ReportsPage() {
             priorHours={priorHoursByUser.get(emp.user_id) || 0}
             daysInPeriod={daysInPeriod}
             leaveNote={getLeaveNote(leaveRequests, emp.user_id, periodRange.startStr, periodRange.endStr)}
+            budgetRows={budgetByUser[emp.user_id] || []}
           />
         ))}
       </div>

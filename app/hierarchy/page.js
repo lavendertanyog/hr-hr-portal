@@ -14,12 +14,18 @@ function roleLabel(r) {
 function userRoles(u) {
   return Array.isArray(u.user_roles) && u.user_roles.length > 0 ? u.user_roles : [u.user_role].filter(Boolean);
 }
+const MANAGERS_PER_ROW = 4;
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
 
 const ROLE_COLOR = {
-  account_manager: { border: '#7c3aed', text: '#4c1d95', bg: '#f5f3ff' },
-  hr:              { border: '#16a34a', text: '#14532d', bg: '#f0fdf4' },
-  manager:         { border: '#1a3a8f', text: '#1e3a8a', bg: '#eff6ff' },
-  staff:           { border: '#64748b', text: '#1e293b', bg: '#f8fafc' },
+  account_manager: { avatar: '#534AB7', text: '#3C3489', pillBg: '#EEEDFE', pillText: '#3C3489' },
+  hr:              { avatar: '#16a34a', text: '#14532d', pillBg: '#f0fdf4', pillText: '#14532d' },
+  manager:         { avatar: '#993556', text: '#993556', pillBg: '#FBEAF0', pillText: '#993556' },
+  staff:           { avatar: '#0F6E56', text: '#085041', pillBg: '#E1F5EE', pillText: '#085041' },
 };
 
 const OrgNode = React.forwardRef(function OrgNode(
@@ -31,11 +37,11 @@ const OrgNode = React.forwardRef(function OrgNode(
   const [assigning, setAssigning] = React.useState(false);
   return (
     <div ref={ref} title={user.email}
-      className="relative z-10 flex flex-col gap-1.5 rounded-xl border-2 bg-white px-3 py-2 shadow-sm"
-      style={{ borderColor: unassigned ? '#f59e0b' : color.border, background: unassigned ? '#fffbeb' : color.bg, minWidth: 160, maxWidth: 200 }}>
+      className="relative z-10 flex flex-col gap-1.5 rounded-2xl border bg-white px-3.5 py-2.5 shadow-sm"
+      style={{ borderColor: unassigned ? '#f59e0b' : '#e2e8f0', background: unassigned ? '#fffbeb' : '#ffffff', minWidth: 180, maxWidth: 240 }}>
       <div className="flex items-center gap-2">
         <div className="flex items-center justify-center rounded-full text-white text-xs font-bold flex-shrink-0"
-          style={{ width: 32, height: 32, background: unassigned ? '#f59e0b' : color.border }}>
+          style={{ width: 32, height: 32, background: unassigned ? '#f59e0b' : color.avatar }}>
           {initialsOf(user.full_name)}
         </div>
         <div className="min-w-0 flex-1">
@@ -62,7 +68,7 @@ const OrgNode = React.forwardRef(function OrgNode(
           )}
         </div>
       </div>
-      {unassigned && (
+      {unassigned && editable && (
         assigning ? (
           <select autoFocus defaultValue=""
             onChange={(e) => { if (e.target.value) { onAssignSupervisor(user.user_id, e.target.value); setAssigning(false); } }}
@@ -98,8 +104,16 @@ const OrgNode = React.forwardRef(function OrgNode(
   );
 });
 
-function LevelLabel({ text }) {
-  return <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-slate-300 mb-2">{text}</p>;
+function TierPill({ role, text }) {
+  const color = ROLE_COLOR[role] || ROLE_COLOR.staff;
+  return (
+    <div className="flex justify-center mb-2">
+      <span className="rounded-full px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.15em]"
+        style={{ background: color.pillBg, color: color.pillText }}>
+        {text}
+      </span>
+    </div>
+  );
 }
 function Connector() { return <div className="mx-auto w-px h-6 bg-slate-300" />; }
 function TreeRow({ children }) { return <div className="flex flex-wrap justify-center gap-4">{children}</div>; }
@@ -183,12 +197,8 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
     return groups;
   }, [byRole]);   
 
-  const managerNodeRefs = useRef(new Map());
-  const staffNodeRefs   = useRef(new Map());
-  const containerRef    = useRef(null);
-  const [lines, setLines]               = useState([]);
-  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [actionError, setActionError]   = useState('');
+  const [editMode, setEditMode]         = useState(false);
 
   // Staff report to a Manager, not the project's Account Manager — the AM is a separate
   // approval tier and shouldn't be selectable as someone's direct supervisor here.
@@ -231,6 +241,17 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
     } catch (err) { setActionError(err.response?.data?.error || 'Failed to add to project.'); }
   };
 
+  const handleAddStaffToManager = async (userId, managerId) => {
+    setActionError('');
+    try {
+      await axios.post(`${BACKEND}/api/v1/projects/assign-bulk`, {
+        managerId: requesterId, userIds: [userId], projectCode: project.project_code, projectRole: 'staff',
+      });
+      await axios.patch(`${BACKEND}/api/v1/users/set-supervisor`, { managerId, staffIds: [userId] });
+      await onMembersChanged?.();
+    } catch (err) { setActionError(err.response?.data?.error || 'Failed to add staff.'); }
+  };
+
   const handleRemoveFromProject = async (userId) => {
     setActionError('');
     try {
@@ -241,120 +262,106 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
     } catch (err) { setActionError(err.response?.data?.error || 'Failed to remove from project.'); }
   };
 
-  const recompute = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const box = container.getBoundingClientRect();
-    setContainerSize({ width: container.scrollWidth, height: container.scrollHeight });
-    // One line per staff member, straight to their own card — not one line to the group
-    // container (which used to land on whichever card happened to be in the middle).
-    const next = [];
-    byRole.manager.forEach((mgr) => {
-      const mEl = managerNodeRefs.current.get(mgr.user_id);
-      if (!mEl) return;
-      const mb = mEl.getBoundingClientRect();
-      (staffByManager[mgr.user_id] || []).forEach((s) => {
-        const sEl = staffNodeRefs.current.get(s.user_id);
-        if (!sEl) return;
-        const sb = sEl.getBoundingClientRect();
-        next.push({
-          key: `${mgr.user_id}-${s.user_id}`,
-          x1: mb.left + mb.width / 2 - box.left, y1: mb.bottom - box.top,
-          x2: sb.left + sb.width / 2 - box.left, y2: sb.top - box.top,
-        });
-      });
-    });
-
-    setLines(next);
-  }, [byRole.manager, byRole.account_manager, staffByManager]);
-
-  useEffect(() => { recompute(); }, [recompute]);
-  useEffect(() => { window.addEventListener('resize', recompute); return () => window.removeEventListener('resize', recompute); }, [recompute]);
-
   return (
     <div className="rounded-3xl border border-slate-200 bg-white shadow-sm p-8 overflow-x-auto">
-      <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">{project.project_code}</p>
-        <h2 className="text-xl font-semibold text-slate-900">{project.project_name}</h2>
-        <p className="text-xs text-slate-400 mt-1">{project.budget_hours} hrs budget · {project.status || 'ACTIVE'} · {projectMembers.length} assigned</p>
-        {actionError && (
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-600">
-            {actionError}
-            <button type="button" onClick={() => setActionError('')} className="flex-shrink-0 text-red-400 hover:text-red-600" aria-label="Dismiss">×</button>
-          </div>
-        )}
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">{project.project_code}</p>
+          <h2 className="text-xl font-semibold text-slate-900">{project.project_name}</h2>
+          <p className="text-xs text-slate-400 mt-1">{project.budget_hours} hrs budget · {project.status || 'ACTIVE'} · {projectMembers.length} assigned</p>
+        </div>
+        <button type="button" onClick={() => setEditMode((v) => !v)}
+          className={`flex-shrink-0 flex items-center gap-1.5 rounded-xl border px-4 py-2 text-xs font-semibold transition ${
+            editMode ? 'border-[#1a3a8f] bg-[#1a3a8f] text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </svg>
+          {editMode ? 'Save' : 'Edit Organisation'}
+        </button>
       </div>
-      <div ref={containerRef} className="relative flex flex-col items-center min-w-fit">
-        <svg className="absolute inset-0 z-0 pointer-events-none"
-          style={{ width: containerSize.width, height: containerSize.height }}
-          width={containerSize.width} height={containerSize.height}>
-          {lines.map((l) => (
-            <line key={l.key} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
-              stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray={l.dashed ? '4 3' : undefined} />
-          ))}
-        </svg>
-        <LevelLabel text="Account Manager" />
+      {actionError && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-600">
+          {actionError}
+          <button type="button" onClick={() => setActionError('')} className="flex-shrink-0 text-red-400 hover:text-red-600" aria-label="Dismiss">×</button>
+        </div>
+      )}
+      <div className="relative flex flex-col items-center min-w-fit rounded-2xl px-8 py-8 border border-slate-200"
+        style={editMode
+          ? { backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '18px 18px', backgroundColor: '#fafafa' }
+          : { backgroundColor: '#ffffff' }}>
+        <TierPill role="account_manager" text="Account Manager" />
         <TreeRow>
           {byRole.account_manager.map((m) => (
-            <OrgNode key={m.user_id} ref={(el) => { if (el) managerNodeRefs.current.set(m.user_id + '_am', el); }}
-              user={m} role="account_manager" removable onRemoveFromProject={handleRemoveFromProject} />
+            <OrgNode key={m.user_id} user={m} role="account_manager" removable={editMode} onRemoveFromProject={handleRemoveFromProject} />
           ))}
-          {byRole.account_manager.length === 0 && (
+          {editMode && byRole.account_manager.length === 0 && (
             <AddPersonNode role="account_manager" options={candidatePool}
               onAdd={(userId) => handleAddToProject(userId, 'account_manager')} />
           )}
         </TreeRow>
         <Connector />
-        <LevelLabel text="Manager" />
         {/* Each manager and their own staff form a self-contained column, side by side —
-            so a manager's connector lines never have to cross into another manager's branch. */}
-        <div className="w-full flex flex-row flex-wrap justify-center items-start gap-10">
-          {byRole.manager.map((mgr) => {
-            const group = staffByManager[mgr.user_id] || [];
-            return (
-              <div key={mgr.user_id} className="flex flex-col items-center">
-                <OrgNode
-                  ref={(el) => { if (el) managerNodeRefs.current.set(mgr.user_id, el); else managerNodeRefs.current.delete(mgr.user_id); }}
-                  user={mgr} role="manager" removable onRemoveFromProject={handleRemoveFromProject} />
-                {group.length > 0 && (
-                  <div className="pt-8 flex flex-col items-center" style={{ maxWidth: 420 }}>
-                    <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
-                      Reports to {mgr.full_name}
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-4">
-                      {group.map((s) => (
-                        <OrgNode key={s.user_id}
-                          ref={(el) => { if (el) staffNodeRefs.current.set(s.user_id, el); else staffNodeRefs.current.delete(s.user_id); }}
-                          user={s} role="staff" editable removable
-                          currentSupervisorId={mgr.user_id} supervisorOptions={supervisorOptions}
-                          onAssignSupervisor={handleAssignSupervisor} onRemoveSupervisor={handleRemoveSupervisor}
-                          onRemoveFromProject={handleRemoveFromProject} />
-                      ))}
+            so a manager's branch line never has to cross into another manager's branch.
+            Rows are chunked to MANAGERS_PER_ROW so a re-shown "Manager" pill marks the
+            start of every new row once managers wrap. */}
+        {chunk(editMode ? [...byRole.manager, { __addManager: true }] : byRole.manager, MANAGERS_PER_ROW).map((row, rowIndex) => (
+          <React.Fragment key={rowIndex}>
+            <TierPill role="manager" text="Manager" />
+            <div className="w-full flex flex-row flex-nowrap justify-center items-start gap-10 mb-8 last:mb-0">
+              {row.map((mgr) => {
+                if (mgr.__addManager) {
+                  return (
+                    <div key="__add" className="flex flex-col items-center">
+                      <AddPersonNode role="manager" options={candidatePool}
+                        onAdd={(userId) => handleAddToProject(userId, 'manager')} />
+                    </div>
+                  );
+                }
+                const group = staffByManager[mgr.user_id] || [];
+                return (
+                  <div key={mgr.user_id} className="flex flex-col items-start">
+                    <OrgNode user={mgr} role="manager" removable={editMode} onRemoveFromProject={handleRemoveFromProject} />
+                    <div className="relative mt-4" style={{ paddingLeft: 28, width: 252 }}>
+                      <div className="absolute" style={{ left: 13, top: -16, bottom: 22, width: 1, background: '#cbd5e1' }} />
+                      <div className="flex flex-col gap-3">
+                        {group.map((s) => (
+                          <div key={s.user_id} className="relative">
+                            <div className="absolute" style={{ left: -15, top: 21, width: 15, height: 1, background: '#cbd5e1' }} />
+                            <OrgNode user={s} role="staff" editable={editMode} removable={editMode}
+                              currentSupervisorId={mgr.user_id} supervisorOptions={supervisorOptions}
+                              onAssignSupervisor={handleAssignSupervisor} onRemoveSupervisor={handleRemoveSupervisor}
+                              onRemoveFromProject={handleRemoveFromProject} />
+                          </div>
+                        ))}
+                        {editMode && (
+                          <div className="relative">
+                            <div className="absolute" style={{ left: -15, top: 26, width: 15, height: 1, background: '#cbd5e1' }} />
+                            <AddPersonNode role="staff" options={candidatePool}
+                              onAdd={(userId) => handleAddStaffToManager(userId, mgr.user_id)} />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
-          <div className="flex flex-col items-center">
-            <AddPersonNode role="manager" options={candidatePool}
-              onAdd={(userId) => handleAddToProject(userId, 'manager')} />
+                );
+              })}
+            </div>
+          </React.Fragment>
+        ))}
+        {(staffByManager['__unassigned'] || []).length > 0 && (
+          <div className="w-full flex flex-col items-center pt-8">
+            <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600 mb-2">
+              No Manager Assigned
+            </p>
+            <TreeRow>
+              {staffByManager['__unassigned'].map((s) => (
+                <OrgNode key={s.user_id} user={s} role="staff" unassigned editable={editMode} removable={editMode}
+                  supervisorOptions={supervisorOptions} onAssignSupervisor={handleAssignSupervisor}
+                  onRemoveFromProject={handleRemoveFromProject} />
+              ))}
+            </TreeRow>
           </div>
-        </div>
-        <div className="w-full flex flex-col items-center pt-8">
-          <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600 mb-2">
-            No Manager Assigned
-          </p>
-          <TreeRow>
-            {(staffByManager['__unassigned'] || []).map((s) => (
-              <OrgNode key={s.user_id} user={s} role="staff" unassigned removable
-                supervisorOptions={supervisorOptions} onAssignSupervisor={handleAssignSupervisor}
-                onRemoveFromProject={handleRemoveFromProject} />
-            ))}
-            <AddPersonNode role="staff" options={candidatePool}
-              onAdd={(userId) => handleAddToProject(userId, 'staff')} />
-          </TreeRow>
-        </div>
+        )}
         {projectMembers.length === 0 && (
           <p className="mt-6 text-sm text-slate-400 italic">No members assigned to this project yet.</p>
         )}
@@ -363,7 +370,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
   );
 }
 
-function HierarchyContent() {
+function HierarchyContent({ hideHeader = false }) {
   const [requesterId, setRequesterId]   = useState(null);
   const [allUsers, setAllUsers]         = useState([]);
   const [projects, setProjects]         = useState([]);
@@ -437,12 +444,14 @@ function HierarchyContent() {
   const isCollapsed = !showAllProjects && !hasActiveFilter;
 
   return (
-    <div className="p-8">
-      <div className="mb-7">
-        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-        <h1 className="mt-3 text-4xl font-semibold text-slate-950">Organisation Hierarchy</h1>
-        <p className="mt-2 text-sm text-slate-500">Visualise project reporting lines, reassign roles, and review employee project involvement.</p>
-      </div>
+    <div className={hideHeader ? '' : 'p-8'}>
+      {!hideHeader && (
+        <div className="mb-10 pl-3">
+          <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
+          <h1 className="mt-3 text-4xl font-semibold text-slate-950">Organisation Hierarchy</h1>
+          <p className="mt-2 text-sm text-slate-500">Visualise project reporting lines, reassign roles, and review employee project involvement.</p>
+        </div>
+      )}
       {loading ? <p className="text-sm text-slate-400 py-8">Loading…</p> : (
         projectHierarchy.filter((p) => (p.status || 'ACTIVE').toUpperCase() !== 'INACTIVE').length === 0
           ? <p className="text-sm text-slate-400 py-8">No active projects found.</p>
@@ -500,10 +509,10 @@ function HierarchyContent() {
   );
 }
 
-export default function HierarchyPage() {
+export default function HierarchyPage({ hideHeader = false } = {}) {
   return (
     <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading hierarchy…</div>}>
-      <HierarchyContent />
+      <HierarchyContent hideHeader={hideHeader} />
     </Suspense>
   );
 }

@@ -238,7 +238,7 @@ export default function AdminPage() {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-7">
+      <div className="mb-10 pl-3">
         <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
         <h1 className="mt-3 text-4xl font-semibold text-slate-950">Welcome back, {displayName}</h1>
         <p className="mt-2 text-sm text-slate-500">Approve accounts and password resets, or review past decisions.</p>

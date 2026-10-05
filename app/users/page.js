@@ -188,7 +188,7 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onE
   );
 }
 
-export default function UserRolesPage() {
+export default function UserRolesPage({ hideHeader = false } = {}) {
   const [requesterId, setRequesterId] = useState(null);
   const [requesterUser, setRequesterUser] = useState(null);
 
@@ -454,15 +454,17 @@ export default function UserRolesPage() {
   }));
 
   return (
-    <div className="p-8">
+    <div className={hideHeader ? '' : 'p-8'}>
       {/* Header */}
-      <div className="mb-7">
-        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-        <h1 className="mt-3 text-4xl font-semibold text-slate-950">User Role Management</h1>
-        <p className="mt-2 text-sm text-slate-500">
-          Assign and manage multiple roles for any Nextan employee. Changes take effect on their next login.
-        </p>
-      </div>
+      {!hideHeader && (
+        <div className="mb-10 pl-3">
+          <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
+          <h1 className="mt-3 text-4xl font-semibold text-slate-950">User Role Management</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Assign and manage multiple roles for any Nextan employee. Changes take effect on their next login.
+          </p>
+        </div>
+      )}
 
       {/* Stat cards — click to filter the table below; "All Users" resets the filter */}
       <div className="mb-7 grid grid-cols-2 gap-4 sm:grid-cols-5">
