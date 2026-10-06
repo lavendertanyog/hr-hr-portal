@@ -114,6 +114,17 @@ function getLeaveNote(leaveRequests, userId, startStr, endStr) {
   return `${totalDays} day${totalDays === 1 ? '' : 's'} of approved ${category} leave overlaps this period`;
 }
 
+// Every calendar day covered by this person's approved leave, as yyyy-mm-dd strings.
+function getApprovedLeaveDates(leaveRequests, userId) {
+  const out = [];
+  leaveRequests.forEach((l) => {
+    if (l.user_id !== userId || String(l.workflow_status).toUpperCase() !== 'APPROVED') return;
+    const e = parseDateStr(String(l.end_date).slice(0, 10));
+    for (let d = parseDateStr(String(l.start_date).slice(0, 10)); d <= e; d = addDays(d, 1)) out.push(toDateStr(d));
+  });
+  return out;
+}
+
 function fmtHours(n) {
   return `${(Number(n) || 0).toFixed(2)}h`;
 }
@@ -643,62 +654,310 @@ function EmployeeReport({ employee, sessions, periodLabel, startStr, endStr }) {
 const FRAUNCES = { fontFamily: "'Fraunces', Georgia, serif" };
 const PLEX_MONO = { fontFamily: "'IBM Plex Mono', ui-monospace, monospace" };
 
-// Per-employee budget utilisation table — mirrors the "Project activity breakdown" block's
-// header style, sourced from GET /api/v1/reports/budget-usage/:userId (same allocation/
-// tracked-hours/extension computation as the Account Manager portal's staff-usage report,
-// just scoped to one employee across all of their projects instead of one AM's ownership).
+// Per-employee budget utilisation, sourced from GET /api/v1/reports/budget-usage/:userId (same
+// allocation / tracked-hours / extension computation as the Account Manager portal's staff-usage
+// report, scoped to one employee across all of their projects). Written for a business reader:
+// headline numbers first, then one bar per project showing how far past (or inside) its approved
+// hours it ran, in hours rather than a percentage that can reach 800%. Red is used only for
+// "over budget", so the page still reads correctly when printed in black and white.
 function BudgetUtilisationSection({ budgetRows }) {
   if (!budgetRows || budgetRows.length === 0) return null;
+
+  const rows = budgetRows.map((row) => {
+    const allocated = Number(row.allocated_hours) || 0;
+    const used = Number(row.used_hours) || 0;
+    const extension = Number(row.extension_hours) || 0;
+    const overBy = Math.max(0, used - allocated);
+    const over = Boolean(row.over_budget) || overBy > 0;
+    return { ...row, allocated, used, extension, overBy, over, pct: Number(row.percent_used) || 0 };
+  });
+  const overCount = rows.filter((r) => r.over).length;
+  const totalUsed = rows.reduce((sum, r) => sum + r.used, 0);
+  const totalAllocated = rows.reduce((sum, r) => sum + r.allocated, 0);
+  const totalExtension = rows.reduce((sum, r) => sum + r.extension, 0);
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  const headline = overCount === 0
+    ? `All ${plural(rows.length, 'project')} within their approved hours`
+    : `${plural(rows.length, 'project')}, ${overCount} over their hours`;
+
+  const kpis = [
+    [String(rows.length), 'projects', '#10172A'],
+    [String(overCount), 'over budget', overCount > 0 ? '#C0302B' : '#10172A'],
+    [String(rows.length - overCount), 'within budget', '#10172A'],
+    [`${totalUsed.toFixed(1)}h`, `logged of ${totalAllocated.toFixed(1)}h approved${totalExtension > 0 ? ` (+${totalExtension.toFixed(1)}h extensions)` : ''}`, '#10172A'],
+  ];
+
   return (
-    <div data-pdf-block className="px-12 pb-8">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Budget utilisation</p>
-      <h3 className="text-2xl font-semibold text-[#10172A] mb-1" style={FRAUNCES}>Allocated hours vs. hours tracked</h3>
-      <p className="text-xs text-[#5B6478] mb-5">Approved weekly allocation compared against hours actually logged against each project, including any approved hour extensions.</p>
-      <div className="overflow-hidden rounded-2xl border border-slate-200">
-        <table className="min-w-full text-sm">
-          <thead className="bg-[#EAF0FF] text-[#33415C] font-semibold uppercase tracking-wider text-xs">
-            <tr>
-              <th className="px-4 py-2.5 text-left">Project</th>
-              <th className="px-4 py-2.5 text-right">Allocated</th>
-              <th className="px-4 py-2.5 text-right">Used</th>
-              <th className="px-4 py-2.5 text-left w-40">% Used</th>
-              <th className="px-4 py-2.5 text-right">Extension</th>
-              <th className="px-4 py-2.5 text-left">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {budgetRows.map((row) => {
-              const pct = Number(row.percent_used) || 0;
-              const barColor = row.over_budget ? '#DC2626' : pct >= 85 ? '#B4650C' : '#157F52';
+    <div data-pdf-block data-pdf-newpage className="px-12 pb-8">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>Budget utilisation</p>
+      <h3 className="text-2xl font-semibold text-[#10172A] mb-3" style={FRAUNCES}>{headline}</h3>
+      <p className="text-xs text-[#5B6478] leading-relaxed mb-8">Approved weekly allocation compared against hours actually logged against each project. The black tick marks the approved limit.</p>
+
+      <div className="grid grid-cols-4 gap-4 mb-9">
+        {kpis.map(([value, label, color]) => (
+          <div key={label} className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+            <div className="text-2xl font-semibold whitespace-nowrap" style={{ ...PLEX_MONO, color }}>{value}</div>
+            <div className="text-xs text-[#5B6478] mt-1 leading-snug">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-8">
+        {rows.map((r) => {
+          const scale = Math.max(r.used, r.allocated, 0.01);
+          const limitPct = (r.allocated / scale) * 100;
+          const usedPct = (r.used / scale) * 100;
+          const withinWidth = r.over ? limitPct : usedPct;
+          const outcome = r.over
+            ? `+${r.overBy.toFixed(2)}h over${r.pct > 0 && r.pct < 200 ? ` · ${r.pct.toFixed(0)}%` : ''}`
+            : `${Math.max(0, r.allocated - r.used).toFixed(2)}h left`;
+          return (
+            <div key={r.project_code} className="grid items-center gap-4" style={{ gridTemplateColumns: '190px 1fr 170px' }}>
+              <div className="min-w-0">
+                <span className="inline-block font-mono text-xs bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-2 py-0.5" style={PLEX_MONO}>{r.project_code}</span>
+                <div className="text-xs text-[#5B6478] mt-1 truncate">{r.project_name}</div>
+              </div>
+              <div>
+                <div className="relative h-3 rounded-full bg-slate-100">
+                  <div className="absolute left-0 top-0 h-3 rounded-full" style={{ width: `${Math.max(withinWidth, r.used > 0 ? 1.5 : 0)}%`, backgroundColor: '#1540A8', borderTopRightRadius: r.over ? 0 : undefined, borderBottomRightRadius: r.over ? 0 : undefined }} />
+                  {r.over && (
+                    <div className="absolute top-0 h-3 rounded-r-full" style={{ left: `${limitPct}%`, width: `${Math.max(usedPct - limitPct, 1)}%`, backgroundColor: '#DC2626' }} />
+                  )}
+                  <div className="absolute -top-1 h-5 w-0.5 bg-[#10172A]" style={{ left: `calc(${Math.min(limitPct, 100)}% - 1px)` }} />
+                </div>
+                <div className="flex justify-between mt-1.5 text-[11px] text-[#5B6478]" style={PLEX_MONO}>
+                  <span>{r.used.toFixed(2)}h used</span>
+                  <span>{r.allocated.toFixed(2)}h approved{r.extension > 0 ? ` · +${r.extension.toFixed(2)}h extension` : ''}</span>
+                </div>
+              </div>
+              <div className={`text-sm font-semibold text-right whitespace-nowrap ${r.over ? 'text-red-700' : 'text-[#10172A]'}`}>{outcome}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Supporting detail for the PDF. One layout that scales with the period:
+//  - up to a week: a single calendar row, every notable day listed;
+//  - up to ~6 weeks (a month): a calendar shaded by hours with a weekly total beside each week,
+//    and only the top few notable days listed (with a count of the rest);
+//  - longer: one compact calendar per month, side by side.
+// Replaces the line-by-line activity log, which stays available on the Attendance Logs page.
+const SD_LONG_DAY_HOURS = 10;
+const SD_ATTENTION_CAP = 5;
+
+function sdShade(hours) {
+  if (hours <= 0) return { bg: '#F1F4FA', fg: '#5B6478' };
+  if (hours < 2) return { bg: '#DCE7FB', fg: '#0E2E7A' };
+  if (hours < 4) return { bg: '#B3C9F3', fg: '#0E2E7A' };
+  if (hours < 7) return { bg: '#6F97E0', fg: '#FFFFFF' };
+  return { bg: '#1540A8', fg: '#FFFFFF' };
+}
+
+// Monday-first weeks covering [fromStr, toStr]; cells outside the range are marked not in period.
+function sdBuildWeeks(fromStr, toStr, periodStartStr, periodEndStr, byDay) {
+  const from = parseDateStr(fromStr), to = parseDateStr(toStr);
+  const gridStart = addDays(from, -((from.getUTCDay() + 6) % 7));
+  const gridEnd = addDays(to, 6 - ((to.getUTCDay() + 6) % 7));
+  const cells = [];
+  for (let d = gridStart; d <= gridEnd; d = addDays(d, 1)) {
+    const key = toDateStr(d);
+    cells.push({ key, date: d, inPeriod: key >= fromStr && key <= toStr && key >= periodStartStr && key <= periodEndStr, data: byDay.get(key) });
+  }
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
+function SdCalendar({ weeks, showWeekTotals, compact }) {
+  const weekTotals = weeks.map((w) => w.reduce((sum, c) => sum + (c.inPeriod && c.data ? c.data.hours : 0), 0));
+  const maxWeek = Math.max(...weekTotals, 0.01);
+  const cols = showWeekTotals ? `repeat(7, 1fr) ${compact ? 64 : 92}px` : 'repeat(7, 1fr)';
+  const cellH = compact ? 36 : 46;
+  return (
+    <div>
+      <div className="grid gap-1.5 mb-1.5" style={{ gridTemplateColumns: cols }}>
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+          <div key={d} className="text-center text-[11px] font-semibold text-[#5B6478]" style={PLEX_MONO}>{d}</div>
+        ))}
+        {showWeekTotals && <div className="text-[11px] font-semibold text-[#5B6478] pl-2" style={PLEX_MONO}>Week</div>}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {weeks.map((week, wi) => (
+          <div key={week[0].key} className="grid gap-1.5" style={{ gridTemplateColumns: cols }}>
+            {week.map((c) => {
+              const hours = c.data ? c.data.hours : 0;
+              const s = c.inPeriod ? sdShade(hours) : { bg: '#FFFFFF', fg: '#B7BECC' };
+              const first = c.date.getUTCDate() === 1;
               return (
-                <tr key={row.project_code}>
-                  <td className="px-4 py-2.5 whitespace-nowrap">
-                    <span className="inline-block font-mono text-xs bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-2 py-0.5">{row.project_code}</span>
-                    <div className="text-xs text-[#5B6478] mt-1">{row.project_name}</div>
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-mono whitespace-nowrap" style={PLEX_MONO}>{fmtHours(row.allocated_hours)}</td>
-                  <td className="px-4 py-2.5 text-right font-mono whitespace-nowrap" style={PLEX_MONO}>{fmtHours(row.used_hours)}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden min-w-[64px]">
-                        <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(pct, 2), 100)}%`, backgroundColor: barColor }} />
-                      </div>
-                      <span className="text-xs font-semibold text-[#10172A] w-12 flex-shrink-0 text-right" style={PLEX_MONO}>{pct.toFixed(0)}%</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-mono whitespace-nowrap" style={PLEX_MONO}>{row.extension_hours > 0 ? fmtHours(row.extension_hours) : '—'}</td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">
-                    <span className={`text-[11px] font-bold uppercase tracking-wide rounded-full px-2.5 py-1 ${
-                      row.over_budget ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
-                    }`}>
-                      {row.over_budget ? 'Over budget' : 'On track'}
-                    </span>
-                  </td>
-                </tr>
+                <div key={c.key} className="rounded-lg px-1.5 py-1 flex flex-col justify-between"
+                  style={{ backgroundColor: s.bg, color: s.fg, height: cellH, border: c.inPeriod ? 'none' : '1px dashed #E2E6EE' }}>
+                  <span className="text-[11px] font-semibold leading-none">{first ? c.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : c.date.getUTCDate()}</span>
+                  {c.inPeriod && hours > 0 && <span className="text-[11px] font-semibold leading-none" style={PLEX_MONO}>{hours < 0.05 ? '<0.1h' : `${hours.toFixed(1)}h`}</span>}
+                </div>
               );
             })}
-          </tbody>
-        </table>
+            {showWeekTotals && (
+              <div className="flex flex-col justify-center pl-2">
+                <span className="text-sm font-semibold text-[#10172A]" style={PLEX_MONO}>{weekTotals[wi].toFixed(1)}h</span>
+                <div className="h-1.5 rounded-full bg-slate-100 mt-1.5 overflow-hidden">
+                  <div className="h-full rounded-full bg-[#1540A8]" style={{ width: `${(weekTotals[wi] / maxWeek) * 100}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SupportingDetailSection({ sessions, startStr, endStr, holidayDates = [], leaveDates = [] }) {
+  const byDay = new Map(); // yyyy-mm-dd (SGT, day the shift started) -> { hours, ot, count, overnight[] }
+  sessions.filter((s) => s.clock_in_time).forEach((s) => {
+    const key = sgtDateStr(s.clock_in_time);
+    const day = byDay.get(key) || { hours: 0, ot: 0, count: 0, overnight: [] };
+    day.hours += Number(s.daily_worktime_hours) || 0;
+    day.ot += Number(s.ot_hours_accrued) || 0;
+    day.count += 1;
+    if (isOvernightShift(s)) day.overnight.push(s);
+    byDay.set(key, day);
+  });
+
+  const totalHours = Array.from(byDay.values()).reduce((sum, d) => sum + d.hours, 0);
+  const overtimeHours = Array.from(byDay.values()).reduce((sum, d) => sum + d.ot, 0);
+  const overtimeDays = Array.from(byDay.values()).filter((d) => d.ot > 0).length;
+  const overnightShifts = Array.from(byDay.values()).reduce((sum, d) => sum + d.overnight.length, 0);
+
+  // Working days = Mon-Fri in the period, up to today, less public holidays and approved leave.
+  const holidaySet = new Set(holidayDates);
+  const leaveSet = new Set(leaveDates);
+  const todayStr = sgtDateStr(new Date());
+  const lastCounted = endStr < todayStr ? endStr : todayStr;
+  let workingDays = 0, workingDaysLogged = 0;
+  for (let d = parseDateStr(startStr); toDateStr(d) <= lastCounted; d = addDays(d, 1)) {
+    const key = toDateStr(d);
+    const dow = d.getUTCDay();
+    if (dow === 0 || dow === 6 || holidaySet.has(key) || leaveSet.has(key)) continue;
+    workingDays += 1;
+    if (byDay.has(key)) workingDaysLogged += 1;
+  }
+
+  const spanDays = Math.round((parseDateStr(endStr) - parseDateStr(startStr)) / 86400000) + 1;
+  const layout = spanDays <= 7 ? 'week' : spanDays <= 42 ? 'month' : 'months';
+
+  const notableAll = Array.from(byDay.entries())
+    .filter(([, d]) => d.overnight.length > 0 || d.ot > 0 || d.hours >= SD_LONG_DAY_HOURS)
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  const notable = layout === 'week' ? notableAll : notableAll.slice(0, SD_ATTENTION_CAP);
+  const hiddenCount = notableAll.length - notable.length;
+  const dayLabel = (key) => parseDateStr(key).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+  // One calendar per month when the span is long.
+  const monthBlocks = [];
+  if (layout === 'months') {
+    const first = parseDateStr(startStr), last = parseDateStr(endStr);
+    for (let y = first.getUTCFullYear(), m = first.getUTCMonth(); y < last.getUTCFullYear() || (y === last.getUTCFullYear() && m <= last.getUTCMonth()); m += 1) {
+      if (m > 11) { m = 0; y += 1; }
+      const monthStart = toDateStr(new Date(Date.UTC(y, m, 1, 12)));
+      const monthEnd = toDateStr(new Date(Date.UTC(y, m + 1, 0, 12)));
+      const from = monthStart < startStr ? startStr : monthStart;
+      const to = monthEnd > endStr ? endStr : monthEnd;
+      const weeks = sdBuildWeeks(from, to, startStr, endStr, byDay);
+      const hours = weeks.reduce((sum, w) => sum + w.reduce((s, c) => s + (c.inPeriod && c.data ? c.data.hours : 0), 0), 0);
+      monthBlocks.push({ key: `${y}-${m}`, label: new Date(Date.UTC(y, m, 1, 12)).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }), weeks, hours });
+    }
+  }
+  const singleWeeks = layout === 'months' ? [] : sdBuildWeeks(startStr, endStr, startStr, endStr, byDay);
+
+  const kpis = [
+    [`${totalHours.toFixed(1)}h`, 'total hours', '#10172A'],
+    [workingDays > 0 ? `${workingDaysLogged} of ${workingDays}` : String(byDay.size), workingDays > 0 ? 'working days logged' : 'days worked', '#10172A'],
+    [`${overtimeHours.toFixed(2)}h`, overtimeDays > 0 ? `overtime on ${overtimeDays} day${overtimeDays === 1 ? '' : 's'}` : 'overtime', overtimeHours > 0 ? '#B4650C' : '#10172A'],
+    [String(overnightShifts), `overnight shift${overnightShifts === 1 ? '' : 's'}`, '#10172A'],
+  ];
+
+  return (
+    <div data-pdf-block data-pdf-newpage className="px-12 pb-10">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>Supporting detail</p>
+      <h3 className="text-2xl font-semibold text-[#10172A] mb-3" style={FRAUNCES}>{layout === 'week' ? 'The period at a glance' : layout === 'month' ? 'The month at a glance' : 'The period, month by month'}</h3>
+      <p className="text-xs text-[#5B6478] leading-relaxed mb-8">
+        Each day is shaded by hours worked — darker means more.{layout === 'month' ? ' The column on the right totals each week.' : ''} Days that need attention are listed underneath.
+      </p>
+
+      {layout === 'months' ? (
+        <div className="grid grid-cols-2 gap-x-8 gap-y-8">
+          {monthBlocks.map((mb) => (
+            <div key={mb.key}>
+              <div className="flex items-baseline justify-between mb-3">
+                <p className="text-sm font-semibold text-[#10172A]">{mb.label}</p>
+                <p className="text-xs text-[#5B6478]" style={PLEX_MONO}>{mb.hours.toFixed(1)}h</p>
+              </div>
+              <SdCalendar weeks={mb.weeks} showWeekTotals compact />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="max-w-3xl">
+          <SdCalendar weeks={singleWeeks} showWeekTotals={layout === 'month'} compact={false} />
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 mt-5 text-[11px] text-[#5B6478]">
+        <span>Hours per day:</span>
+        {[['None', 0], ['Under 2h', 1], ['2–4h', 3], ['4–7h', 5], ['7h+', 8]].map(([label, sample]) => (
+          <span key={label} className="inline-flex items-center gap-1.5">
+            <span className="inline-block w-3.5 h-3.5 rounded" style={{ backgroundColor: sdShade(sample).bg }} />{label}
+          </span>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-4 gap-4 mt-8">
+        {kpis.map(([value, label, color]) => (
+          <div key={label} className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+            <div className="text-xl font-semibold whitespace-nowrap" style={{ ...PLEX_MONO, color }}>{value}</div>
+            <div className="text-xs text-[#5B6478] mt-1 leading-snug">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-10">
+        <p className="text-sm font-semibold text-[#10172A] mb-4">
+          Days that need attention
+          {notableAll.length > 0 && hiddenCount > 0 && <span className="ml-2 text-xs font-normal text-[#5B6478]">showing {notable.length} of {notableAll.length}</span>}
+        </p>
+        {notableAll.length === 0 ? (
+          <p className="text-sm text-[#5B6478]">No overnight shifts, overtime or unusually long days in this period.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {notable.map(([key, d]) => (
+              <div key={key} className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-2.5">
+                <span className="w-24 flex-shrink-0 text-sm font-semibold text-[#10172A]">{dayLabel(key)}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap gap-1.5 mb-1">
+                    {d.overnight.length > 0 && <span className="text-[11px] font-semibold rounded-full bg-[#EAF0FF] text-[#0E2E7A] px-2.5 py-0.5">Overnight</span>}
+                    {d.ot > 0 && <span className="text-[11px] font-semibold rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5">+{d.ot.toFixed(2)}h overtime</span>}
+                    {d.hours >= SD_LONG_DAY_HOURS && <span className="text-[11px] font-semibold rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5">Long day</span>}
+                  </div>
+                  <p className="text-xs text-[#5B6478]">
+                    {d.hours.toFixed(2)}h across {d.count} session{d.count === 1 ? '' : 's'}
+                    {d.overnight.map((s) => ` · ${formatCsvTime(s.clock_in_time)} to ${s.clock_out_time ? formatCsvTime(s.clock_out_time) : 'still active'}`).join('')}
+                    {d.overnight.length > 0 && (d.overnight.some((s) => s.remark)
+                      ? ` · Note: ${d.overnight.filter((s) => s.remark).map((s) => s.remark).join('; ')}`
+                      : ' · No note on file')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="mt-6 text-xs text-[#5B6478]">
+          {hiddenCount > 0 ? `${hiddenCount} more ${hiddenCount === 1 ? 'day is' : 'days are'} listed on the Attendance Logs page. ` : ''}
+          The full session-by-session log is available on the Attendance Logs page.
+        </p>
       </div>
     </div>
   );
@@ -707,7 +966,7 @@ function BudgetUtilisationSection({ budgetRows }) {
 // Print-only report card — the fuller shareholder-report template (masthead, subject strip,
 // serif headings, real "vs. prior period" deltas). Rendered off-screen purely so the PDF can
 // capture it; the visible portal page always shows EmployeeReport above instead.
-function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr, priorHours = 0, daysInPeriod = 7, leaveNote = null, budgetRows = [] }) {
+function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr, priorHours = 0, daysInPeriod = 7, leaveNote = null, budgetRows = [], holidayDates = [], leaveDates = [] }) {
   const {
     totalHours, otHours, daysWorked, avgClockIn, avgClockInMinutes, projectCodes, generalSessionsCount,
     flagged, sorted, billableHours, nonBillableHours, projectHours,
@@ -778,7 +1037,7 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
       </div>
 
       <div data-pdf-block className="px-12 pt-7 pb-7 border-b border-slate-200 bg-slate-50">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Executive summary</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>Executive summary</p>
         <p className="text-base text-[#10172A] leading-relaxed max-w-3xl">{execSummary}</p>
       </div>
 
@@ -788,8 +1047,8 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
           Keeping the chart in its own block means only a whole block ever gets sliced, never
           the inside of the chart image itself. */}
       <div data-pdf-block className={sessions.length === 0 ? 'px-12 pt-8 pb-8' : 'px-12 pt-8 pb-6'}>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>At a glance</p>
-        <h3 className="text-2xl font-semibold text-[#10172A] mb-4" style={FRAUNCES}>Activity summary</h3>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>At a glance</p>
+        <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>Activity summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             ['Hours logged', `${totalHours.toFixed(2)}h`, hoursCaption, hoursCaptionColor],
@@ -813,10 +1072,10 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
       </div>
 
       {sessions.length > 0 && (
-        <div data-pdf-block data-pdf-atomic className="px-12 pt-2 pb-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Visual summary</p>
-          <h3 className="text-2xl font-semibold text-[#10172A] mb-4" style={FRAUNCES}>When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
-          <p className="text-base font-semibold text-[#10172A] mb-2">Daily activity timeline</p>
+        <div data-pdf-block data-pdf-newpage data-pdf-atomic className="px-12 pt-2 pb-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>Visual summary</p>
+          <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
+          <p className="text-base font-semibold text-[#10172A] mb-4">Daily activity timeline</p>
           <SessionTimelineChart sessions={sessions} startStr={startStr} endStr={endStr} />
         </div>
       )}
@@ -824,10 +1083,10 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
       {sessions.length > 0 && (
         <>
           {projectHours.length > 0 && (
-            <div data-pdf-block className="px-12 pb-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Project activity breakdown</p>
-              <h3 className="text-2xl font-semibold text-[#10172A] mb-1" style={FRAUNCES}>Where the billable hours went</h3>
-              <p className="text-xs text-[#5B6478] mb-5">Hours per project code — a proxy for activity, not a milestone or completion measure (not tracked in this system).</p>
+            <div data-pdf-block data-pdf-newpage className="px-12 pb-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>Project activity breakdown</p>
+              <h3 className="text-2xl font-semibold text-[#10172A] mb-3" style={FRAUNCES}>Where the billable hours went</h3>
+              <p className="text-xs text-[#5B6478] leading-relaxed mb-8">Hours per project code — a proxy for activity, not a milestone or completion measure (not tracked in this system).</p>
               <div className="flex flex-col gap-2.5">
                 {projectHours.map(({ code, hours }) => {
                   const pct = billableHours > 0 ? (hours / billableHours) * 100 : 0;
@@ -848,33 +1107,8 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
 
           <BudgetUtilisationSection budgetRows={budgetRows} />
 
-          {flagged.length > 0 && (
-            <div data-pdf-block className="px-12 pb-8">
-              <div className="flex items-start gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-sm font-bold">!</span>
-                <div className="flex-1">
-                  <p className="text-sm text-amber-800 mb-2">
-                    {flagged.length} session{flagged.length > 1 ? 's' : ''} auto-flagged as overnight / unusual-hours shifts — see the highlighted rows below.
-                  </p>
-                  <div className="flex flex-col gap-1">
-                    {flagged.map((s) => (
-                      <p key={s.attendance_id} className="text-xs text-amber-900">
-                        <span className="font-semibold">{formatCsvDate(s.clock_in_time)}:</span>{' '}
-                        {s.remark ? s.remark : <span className="italic">no context on file — recommend a note or manager approval status be added</span>}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
-          <div data-pdf-block className="px-12 pb-10">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-2" style={PLEX_MONO}>Supporting detail</p>
-            <h3 className="text-2xl font-semibold text-[#10172A] mb-1" style={FRAUNCES}>Full activity log</h3>
-            <p className="text-xs text-[#5B6478] mb-5">Same-day admin check-ins under six minutes are consolidated into one row.</p>
-            <ActivityLogTable sorted={consolidateMicroSessions(sorted)} />
-          </div>
+          <SupportingDetailSection sessions={sessions} startStr={startStr} endStr={endStr} holidayDates={holidayDates} leaveDates={leaveDates} />
         </>
       )}
     </div>
@@ -1052,6 +1286,7 @@ export default function ReportsPage() {
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [leaveRequests, setLeaveRequests] = useState([]);
+  const [holidayDates, setHolidayDates] = useState([]);
   const [budgetByUser, setBudgetByUser] = useState({}); // user_id -> budget-usage rows, fetched lazily per employee in scope
   const [loading, setLoading] = useState(true);
   const [requesterId, setRequesterId] = useState('');
@@ -1090,6 +1325,12 @@ export default function ReportsPage() {
       setHistory(JSON.parse(localStorage.getItem('hr_reports_history') || '[]'));
     } catch {}
   }, []);
+
+  useEffect(() => {
+    axios.get(`${backendBaseUrl}/api/v1/public-holidays`)
+      .then((res) => setHolidayDates((res.data.data || []).map((h) => String(h.holiday_date).slice(0, 10))))
+      .catch(() => setHolidayDates([]));
+  }, [backendBaseUrl]);
 
   useEffect(() => {
     if (!requesterId) return;
@@ -1324,6 +1565,10 @@ export default function ReportsPage() {
 
         const blocks = Array.from(employeeWrapper.querySelectorAll(':scope > [data-pdf-block]'));
         for (const block of blocks.length > 0 ? blocks : [employeeWrapper]) {
+          // A block marked data-pdf-newpage starts a fresh page (unless it is already at the top of one),
+          // so each section — Visual summary, Project activity, Budget utilisation, Supporting detail —
+          // gets its own page instead of being squeezed under the previous one.
+          if (block.hasAttribute('data-pdf-newpage') && cursorY > margin) { pdf.addPage(); cursorY = margin; }
           const canvas = await html2canvas(block, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
           placeCanvas(canvas, block.hasAttribute('data-pdf-atomic'));
         }
@@ -1627,6 +1872,8 @@ export default function ReportsPage() {
             daysInPeriod={daysInPeriod}
             leaveNote={getLeaveNote(leaveRequests, emp.user_id, periodRange.startStr, periodRange.endStr)}
             budgetRows={budgetByUser[emp.user_id] || []}
+            holidayDates={holidayDates}
+            leaveDates={getApprovedLeaveDates(leaveRequests, emp.user_id)}
           />
         ))}
       </div>
