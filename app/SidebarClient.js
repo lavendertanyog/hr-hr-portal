@@ -11,7 +11,7 @@ function deriveNameFromEmail(email) {
 
 const NAV = [
   { label: 'Approvals', href: '/admin', icon: 'check' },
-  { label: 'People', href: '/people', icon: 'users' },
+  { label: 'Employee', href: '/people', icon: 'users' },
   { label: 'Projects', href: '/project-codes', icon: 'folder' },
   { label: 'Attendance', href: '/attendance', icon: 'clock' },
   { label: 'Reports', href: '/reports', icon: 'chart' },

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import FilterSearch from '../people/FilterSearch';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
@@ -21,63 +22,79 @@ function roleLabel(role) {
 }
 
 function RoleBadge({ role }) {
-  const def = ALL_ROLES.find((r) => r.key === role);
-  const color = def ? def.color : 'bg-gray-100 text-gray-600';
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${color}`}>{roleLabel(role)}</span>;
+  return <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{roleLabel(role)}</span>;
 }
 
-// One employee's card in the grid. Only fields the system actually tracks — no invented
-// department/phone/photo — so "Joined" is the account's created_at, not a claimed hire date.
+const ROLE_ICON = { hr: 'shield', account_manager: 'briefcase', manager: 'users', staff: 'user' };
+
+function RoleIcon({ name, size = 15 }) {
+  const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  switch (name) {
+    case 'shield': return <svg {...common}><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" /><path d="M9 12l2 2 4-4" /></svg>;
+    case 'briefcase': return <svg {...common}><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" /><path d="M3 13h18" /></svg>;
+    case 'users': return <svg {...common}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.6-3.4 3.2-5.5 6.5-5.5s5.9 2.1 6.5 5.5" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8" /><path d="M18 14.8c2 .7 3.2 2.4 3.5 5.2" /></svg>;
+    default: return <svg {...common}><circle cx="12" cy="8" r="4" /><path d="M4 21c.8-4 4-6 8-6s7.2 2 8 6" /></svg>;
+  }
+}
+
+function primaryRoleOf(user) {
+  const roles = Array.isArray(user.user_roles) && user.user_roles.length > 0 ? user.user_roles : [user.user_role].filter(Boolean);
+  return { roles, primary: ROLE_PRIORITY.find((r) => roles.includes(r)) || roles[0] };
+}
+
+// One employee's card in the grid. One neutral style for everyone — the role is shown as text,
+// not colour. Only fields the system actually tracks — no invented department/phone/photo — so
+// "Joined" is the account's created_at.
 function EmployeeCard({ user, isSelected, onSelect }) {
-  const roles = Array.isArray(user.user_roles) && user.user_roles.length > 0
-    ? user.user_roles : [user.user_role].filter(Boolean);
-  const primaryRole = ROLE_PRIORITY.find((r) => roles.includes(r)) || roles[0];
+  const { roles, primary } = primaryRoleOf(user);
   const initials = (user.full_name || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
   const joined = user.created_at
     ? new Date(user.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     : '—';
 
   return (
-    <button type="button" onClick={onSelect} title="View employee details"
-      className={`text-left rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md ${
-        isSelected ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/20' : 'border-gray-100 hover:border-slate-300'
+    <div role="button" tabIndex={0} onClick={onSelect} title="View employee details"
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}
+      className={`cursor-pointer rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md ${
+        isSelected ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/20' : 'border-slate-200 hover:border-slate-300'
       }`}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="w-12 h-12 rounded-full bg-[#e8edf8] text-[#1a3a8f] flex items-center justify-center font-semibold flex-shrink-0">
-          {initials}
-        </div>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          className="text-slate-300">
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-      </div>
-      <p className="font-semibold text-slate-900 truncate">{user.full_name}</p>
-      <p className="text-xs text-slate-400 mb-4">{primaryRole ? roleLabel(primaryRole) : '—'}</p>
-
-      <div className="grid grid-cols-2 gap-3 mb-4 pb-4 border-b border-slate-100">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Joined</p>
-          <p className="text-sm font-medium text-slate-700">{joined}</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Leave / yr</p>
-          <p className="text-sm font-medium text-slate-700">{user.leave_entitlement_days ?? 12} days</p>
-        </div>
+      <div className="flex justify-end -mb-2">
+        <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Active</span>
       </div>
 
-      <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-          <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 6-10 7L2 6" />
-        </svg>
-        <span className="truncate">{user.email}</span>
+      <div className="flex flex-col items-center text-center">
+        <span className="flex items-center justify-center w-16 h-16 rounded-full bg-[#e8edf8] text-[#1a3a8f] text-lg font-semibold">{initials}</span>
+        <p className="mt-3 text-base font-semibold text-slate-900 leading-snug max-w-full truncate">{user.full_name}</p>
+        <p className="flex items-center gap-1.5 text-sm text-slate-400 max-w-full">
+          <RoleIcon name={ROLE_ICON[primary]} size={13} /><span className="truncate">{primary ? roleLabel(primary) : '—'}</span>
+        </p>
+      </div>
+
+      <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-[10px] text-slate-400">Joined</p>
+            <p className="text-xs font-semibold text-slate-700">{joined}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400">Leave / yr</p>
+            <p className="text-xs font-semibold text-slate-700">{user.leave_entitlement_days ?? 12} days</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-slate-600 min-w-0 mt-3 pt-3 border-t border-slate-200/70">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-slate-400">
+            <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 6-10 7L2 6" />
+          </svg>
+          <span className="truncate">{user.email}</span>
+        </div>
       </div>
 
       {roles.length > 1 && (
-        <div className="flex flex-wrap gap-1 mt-3">
+        <div className="flex flex-wrap justify-center gap-1 mt-3">
           {roles.map((r) => <RoleBadge key={r} role={r} />)}
         </div>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -101,89 +118,174 @@ function EditIconButton({ onClick, label }) {
   );
 }
 
-// Side panel — shows an at-a-glance summary of one employee's roles, leave entitlement,
-// and project assignments next to the table, with a pencil icon per section that opens the
-// same edit modals the row-level "Actions" menu already uses, so there's exactly one code
-// path for actually saving each kind of edit.
-function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onEditUser, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser }) {
+// Slide-in drawer for one employee, opened from a card. Previous / next step through the
+// employees currently shown; the pencil and bin icons open the same edit and delete modals
+// as before, so each kind of edit still has exactly one code path for saving.
+function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onPrev, onNext, hasPrev, hasNext, onEditUser, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser }) {
+  const [tab, setTab] = useState('details');
+  const [balance, setBalance] = useState(null);
   const roles = Array.isArray(user.user_roles) && user.user_roles.length > 0
     ? user.user_roles : [user.user_role].filter(Boolean);
+  const primaryRole = ROLE_PRIORITY.find((r) => roles.includes(r)) || roles[0];
   const initials = (user.full_name || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
   const isHr = roles.includes('hr');
+  const joined = user.created_at
+    ? new Date(user.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '—';
+
+  useEffect(() => {
+    const onKey = (e) => {
+      const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '');
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft' && hasPrev && !typing) onPrev();
+      if (e.key === 'ArrowRight' && hasNext && !typing) onNext();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose, onPrev, onNext, hasPrev, hasNext]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBalance(null);
+    axios.get(`${BACKEND}/api/v1/leave/balance/${user.user_id}`)
+      .then((r) => { if (!cancelled) setBalance(r.data?.data || null); })
+      .catch(() => { if (!cancelled) setBalance(null); });
+    return () => { cancelled = true; };
+  }, [user.user_id, user.leave_entitlement_days]);
+
+  const total = balance?.totalDays ?? user.leave_entitlement_days ?? 12;
+  const used = balance?.usedDays ?? 0;
+  const left = balance?.remainingDays ?? Math.max(0, total - used);
+  const usedPct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 100;
+
+  const iconBtn = 'flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition disabled:opacity-30 disabled:hover:bg-transparent';
 
   return (
-    <div className="w-full lg:w-96 flex-shrink-0 rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-      <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex-shrink-0 w-11 h-11 rounded-full bg-[#e8edf8] text-[#1a3a8f] flex items-center justify-center font-semibold text-sm">
+    <div className="fixed inset-0 z-40">
+      <div className="absolute inset-0 bg-slate-900/30" onClick={onClose} />
+      <aside className="absolute right-0 top-0 h-full w-full max-w-xl bg-white shadow-2xl flex flex-col" role="dialog" aria-label={`${user.full_name} details`}>
+        <button type="button" onClick={onClose} aria-label="Close details" title="Close"
+          className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md text-slate-500 hover:text-slate-900 transition">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+        </button>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onPrev} disabled={!hasPrev} aria-label="Previous employee" title="Previous employee" className={iconBtn}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <button type="button" onClick={onNext} disabled={!hasNext} aria-label="Next employee" title="Next employee" className={iconBtn}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            {!isHr && (
+              <button type="button" onClick={() => onEditUser(user)} aria-label="Edit name and email" title="Edit name and email" className={iconBtn}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              </button>
+            )}
+            <button type="button" onClick={() => onDeleteUser(user)} aria-label="Delete employee" title="Delete employee"
+              className={`${iconBtn} hover:!bg-red-50 hover:!text-red-600 hover:!border-red-200`}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+            </button>
+            <button type="button" onClick={onClose} aria-label="Close" title="Close" className={iconBtn}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-[#f3f6fc] px-6 py-5 flex items-center gap-4">
+          <div className="flex-shrink-0 w-20 h-20 rounded-full bg-[#e8edf8] text-[#1a3a8f] flex items-center justify-center font-semibold text-2xl ring-4 ring-white">
             {initials}
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-slate-900 truncate">{user.full_name}</p>
-            <p className="text-xs text-slate-400 truncate">{user.email}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {!isHr && <EditIconButton label="Edit name / email" onClick={() => onEditUser(user)} />}
-          <button onClick={onClose} aria-label="Close panel"
-            className="flex items-center justify-center w-7 h-7 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div className="px-6 py-5 space-y-6">
-        {/* Roles */}
-        <div>
-          <div className="flex items-center justify-between mb-2.5">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Roles</p>
-            <EditIconButton label="Manage roles" onClick={() => onManageRoles(user)} />
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {roles.map((r) => <RoleBadge key={r} role={r} />)}
-          </div>
-        </div>
-
-        {/* Leave entitlement */}
-        <div>
-          <div className="flex items-center justify-between mb-2.5">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Leave entitlement</p>
-            <EditIconButton label="Edit leave entitlement" onClick={() => onLeaveDays(user)} />
-          </div>
-          <p className="text-2xl font-semibold text-slate-900">{user.leave_entitlement_days ?? 12} <span className="text-sm font-normal text-slate-400">days / year</span></p>
-        </div>
-
-        {/* Project assignments */}
-        <div>
-          <div className="flex items-center justify-between mb-2.5">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Project assignments</p>
-            <EditIconButton label="Manage project assignments" onClick={() => onProjectRoles(user)} />
-          </div>
-          {projectRolesLoading ? (
-            <p className="text-sm text-slate-400">Loading…</p>
-          ) : projectRoles.length === 0 ? (
-            <p className="text-sm text-slate-400 italic">No project assignments.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {projectRoles.map((r) => (
-                <div key={r.project_code} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                  <span className="text-xs font-mono font-medium text-slate-700">{r.project_code}</span>
-                  <RoleBadge role={r.project_role} />
-                </div>
-              ))}
+            <p className="text-lg font-semibold text-slate-900 truncate">{user.full_name}</p>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">Active</span>
+              <span className="text-xs text-slate-500">{primaryRole ? roleLabel(primaryRole) : '—'}</span>
             </div>
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+              <span className="truncate">{user.email}</span>
+              <span>Joined {joined}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-6 px-6 border-b border-slate-100">
+          {[{ key: 'details', label: 'Details' }, { key: 'leave', label: 'Leave' }].map((t) => (
+            <button key={t.key} type="button" onClick={() => setTab(t.key)}
+              className={`py-3 text-xs font-semibold uppercase tracking-[0.18em] border-b-2 transition ${tab === t.key ? 'border-[#1a3a8f] text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 bg-slate-50/40">
+          {tab === 'details' ? (
+            <>
+              <section className="rounded-2xl border border-slate-100 bg-white p-5">
+                <p className="text-sm font-semibold text-slate-900 mb-4">Personal information</p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  {[['Full name', user.full_name], ['Email', user.email], ['Joined', joined], ['Status', 'Active']].map(([label, value]) => (
+                    <div key={label} className="min-w-0">
+                      <p className="text-[11px] text-slate-400 mb-0.5">{label}</p>
+                      <p className="text-sm font-medium text-slate-800 break-words">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-100 bg-white p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-slate-900">Roles</p>
+                  <EditIconButton label="Manage roles" onClick={() => onManageRoles(user)} />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {roles.map((r) => <RoleBadge key={r} role={r} />)}
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-100 bg-white p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-slate-900">Project assignments</p>
+                  <EditIconButton label="Manage project assignments" onClick={() => onProjectRoles(user)} />
+                </div>
+                {projectRolesLoading ? (
+                  <p className="text-sm text-slate-400">Loading…</p>
+                ) : projectRoles.length === 0 ? (
+                  <p className="text-sm text-slate-400 italic">No project assignments.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {projectRoles.map((r) => (
+                      <div key={r.project_code} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                        <span className="text-xs font-mono font-medium text-slate-700">{r.project_code}</span>
+                        <RoleBadge role={r.project_role} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          ) : (
+            <section className="rounded-2xl border border-slate-100 bg-white p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-semibold text-slate-900">Leave entitlement</p>
+                <EditIconButton label="Edit leave entitlement" onClick={() => onLeaveDays(user)} />
+              </div>
+              <p className="text-3xl font-semibold text-slate-900">{total} <span className="text-sm font-normal text-slate-400">days per year</span></p>
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
+                  <span>{used} used</span>
+                  <span className={left === 0 ? 'text-red-600 font-semibold' : ''}>{left} left</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div className={`h-full rounded-full ${left === 0 ? 'bg-red-400' : left <= 3 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${usedPct}%` }} />
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-slate-400">Used counts approved Annual and Emergency leave. Annual and Emergency share this balance; Sick leave has no cap.</p>
+            </section>
           )}
         </div>
-      </div>
-
-      <div className="px-6 pb-6 pt-2 border-t border-slate-100">
-        <button onClick={() => onDeleteUser(user)}
-          className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition">
-          Delete User
-        </button>
-      </div>
+      </aside>
     </div>
   );
 }
@@ -466,26 +568,6 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
         </div>
       )}
 
-      {/* Stat cards — click to filter the table below; "All Users" resets the filter */}
-      <div className="mb-7 grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <button type="button" onClick={() => { setRoleFilter('ALL'); setPage(1); }}
-          className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
-            roleFilter === 'ALL' ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
-          }`}>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">All Users</p>
-          <p className="mt-3 text-4xl font-semibold text-slate-900">{allUsers.length}</p>
-        </button>
-        {roleCounts.map(({ key, label, count }) => (
-          <button key={key} type="button" onClick={() => { setRoleFilter(key); setPage(1); }}
-            className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
-              roleFilter === key ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
-            }`}>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{label}</p>
-            <p className="mt-3 text-4xl font-semibold text-slate-900">{count}</p>
-          </button>
-        ))}
-      </div>
-
       {feedback && (
         <div className={`mb-5 rounded-2xl px-4 py-3 text-sm font-medium border ${
           feedback.toLowerCase().includes('fail') || feedback.toLowerCase().includes('error')
@@ -494,70 +576,69 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
         }`}>{feedback}</div>
       )}
 
-      <div className="flex items-start gap-6">
-      <div className={`rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden transition-all ${selectedUserId ? 'flex-1 min-w-0' : 'w-full'}`}>
-        {/* Toolbar: search · role filter · view toggle */}
-        <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-100">
-          <div className="relative">
-            <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              placeholder="Search users…"
-              className="rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60" />
+      <div className="flex flex-col lg:flex-row items-start gap-6">
+        <div className="flex-1 min-w-0 w-full">
+          {/* One rounded field: role dropdown + search, with the user count beside it */}
+          <div className="flex flex-wrap items-center gap-4 mb-5">
+            <FilterSearch
+              role={roleFilter}
+              onRole={(v) => { setRoleFilter(v); setPage(1); }}
+              roleOptions={[{ key: 'ALL', label: `All roles (${allUsers.length})` }, ...roleCounts.map((r) => ({ key: r.key, label: `${r.label} (${r.count})` }))]}
+              search={searchQuery}
+              onSearch={(v) => { setSearchQuery(v); setPage(1); }}
+            />
+            <span className="text-sm text-slate-500">{filtered.length} {filtered.length === 1 ? 'user' : 'users'}</span>
           </div>
-          <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
-            className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
-            <option value="ALL">Filter by Role</option>
-            {ALL_ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-          </select>
-        </div>
 
-        <div className="p-4">
           {loading ? (
-            <p className="px-2 py-8 text-sm text-slate-400">Loading users…</p>
+            <p className="py-8 text-sm text-slate-400">Loading users…</p>
           ) : filtered.length === 0 ? (
-            <p className="px-2 py-8 text-sm text-slate-400">No users match this filter.</p>
+            <p className="py-8 text-sm text-slate-400">No users match this filter.</p>
           ) : (
-            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${selectedUserId ? '' : 'xl:grid-cols-3'}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
               {pageData.map((u) => (
                 <EmployeeCard key={u.user_id} user={u} isSelected={selectedUserId === u.user_id}
                   onSelect={() => setSelectedUserId(u.user_id)} />
               ))}
             </div>
           )}
+
+          {totalPages > 1 && (
+            <div className="mt-5 flex items-center justify-between">
+              <span className="text-xs text-slate-500">Page {safePage} of {totalPages} · {filtered.length} users</span>
+              <div className="flex gap-2">
+                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-slate-50">Prev</button>
+                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-slate-50">Next</button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {totalPages > 1 && (
-          <div className="px-6 py-3 bg-slate-50 flex items-center justify-between border-t border-gray-100">
-            <span className="text-xs text-slate-500">Page {safePage} of {totalPages} · {filtered.length} users</span>
-            <div className="flex gap-2">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
-                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Prev</button>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Next</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {selectedUserId && (() => {
-        const liveSelectedUser = allUsers.find((u) => u.user_id === selectedUserId);
-        if (!liveSelectedUser) return null;
-        return (
-          <UserDetailPanel
-            user={liveSelectedUser}
-            projectRoles={selectedUserProjectRoles}
-            projectRolesLoading={selectedUserProjectRolesLoading}
-            onClose={() => setSelectedUserId(null)}
-            onEditUser={openEditModal}
-            onManageRoles={openRoleModal}
-            onLeaveDays={openLeaveModal}
-            onProjectRoles={openProjectRolesModal}
-            onDeleteUser={openDeleteModal}
-          />
-        );
-      })()}
+        {(() => {
+          const liveSelectedUser = allUsers.find((u) => u.user_id === selectedUserId);
+          if (!liveSelectedUser) return null;
+          const navIndex = filtered.findIndex((u) => u.user_id === selectedUserId);
+          return (
+            <UserDetailPanel
+              key={selectedUserId}
+              user={liveSelectedUser}
+              projectRoles={selectedUserProjectRoles}
+              projectRolesLoading={selectedUserProjectRolesLoading}
+              hasPrev={navIndex > 0}
+              hasNext={navIndex >= 0 && navIndex < filtered.length - 1}
+              onPrev={() => { if (navIndex > 0) setSelectedUserId(filtered[navIndex - 1].user_id); }}
+              onNext={() => { if (navIndex >= 0 && navIndex < filtered.length - 1) setSelectedUserId(filtered[navIndex + 1].user_id); }}
+              onClose={() => setSelectedUserId(null)}
+              onEditUser={openEditModal}
+              onManageRoles={openRoleModal}
+              onLeaveDays={openLeaveModal}
+              onProjectRoles={openProjectRolesModal}
+              onDeleteUser={openDeleteModal}
+            />
+          );
+        })()}
       </div>
 
       {/* Role Management Modal */}

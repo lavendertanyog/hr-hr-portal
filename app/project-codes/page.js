@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import HierarchyPage from '../hierarchy/page';
 import axios from 'axios';
 
 // -- Multi-select dropdown for managers/account_managers ----------------------
@@ -94,7 +96,7 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-export default function ProjectCodesPage() {
+function ProjectCodesContent() {
   const [projects, setProjects] = useState([]);
   const [utilisationMap, setUtilisationMap] = useState({});
   // Anyone can be assigned as a project's Account Manager or Manager, regardless of their own
@@ -326,14 +328,7 @@ export default function ProjectCodesPage() {
   );
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="mb-10 pl-3">
-        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-        <h1 className="mt-3 text-4xl font-semibold text-slate-950">Projects</h1>
-        <p className="mt-2 text-sm text-slate-500">Create, edit and manage all project codes.</p>
-      </div>
-
+    <div>
       {/* Projects Table */}
       <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         {/* Unified toolbar: search · status filter · manager filter … + Issue New Code */}
@@ -552,5 +547,50 @@ export default function ProjectCodesPage() {
         </Modal>
       )}
     </div>
+  );
+}
+
+const PROJECT_TABS = [
+  { key: 'codes', label: 'Project codes' },
+  { key: 'hierarchy', label: 'Org hierarchy' },
+];
+
+function ProjectsTabs() {
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'codes');
+
+  return (
+    <div className="p-8">
+      <div className="mb-6 pl-3">
+        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-950">Projects</h1>
+        <p className="mt-2 text-sm text-slate-500">Create and manage project codes, and see who reports to whom on each project.</p>
+      </div>
+
+      <div className="mb-8 inline-flex rounded-xl bg-slate-100 p-1">
+        {PROJECT_TABS.map((t) => (
+          <button key={t.key} type="button" onClick={() => setTab(t.key)}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              tab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: tab === 'codes' ? 'block' : 'none' }}>
+        <ProjectCodesContent />
+      </div>
+      <div style={{ display: tab === 'hierarchy' ? 'block' : 'none' }}>
+        <HierarchyPage hideHeader />
+      </div>
+    </div>
+  );
+}
+
+export default function ProjectCodesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading…</div>}>
+      <ProjectsTabs />
+    </Suspense>
   );
 }

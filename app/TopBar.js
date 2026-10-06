@@ -40,7 +40,7 @@ function WhatsNewButton() {
 // "budget" finds the right place even if the user doesn't know which page it lives on.
 const SEARCH_INDEX = [
   { label: 'Approvals', href: '/admin', section: 'Page', keywords: 'approve accounts password reset leave requests' },
-  { label: 'People', href: '/people', section: 'Page', keywords: 'user roles hierarchy org chart employees' },
+  { label: 'Employee', href: '/people', section: 'Page', keywords: 'user roles leave days entitlement employees' },
   { label: 'Projects', href: '/project-codes', section: 'Page', keywords: 'project codes budgets' },
   { label: 'Attendance', href: '/attendance', section: 'Page', keywords: 'attendance logs employees monitor' },
   { label: 'Reports', href: '/reports', section: 'Page', keywords: 'pdf report shareholder activity' },
@@ -50,8 +50,9 @@ const SEARCH_INDEX = [
   { label: 'Leave Requests', href: '/admin', section: 'Action', keywords: 'approve leave time off' },
   { label: 'History', href: '/admin', section: 'Section', keywords: 'past decisions approved rejected' },
   { label: 'User Role Management', href: '/people?tab=roles', section: 'Action', keywords: 'assign role hr manager staff account manager' },
-  { label: 'Org Hierarchy', href: '/people?tab=hierarchy', section: 'Action', keywords: 'org chart reporting lines manager staff' },
-  { label: 'Edit Organisation', href: '/people?tab=hierarchy', section: 'Action', keywords: 'org chart edit assign remove manager staff' },
+  { label: 'Leave days', href: '/people?tab=leave', section: 'Action', keywords: 'leave entitlement days per year assign employees' },
+  { label: 'Org Hierarchy', href: '/project-codes?tab=hierarchy', section: 'Action', keywords: 'org chart reporting lines manager staff' },
+  { label: 'Edit Organisation', href: '/project-codes?tab=hierarchy', section: 'Action', keywords: 'org chart edit assign remove manager staff' },
   { label: 'Change Password', href: '/profile', section: 'Action', keywords: 'password security account own my' },
   { label: 'Reset Password', href: '/profile', section: 'Action', keywords: 'password security account own my' },
   { label: 'Update Password', href: '/profile', section: 'Action', keywords: 'password security account own my' },
