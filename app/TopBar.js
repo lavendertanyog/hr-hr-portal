@@ -44,7 +44,7 @@ const SEARCH_INDEX = [
   { label: 'Projects', href: '/project-codes', section: 'Page', keywords: 'project codes budgets' },
   { label: 'Attendance', href: '/attendance', section: 'Page', keywords: 'attendance logs employees monitor' },
   { label: 'Reports', href: '/reports', section: 'Page', keywords: 'pdf report shareholder activity' },
-  { label: 'Calendar', href: '/calendar', section: 'Page', keywords: 'public holidays singapore' },
+  { label: 'Calendar', href: '/calendar', section: 'Page', keywords: 'public holidays singapore who is on leave' },
   { label: 'Pending Accounts', href: '/admin', section: 'Action', keywords: 'approve new signup account' },
   { label: 'Password Resets', href: '/admin', section: 'Action', keywords: 'reset password forgot temp' },
   { label: 'Leave Requests', href: '/admin', section: 'Action', keywords: 'approve leave time off' },

@@ -486,14 +486,14 @@ function HierarchyContent({ hideHeader = false }) {
                 </div>
               </div>
               {!hasActiveFilter && visibleProjects.length > 0 && (
-                <div className="mt-4 flex justify-center">
-                  <button type="button" onClick={() => setShowAllProjects((v) => !v)}
-                    className="flex items-center gap-2 rounded-2xl bg-[#1a3a8f] px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-[#12307a] transition">
-                    {showAllProjects ? (
-                      <>Show less <span>▲</span></>
-                    ) : (
-                      <>Show all {visibleProjects.length} projects <span>▼</span></>
-                    )}
+                <div className="mt-3 flex justify-end">
+                  <button type="button" onClick={() => setShowAllProjects((v) => !v)} aria-expanded={showAllProjects}
+                    className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold text-[#1a3a8f] transition hover:bg-[#E8EEFF]">
+                    {showAllProjects ? 'Show less' : `Show all ${visibleProjects.length} projects`}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                      className={`transition-transform ${showAllProjects ? 'rotate-180' : ''}`} aria-hidden="true">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
                   </button>
                 </div>
               )}
