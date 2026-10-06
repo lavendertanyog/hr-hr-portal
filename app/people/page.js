@@ -3,14 +3,14 @@
 import React, { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import UserRolesPage from '../users/page';
-import LeaveDays from './LeaveDays';
+import LeavePicker from './LeavePicker';
 
 const TABS = [
   { key: 'roles', label: 'User roles' },
   { key: 'leave', label: 'Leave' },
 ];
 
-function PeopleContent() {
+function EmployeeContent() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState(searchParams.get('tab') === 'leave' ? 'leave' : 'roles');
 
@@ -20,7 +20,7 @@ function PeopleContent() {
         <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
         <h1 className="mt-3 text-4xl font-semibold text-slate-950">Employee</h1>
         <p className="mt-2 text-sm text-slate-500">
-          Manage roles and leave days for any Nextan employee.
+          Manage roles, leave days and project assignments for any Nextan employee.
         </p>
       </div>
 
@@ -37,7 +37,7 @@ function PeopleContent() {
       <div style={{ display: tab === 'roles' ? 'block' : 'none' }}>
         <UserRolesPage hideHeader />
       </div>
-      {tab === 'leave' && <LeaveDays />}
+      {tab === 'leave' && <LeavePicker />}
     </div>
   );
 }
@@ -45,7 +45,7 @@ function PeopleContent() {
 export default function PeoplePage() {
   return (
     <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading…</div>}>
-      <PeopleContent />
+      <EmployeeContent />
     </Suspense>
   );
 }

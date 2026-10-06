@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import FilterSearch from '../people/FilterSearch';
+import LeaveDaysModal, { LeaveHistoryModal } from '../people/LeaveDaysModal';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
@@ -121,8 +122,16 @@ function EditIconButton({ onClick, label }) {
 // Slide-in drawer for one employee, opened from a card. Previous / next step through the
 // employees currently shown; the pencil and bin icons open the same edit and delete modals
 // as before, so each kind of edit still has exactly one code path for saving.
-function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onPrev, onNext, hasPrev, hasNext, onEditUser, onManageRoles, onLeaveDays, onProjectRoles, onDeleteUser }) {
+function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onPrev, onNext, hasPrev, hasNext, onEditUser, onManageRoles, onLeaveDays, onSetDays, onProjectRoles, onDeleteUser }) {
   const [tab, setTab] = useState('details');
+  const [settingDays, setSettingDays] = useState(false);
+  const [daysMsg, setDaysMsg] = useState(null);
+  const pickDays = async (d) => {
+    setSettingDays(true); setDaysMsg(null);
+    try { await onSetDays(user, d); setDaysMsg({ ok: true, text: `Set to ${d} days.` }); }
+    catch (e) { setDaysMsg({ ok: false, text: e.message || 'Could not save.' }); }
+    finally { setSettingDays(false); }
+  };
   const [balance, setBalance] = useState(null);
   const roles = Array.isArray(user.user_roles) && user.user_roles.length > 0
     ? user.user_roles : [user.user_role].filter(Boolean);
@@ -281,6 +290,19 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onP
                   <div className={`h-full rounded-full ${left === 0 ? 'bg-red-400' : left <= 3 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${usedPct}%` }} />
                 </div>
               </div>
+              <p className="mt-5 mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Quick set</p>
+              <div className="flex flex-wrap gap-2">
+                {[12, 14, 16, 18].map((d) => (
+                  <button key={d} type="button" disabled={settingDays} onClick={() => pickDays(d)}
+                    className={`rounded-full px-4 py-1.5 text-sm font-semibold transition disabled:opacity-60 ${
+                      total === d ? 'bg-[#1a3a8f] text-white' : 'bg-[#f1f4fa] text-slate-600 hover:bg-[#e6ebf5]'}`}>
+                    {d}
+                  </button>
+                ))}
+                <button type="button" onClick={() => onLeaveDays(user)}
+                  className="rounded-full bg-[#f1f4fa] px-4 py-1.5 text-sm font-semibold text-slate-600 hover:bg-[#e6ebf5] transition">Other…</button>
+              </div>
+              {daysMsg && <p className={`mt-3 text-xs font-medium ${daysMsg.ok ? 'text-green-600' : 'text-red-600'}`}>{daysMsg.text}</p>}
               <p className="mt-4 text-xs text-slate-400">Used counts approved Annual and Emergency leave. Annual and Emergency share this balance; Sick leave has no cap.</p>
             </section>
           )}
@@ -342,6 +364,49 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectedUserProjectRoles, setSelectedUserProjectRoles] = useState([]);
   const [selectedUserProjectRolesLoading, setSelectedUserProjectRolesLoading] = useState(false);
+
+  // Leave days: ticked cards, the "⋯" toolbar menu, the shared set-days window, and the history.
+  const [leavePeople, setLeavePeople] = useState(null); // people the set-days window is open for
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = React.useRef(null);
+
+  useEffect(() => {
+    const onDown = (e) => { if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
+
+  // Applies the new numbers the server returned to the cards without reloading everyone.
+  const applyNewLeaveDays = (rows) => {
+    const byId = new Map(rows.map((r) => [r.user_id, r.leave_entitlement_days]));
+    setAllUsers((prev) => prev.map((u) => (byId.has(u.user_id) ? { ...u, leave_entitlement_days: byId.get(u.user_id) } : u)));
+  };
+
+  // One tap on a preset in the drawer: set that one person straight to the chosen number.
+  const setUserDays = async (u, days) => {
+    try {
+      await axios.patch(`${BACKEND}/api/v1/hr/update-leave-entitlement`, { requesterId, userId: u.user_id, leaveEntitlementDays: days });
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'Could not save.');
+    }
+    setAllUsers((prev) => prev.map((x) => (x.user_id === u.user_id ? { ...x, leave_entitlement_days: days } : x)));
+  };
+
+  const quickAddDay = async (people) => {
+    if (people.length === 0) return;
+    if (!window.confirm(`Add 1 leave day for ${people.length} ${people.length === 1 ? 'person' : 'people'}?`)) return;
+    setFeedback('');
+    try {
+      const res = await axios.patch(`${BACKEND}/api/v1/hr/update-leave-entitlement-bulk`, {
+        requesterId, userIds: people.map((u) => u.user_id), delta: 1,
+      });
+      applyNewLeaveDays(res.data?.data || []);
+      setFeedback(`Added 1 leave day — updated ${res.data?.updated ?? people.length} ${(res.data?.updated ?? people.length) === 1 ? 'person' : 'people'}.`);
+    } catch (err) {
+      setFeedback(err.response?.data?.error || 'Failed to update leave days.');
+    }
+  };
 
   useEffect(() => {
     try {
@@ -588,6 +653,31 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
               onSearch={(v) => { setSearchQuery(v); setPage(1); }}
             />
             <span className="text-sm text-slate-500">{filtered.length} {filtered.length === 1 ? 'user' : 'users'}</span>
+
+            <div ref={moreRef} className="relative ml-auto">
+              <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-label="More actions" title="More actions"
+                className="flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
+              </button>
+              {moreOpen && (
+                <div className="absolute right-0 top-12 z-30 w-64 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                  <button type="button" disabled={filtered.length === 0}
+                    onClick={() => { setMoreOpen(false); setLeavePeople(filtered); }}
+                    className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40">
+                    Set leave days for these {filtered.length}…
+                  </button>
+                  <button type="button" disabled={filtered.length === 0}
+                    onClick={() => { setMoreOpen(false); quickAddDay(filtered); }}
+                    className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40">
+                    Add 1 day to all {filtered.length}
+                  </button>
+                  <button type="button" onClick={() => { setMoreOpen(false); setHistoryOpen(true); }}
+                    className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50">
+                    Leave change history
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {loading ? (
@@ -634,12 +724,19 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
               onEditUser={openEditModal}
               onManageRoles={openRoleModal}
               onLeaveDays={openLeaveModal}
+              onSetDays={setUserDays}
               onProjectRoles={openProjectRolesModal}
               onDeleteUser={openDeleteModal}
             />
           );
         })()}
       </div>
+
+      {leavePeople && (
+        <LeaveDaysModal people={leavePeople} requesterId={requesterId}
+          onClose={() => setLeavePeople(null)} onDone={applyNewLeaveDays} />
+      )}
+      {historyOpen && <LeaveHistoryModal requesterId={requesterId} onClose={() => setHistoryOpen(false)} />}
 
       {/* Role Management Modal */}
       {roleModal && (
