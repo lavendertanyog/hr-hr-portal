@@ -268,7 +268,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">{project.project_code}</p>
           <h2 className="text-xl font-semibold text-slate-900">{project.project_name}</h2>
-          <p className="text-xs text-slate-400 mt-1">{project.budget_hours} hrs budget · {project.status || 'ACTIVE'} · {projectMembers.length} assigned</p>
+          <p className="text-xs text-slate-400 mt-1">{project.budget_hours} hrs budget · {(project.status || 'ACTIVE').toUpperCase() === 'INACTIVE' ? 'DEPLOYED' : (project.status || 'ACTIVE')} · {projectMembers.length} assigned</p>
         </div>
         <button type="button" onClick={() => setEditMode((v) => !v)}
           className={`flex-shrink-0 flex items-center gap-1.5 rounded-xl border px-4 py-2 text-xs font-semibold transition ${
@@ -430,7 +430,7 @@ function HierarchyContent({ hideHeader = false }) {
 
   const visibleProjects = useMemo(() => {
     const q = projectSearch.trim().toLowerCase();
-    const active = projectHierarchy.filter((p) => (p.status || 'ACTIVE').toUpperCase() !== 'INACTIVE');
+    const active = projectHierarchy.filter((p) => !['INACTIVE', 'DEPLOYED'].includes((p.status || 'ACTIVE').toUpperCase()));
     if (!q) return active;
     return active.filter((p) => {
       const amNames = p.account_manager_names || (p.accountManager ? [p.accountManager.full_name] : []);
@@ -453,7 +453,7 @@ function HierarchyContent({ hideHeader = false }) {
         </div>
       )}
       {loading ? <p className="text-sm text-slate-400 py-8">Loading…</p> : (
-        projectHierarchy.filter((p) => (p.status || 'ACTIVE').toUpperCase() !== 'INACTIVE').length === 0
+        projectHierarchy.filter((p) => !['INACTIVE', 'DEPLOYED'].includes((p.status || 'ACTIVE').toUpperCase())).length === 0
           ? <p className="text-sm text-slate-400 py-8">No active projects found.</p>
           : (
           <>
