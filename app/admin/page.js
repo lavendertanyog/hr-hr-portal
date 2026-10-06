@@ -5,6 +5,9 @@ import axios from 'axios';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 const LEAVE_CATEGORIES = ['ANNUAL', 'EMERGENCY', 'SICK'];
+// New accounts verify themselves by email and forgotten passwords are emailed as a temporary
+// password, so these two approval queues are hidden. Set to true to bring them back.
+const SHOW_ACCOUNT_QUEUES = false;
 
 function LeaveStatusPill({ status }) {
   const s = String(status || '').toUpperCase();
@@ -38,7 +41,7 @@ function StatusBadge({ status }) {
 export default function AdminPage() {
   const [adminId, setAdminId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(null); // null = loading
-  const [tab, setTab] = useState('accounts'); // 'accounts' | 'resets' | 'leave' | 'history'
+  const [tab, setTab] = useState(SHOW_ACCOUNT_QUEUES ? 'accounts' : 'leave'); // 'accounts' | 'resets' | 'leave' | 'history'
   const [historySubFilter, setHistorySubFilter] = useState('Pending Accounts'); // 'Pending Accounts' | 'Reset History'
   const [historySearch, setHistorySearch] = useState('');
   const [pendingAccounts, setPendingAccounts] = useState([]);
@@ -216,8 +219,10 @@ export default function AdminPage() {
   const displayName = user?.full_name || (user?.email ? user.email.split('@')[0].split('.').map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') : 'HR Admin');
 
   const TABS = [
-    { key: 'accounts', label: `Pending Accounts (${pendingAccounts.length})` },
-    { key: 'resets', label: `Password Resets (${pendingResets.length})` },
+    ...(SHOW_ACCOUNT_QUEUES ? [
+      { key: 'accounts', label: `Pending Accounts (${pendingAccounts.length})` },
+      { key: 'resets', label: `Password Resets (${pendingResets.length})` },
+    ] : []),
     { key: 'leave', label: `Leave Requests (${pendingLeaveCount})` },
     { key: 'history', label: 'History' },
   ];
@@ -241,11 +246,12 @@ export default function AdminPage() {
       <div className="mb-10 pl-3">
         <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
         <h1 className="mt-3 text-4xl font-semibold text-slate-950">Welcome back, {displayName}</h1>
-        <p className="mt-2 text-sm text-slate-500">Approve accounts and password resets, or review past decisions.</p>
+        <p className="mt-2 text-sm text-slate-500">{SHOW_ACCOUNT_QUEUES ? 'Approve accounts and password resets, or review past decisions.' : 'Review leave requests and past decisions.'}</p>
       </div>
 
       {/* Stat cards — Pending Accounts / Password Resets act as filters into the tabs below */}
       <div className="mb-7 grid grid-cols-2 gap-4 sm:grid-cols-3">
+        {SHOW_ACCOUNT_QUEUES && (<>
         <button type="button" onClick={() => setTab('accounts')}
           className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
             tab === 'accounts' ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
@@ -260,6 +266,7 @@ export default function AdminPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Password Resets</p>
           <p className="mt-3 text-4xl font-semibold text-slate-900">{pendingResets.length}</p>
         </button>
+        </>)}
         <button type="button" onClick={() => setTab('leave')}
           className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
             tab === 'leave' ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
