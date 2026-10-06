@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import ProjectCards from './ProjectCards';
 import HierarchyPage from '../hierarchy/page';
@@ -10,8 +11,10 @@ const TABS = [
   { id: 'hierarchy', label: 'Organisation Hierarchy' },
 ];
 
-export default function ProjectCodesPage() {
-  const [tab, setTab] = useState('codes');
+function ProjectsTabs() {
+  // /project-codes?tab=hierarchy (used by the top-bar search) opens the hierarchy tab
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'codes');
   const [sessionUser, setSessionUser] = useState(null);
   // Anyone can be assigned as a project's Account Manager or Manager, regardless of their own
   // role — so both fields in the Issue/Edit form list every active employee, not just users
@@ -47,7 +50,7 @@ export default function ProjectCodesPage() {
       <div className="mb-6 pl-3">
         <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
         <h1 className="mt-3 text-4xl font-semibold text-slate-950">Projects</h1>
-        <p className="mt-2 text-sm text-slate-500">Create, edit and manage all project codes.</p>
+        <p className="mt-2 text-sm text-slate-500">Create and manage project codes, and see who reports to whom on each project.</p>
       </div>
 
       <div role="tablist" aria-label="Projects views" onKeyDown={onTabKeyDown}
@@ -71,19 +74,27 @@ export default function ProjectCodesPage() {
         ))}
       </div>
 
-      <div id={`projects-panel-${tab}`} role="tabpanel" aria-labelledby={`projects-tab-${tab}`}>
-        {tab === 'codes' ? (
-          <ProjectCards
-            backendBaseUrl={backendBaseUrl}
-            sessionUser={sessionUser}
-            accountManagerOptions={allUsers}
-            managerOptions={allUsers}
-            requireAccountManager
-          />
-        ) : (
-          <HierarchyPage hideHeader />
-        )}
+      {/* Both tabs stay mounted so switching keeps each tab's filters and selection */}
+      <div id="projects-panel-codes" role="tabpanel" aria-labelledby="projects-tab-codes" hidden={tab !== 'codes'}>
+        <ProjectCards
+          backendBaseUrl={backendBaseUrl}
+          sessionUser={sessionUser}
+          accountManagerOptions={allUsers}
+          managerOptions={allUsers}
+          requireAccountManager
+        />
+      </div>
+      <div id="projects-panel-hierarchy" role="tabpanel" aria-labelledby="projects-tab-hierarchy" hidden={tab !== 'hierarchy'}>
+        <HierarchyPage hideHeader />
       </div>
     </div>
+  );
+}
+
+export default function ProjectCodesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading…</div>}>
+      <ProjectsTabs />
+    </Suspense>
   );
 }
