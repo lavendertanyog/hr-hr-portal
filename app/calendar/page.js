@@ -24,10 +24,19 @@ const LIST_ACCENTS = ['#F97316', '#7C3AED', '#EF4444', '#2563EB', '#10B981', '#E
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Approved leave shown on the grid per day before collapsing into "+N more"
+const LEAVE_PILLS_PER_DAY = 2;
+const parseISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const shortDate = (s) => parseISO(s).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
+const rangeLabel = (a, b) => (a === b ? shortDate(a) : `${shortDate(a)} – ${shortDate(b)}`);
+const dayCount = (a, b) => Math.round((parseISO(b) - parseISO(a)) / 86400000) + 1;
+
 export default function CalendarPage() {
   const [requesterId, setRequesterId] = useState(null);
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [holidays, setHolidays] = useState([]);
+  // Who is on approved leave this year (name + dates only, no leave type)
+  const [leave, setLeave] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
 
@@ -112,6 +121,13 @@ export default function CalendarPage() {
   }, []);
 
   useEffect(() => { fetchHolidays(year); }, [year, fetchHolidays]);
+
+  useEffect(() => {
+    if (!requesterId) return;
+    axios.get(`${API_BASE}/api/v1/calendar/leave`, { params: { requesterId, from: `${year}-01-01`, to: `${year}-12-31` } })
+      .then((res) => setLeave(res.data?.data || []))
+      .catch(() => setLeave([]));
+  }, [year, requesterId]);
 
   const openAddModal = (prefillDate, prefillName) => {
     setAddDate(prefillDate || '');
@@ -203,16 +219,35 @@ export default function CalendarPage() {
     holidayByDate[h.holiday_date] = h;
   });
 
-  // Same filtered set, grouped by month, for the list view — covers the whole fetched year,
-  // not just whichever month the grid happens to be on.
+  // Approved leave, filtered the same way (search matches the person's name), spread across
+  // every day it covers within the loaded year.
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year}-12-31`;
+  const shownLeave = leave.filter((l) => !(listTab === 'upcoming' && l.end_date < todayISO) && (!query || (l.full_name || '').toLowerCase().includes(query)));
+  const leaveByDate = {};
+  shownLeave.forEach((l) => {
+    const end = parseISO(l.end_date > yearEnd ? yearEnd : l.end_date);
+    for (let d = parseISO(l.start_date < yearStart ? yearStart : l.start_date); d <= end; d.setDate(d.getDate() + 1)) {
+      (leaveByDate[toISODateStr(d)] ||= []).push(l);
+    }
+  });
+  // Unfiltered, for the add/edit modal's "on leave this day" list
+  const leaveOnDay = (iso) => leave.filter((l) => l.start_date <= iso && l.end_date >= iso);
+
+  // Same filtered holidays plus leave, grouped by month, for the list view — covers the whole
+  // fetched year, not just whichever month the grid happens to be on.
+  const agendaItems = [
+    ...holidays
+      .filter((h) => !(listTab === 'upcoming' && h.holiday_date < todayISO) && (!query || h.name.toLowerCase().includes(query)))
+      .map((h) => ({ kind: 'holiday', date: h.holiday_date, key: `h-${h.holiday_date}`, holiday: h })),
+    ...shownLeave.map((l) => ({ kind: 'leave', date: l.start_date < yearStart ? yearStart : l.start_date, key: `l-${l.leave_id}`, leave: l })),
+  ].sort((a, b) => (a.date === b.date ? (a.kind === 'holiday' ? -1 : 1) : a.date < b.date ? -1 : 1));
   const holidaysByMonth = [];
-  for (const h of holidays) {
-    if (listTab === 'upcoming' && h.holiday_date < todayISO) continue;
-    if (query && !h.name.toLowerCase().includes(query)) continue;
-    const label = monthLabel(h.holiday_date);
+  for (const it of agendaItems) {
+    const label = monthLabel(it.date);
     const group = holidaysByMonth[holidaysByMonth.length - 1];
-    if (group && group.label === label) group.items.push(h);
-    else holidaysByMonth.push({ label, items: [h] });
+    if (group && group.label === label) group.items.push(it);
+    else holidaysByMonth.push({ label, items: [it] });
   }
 
   // Mon-first grid cells for gridMonth, padded with leading/trailing blanks so the grid always
@@ -241,7 +276,7 @@ export default function CalendarPage() {
         <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
         <h1 className="mt-3 text-4xl font-semibold text-slate-900">Calendar</h1>
         <p className="mt-2 text-sm text-slate-500">
-          Manage Singapore public holidays — shown on attendance calendars and factored into reports across all portals.
+          Manage Singapore public holidays and see who&apos;s on approved leave. Holidays and leave also show on every portal&apos;s calendar.
         </p>
       </div>
 
@@ -252,7 +287,7 @@ export default function CalendarPage() {
         <div className="flex flex-wrap items-center justify-between gap-4 px-6 border-b border-slate-100">
           <div className="flex items-center gap-6">
             {[
-              ['all', 'All Holidays', <path key="p" d="M8 2v4M16 2v4M3.5 9h17M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />],
+              ['all', 'All', <path key="p" d="M8 2v4M16 2v4M3.5 9h17M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />],
               ['upcoming', 'Upcoming', <path key="p" d="M12 2l2.6 6.6L22 9l-5.4 4.8L18 21l-6-3.6L6 21l1.4-7.2L2 9l7.4-.4Z" />],
             ].map(([key, label, icon]) => (
               <button key={key} type="button" onClick={() => setListTab(key)}
@@ -265,14 +300,18 @@ export default function CalendarPage() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 py-2.5">
+          <div className="flex items-center gap-4 py-2.5">
+            <div className="hidden items-center gap-4 text-xs font-medium text-slate-500 sm:flex">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-500" />Public holiday</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[#C9D5FF]" />On leave</span>
+            </div>
             <div className="relative">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                 className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                 <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search…"
-                className="rounded-full border border-slate-200 pl-8 pr-3 py-1.5 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:w-44 transition-all" />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search holiday or name…"
+                className="rounded-full border border-slate-200 pl-8 pr-3 py-1.5 text-sm w-60 max-w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:w-64 transition-all" />
             </div>
           </div>
         </div>
@@ -317,7 +356,7 @@ export default function CalendarPage() {
             ) : (
               <button type="button" onClick={() => (pickerOpen ? setPickerOpen(false) : openPicker())}
                 className="flex items-center gap-1.5 rounded-full px-3 py-1.5 -mx-1 text-base font-bold text-slate-900 whitespace-nowrap hover:bg-slate-50 transition">
-                {year} holidays
+                {listTab === 'upcoming' ? `Upcoming in ${year}` : year}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
             )}
@@ -404,6 +443,7 @@ export default function CalendarPage() {
                 if (!d) return <div key={i} className={`min-h-[110px] border-b border-slate-100 bg-slate-50/40 ${isLastCol ? '' : 'border-r'}`} />;
                 const iso = toISODateStr(d);
                 const holiday = holidayByDate[iso];
+                const onLeave = leaveByDate[iso] || [];
                 const isToday = iso === toISODateStr(new Date());
                 return (
                   <button key={i} type="button" onClick={() => openAddModal(iso, holidayByDateAll[iso]?.name)}
@@ -413,6 +453,12 @@ export default function CalendarPage() {
                     </span>
                     {holiday && (
                       <p className="mt-1.5 w-full rounded-md bg-red-500 px-2 py-1 text-[10px] font-semibold text-white leading-tight line-clamp-2 text-left">{holiday.name}</p>
+                    )}
+                    {onLeave.slice(0, LEAVE_PILLS_PER_DAY).map((l) => (
+                      <p key={l.leave_id} className="mt-1 w-full truncate rounded-md bg-[#E8EEFF] px-2 py-1 text-left text-[10px] font-semibold leading-tight text-[#1540A8]">{l.full_name}</p>
+                    ))}
+                    {onLeave.length > LEAVE_PILLS_PER_DAY && (
+                      <p className="mt-1 w-full text-left text-[10px] font-semibold text-slate-500">+{onLeave.length - LEAVE_PILLS_PER_DAY} more on leave</p>
                     )}
                   </button>
                 );
@@ -424,17 +470,39 @@ export default function CalendarPage() {
             {loading ? (
               <p className="text-sm text-slate-400 py-8 text-center">Loading…</p>
             ) : holidaysByMonth.length === 0 ? (
-              <p className="text-sm text-slate-400 py-8 text-center">No holidays match {year}.</p>
+              <p className="text-sm text-slate-400 py-8 text-center">No holidays or leave match {year}.</p>
             ) : (
               holidaysByMonth.map((group, gi) => {
-                let colorCursor = holidaysByMonth.slice(0, gi).reduce((n, g) => n + g.items.length, 0);
+                let colorCursor = holidaysByMonth.slice(0, gi).reduce((n, g) => n + g.items.filter((x) => x.kind === 'holiday').length, 0);
                 return (
                   <div key={group.label} className={gi > 0 ? 'mt-6' : ''}>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">{group.label}</p>
                     <div className="rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-                      {group.items.map((h) => {
-                        const weekday = new Date(h.holiday_date + 'T00:00:00').toLocaleDateString('en-SG', { weekday: 'short' });
-                        const [, , dNum] = h.holiday_date.split('-');
+                      {group.items.map((it) => {
+                        const weekday = new Date(it.date + 'T00:00:00').toLocaleDateString('en-SG', { weekday: 'short' });
+                        const [, , dNum] = it.date.split('-');
+                        if (it.kind === 'leave') {
+                          const l = it.leave;
+                          const days = dayCount(l.start_date, l.end_date);
+                          return (
+                            <div key={it.key} className="flex items-center gap-4 px-4 py-3.5">
+                              <div className="w-10 flex-shrink-0 text-center">
+                                <p className="text-base font-bold text-[#1540A8] leading-tight">{dNum}</p>
+                                <p className="text-[10px] text-slate-400 leading-tight">{weekday}</p>
+                              </div>
+                              <div className="w-[3px] self-stretch rounded-full flex-shrink-0 bg-[#1540A8]" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[11px] font-medium text-slate-400 leading-tight">On leave</p>
+                                <p className="text-sm font-semibold text-slate-800 leading-snug truncate">{l.full_name}</p>
+                              </div>
+                              <p className="flex-shrink-0 text-right text-xs text-slate-500">
+                                {rangeLabel(l.start_date, l.end_date)}
+                                <span className="block text-[11px] text-slate-400">{days} day{days === 1 ? '' : 's'}</span>
+                              </p>
+                            </div>
+                          );
+                        }
+                        const h = it.holiday;
                         const color = LIST_ACCENTS[colorCursor % LIST_ACCENTS.length];
                         colorCursor += 1;
                         return (
@@ -472,6 +540,19 @@ export default function CalendarPage() {
             <label className="block text-xs font-semibold text-slate-500 mb-1.5 mt-4">Holiday name</label>
             <input type="text" value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="e.g. National Day"
               className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            {addDate && leaveOnDay(addDate).length > 0 && (
+              <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3">
+                <p className="mb-1.5 text-xs font-semibold text-slate-500">On leave this day ({leaveOnDay(addDate).length})</p>
+                <ul className="max-h-32 space-y-1 overflow-y-auto">
+                  {leaveOnDay(addDate).map((l) => (
+                    <li key={l.leave_id} className="flex justify-between gap-3 text-sm">
+                      <span className="truncate font-medium text-slate-800">{l.full_name}</span>
+                      <span className="flex-shrink-0 text-xs text-slate-500">{rangeLabel(l.start_date, l.end_date)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="flex gap-3 mt-6">
               <button type="button" onClick={() => setShowModal(false)}
                 className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>

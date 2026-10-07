@@ -2,6 +2,12 @@
 // jargon). Newest first. `id` just needs to increase; it's what "seen" is tracked against.
 export const WHATS_NEW = [
   {
+    id: 5,
+    date: '7 Oct 2026',
+    title: 'Audit Log',
+    body: 'A new Audit Log page shows who changed timesheets, leave, budgets, projects and leave entitlements, with the before and after values. Filter by date, record type, who made the change, or whose record it was.',
+  },
+  {
     id: 4,
     date: '18 Sept 2026',
     title: 'Find anything faster',

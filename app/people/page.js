@@ -3,32 +3,32 @@
 import React, { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import UserRolesPage from '../users/page';
-import HierarchyPage from '../hierarchy/page';
+import LeaveDays from './LeaveDays';
 
 const TABS = [
   { key: 'roles', label: 'User roles' },
-  { key: 'hierarchy', label: 'Org hierarchy' },
+  { key: 'leave', label: 'Leave' },
 ];
 
 function PeopleContent() {
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState(searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'roles');
+  const [tab, setTab] = useState(searchParams.get('tab') === 'leave' ? 'leave' : 'roles');
 
   return (
     <div className="p-8">
-      <div className="mb-6 pl-3">
+      <div className="mb-4 pl-3">
         <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-        <h1 className="mt-3 text-4xl font-semibold text-slate-950">People</h1>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-950">Employee</h1>
         <p className="mt-2 text-sm text-slate-500">
-          Manage roles and visualise reporting lines for any Nextan employee.
+          Manage roles and leave days for any Nextan employee.
         </p>
       </div>
 
-      <div className="mb-8 inline-flex rounded-xl bg-slate-100 p-1">
+      <div className="mb-6 flex gap-7 border-b border-slate-200 pl-3" role="tablist">
         {TABS.map((t) => (
-          <button key={t.key} type="button" onClick={() => setTab(t.key)}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-              tab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+          <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
+            className={`-mb-px border-b-2 pb-3 pt-2 text-sm font-semibold transition ${
+              tab === t.key ? 'border-[#1a3a8f] text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
             {t.label}
           </button>
         ))}
@@ -37,9 +37,7 @@ function PeopleContent() {
       <div style={{ display: tab === 'roles' ? 'block' : 'none' }}>
         <UserRolesPage hideHeader />
       </div>
-      <div style={{ display: tab === 'hierarchy' ? 'block' : 'none' }}>
-        <HierarchyPage hideHeader />
-      </div>
+      {tab === 'leave' && <LeaveDays />}
     </div>
   );
 }
