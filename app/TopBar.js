@@ -45,6 +45,7 @@ const SEARCH_INDEX = [
   { label: 'Attendance', href: '/attendance', section: 'Page', keywords: 'attendance logs employees monitor' },
   { label: 'Reports', href: '/reports', section: 'Page', keywords: 'pdf report shareholder activity' },
   { label: 'Calendar', href: '/calendar', section: 'Page', keywords: 'public holidays singapore who is on leave' },
+  { label: 'Audit Log', href: '/audit-log', section: 'Page', keywords: 'audit trail history changes edits who changed before after' },
   { label: 'Pending Accounts', href: '/admin', section: 'Action', keywords: 'approve new signup account' },
   { label: 'Password Resets', href: '/admin', section: 'Action', keywords: 'reset password forgot temp' },
   { label: 'Leave Requests', href: '/admin', section: 'Action', keywords: 'approve leave time off' },
