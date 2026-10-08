@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { endSession } from './authSession';
+import { authHeaders, endSession } from './authSession';
 
 function deriveNameFromEmail(email) {
   return String(email || '').split('@')[0].split('.').filter(Boolean)
@@ -83,7 +83,7 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
       const u = JSON.parse(stored);
       if (!u?.user_id) return;
       if (Date.now() - _hr_lastVerified < 55_000) return; // skip if checked recently
-      fetch(`${API_BASE}/api/v1/auth/verify-session?userId=${u.user_id}`, { signal })
+      fetch(`${API_BASE}/api/v1/auth/verify-session?userId=${u.user_id}`, { signal, headers: authHeaders() })
         .then((r) => r.json())
         .then((payload) => {
           if (!payload.success) { handleLogout(); return; }
