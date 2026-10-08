@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { formatLeaveDate } from '../leaveFormat';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 const LEAVE_CATEGORIES = ['ANNUAL', 'EMERGENCY', 'SICK'];
@@ -458,8 +459,8 @@ export default function AdminPage() {
                           <p className="text-xs text-slate-400">{r.email}</p>
                         </td>
                         <td className="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">{r.category}</td>
-                        <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{String(r.start_date).slice(0, 10)}</td>
-                        <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{String(r.end_date).slice(0, 10)}</td>
+                        <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.start_date).slice(0, 10))}</td>
+                        <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.end_date).slice(0, 10))}</td>
                         <td className="px-6 py-4 whitespace-nowrap"><LeaveStatusPill status={r.workflow_status} /></td>
                         <td className="px-6 py-4 text-slate-500 max-w-[220px] truncate">{r.reviewer_remarks || '—'}</td>
                         <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">{formatDt(r.created_at)}</td>
@@ -531,8 +532,8 @@ export default function AdminPage() {
                             <p className="text-xs text-slate-400">{r.email}</p>
                           </td>
                           <td className="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">{r.category}</td>
-                          <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{String(r.start_date).slice(0, 10)}</td>
-                          <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{String(r.end_date).slice(0, 10)}</td>
+                          <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.start_date).slice(0, 10))}</td>
+                          <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.end_date).slice(0, 10))}</td>
                           <td className="px-6 py-4 whitespace-nowrap"><LeaveStatusPill status={r.workflow_status} /></td>
                           <td className="px-6 py-4 text-slate-500 max-w-[220px] truncate">{r.reviewer_remarks || '—'}</td>
                           <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">{formatDt(r.created_at)}</td>
