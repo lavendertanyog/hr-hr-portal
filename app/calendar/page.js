@@ -139,13 +139,22 @@ export default function CalendarPage() {
   // holidayDate with a new name just overwrites it (no separate create/edit endpoint).
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!addDate || !addName.trim() || !requesterId) return;
+    if (!requesterId) return;
+    if (!addDate || !addName.trim()) {
+      showToast('Please enter a date and a name.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       await axios.post(`${API_BASE}/api/v1/hr/public-holidays`, { requesterId, holidayDate: addDate, name: addName.trim() });
       setShowModal(false);
       setAddDate(''); setAddName('');
-      await fetchHolidays(year);
+      // Jump to the saved holiday's month so a holiday in another year doesn't seem to vanish;
+      // changing `year` refetches through the effect above.
+      const [savedYear, savedMonth] = addDate.split('-').map(Number);
+      setGridMonth(new Date(savedYear, savedMonth - 1, 1));
+      if (savedYear !== year) setYear(savedYear);
+      else await fetchHolidays(year);
       showToast('Holiday saved.', 'success');
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to save holiday.', 'error');
