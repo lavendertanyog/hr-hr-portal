@@ -73,7 +73,9 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
     } catch {}
   }, [pathname]);
 
-  // Role verification: runs once on initial page load (module var = 0) then every 60s via interval.
+  // Role verification: runs on page load, when the tab comes back into view, and then at most once
+  // a minute. The timer ticks every 15s against the 55s guard: with a 60s timer, a check made on
+  // page load just before a tick made that tick skip, so a revoked account stayed signed in ~2 min.
   useEffect(() => {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
@@ -102,9 +104,12 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
     const id = setInterval(() => {
       const c = new AbortController();
       verify(c.signal);
-    }, 60_000);
+    }, 15_000);
 
-    return () => { ctrl.abort(); clearInterval(id); };
+    const onVisible = () => { if (document.visibilityState === 'visible') verify(new AbortController().signal); };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => { ctrl.abort(); clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
 
   useEffect(() => {
