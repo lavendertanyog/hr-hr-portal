@@ -15,6 +15,7 @@ const NAV = [
   { label: 'Employee', href: '/people', icon: 'users' },
   { label: 'Projects', href: '/project-codes', icon: 'folder' },
   { label: 'Attendance', href: '/attendance', icon: 'clock' },
+  { label: 'Claims', href: '/claims', icon: 'receipt' },
   { label: 'Reports', href: '/reports', icon: 'chart' },
   { label: 'Calendar', href: '/calendar', icon: 'calendar' },
   { label: 'Audit Log', href: '/audit-log', icon: 'shield' },
@@ -33,6 +34,8 @@ function NavIcon({ name, size = 20 }) {
       return <svg {...common}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>;
     case 'clock':
       return <svg {...common}><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 15" /></svg>;
+    case 'receipt':
+      return <svg {...common}><path d="M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2z" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="9" y1="12" x2="15" y2="12" /><line x1="9" y1="16" x2="13" y2="16" /></svg>;
     case 'chart':
       return <svg {...common}><line x1="12" y1="20" x2="12" y2="10" /><line x1="18" y1="20" x2="18" y2="4" /><line x1="6" y1="20" x2="6" y2="16" /></svg>;
     case 'calendar':
