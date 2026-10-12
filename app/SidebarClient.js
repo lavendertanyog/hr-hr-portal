@@ -17,7 +17,6 @@ const NAV = [
   { label: 'Attendance', href: '/attendance', icon: 'clock' },
   { label: 'Reports', href: '/reports', icon: 'chart' },
   { label: 'Calendar', href: '/calendar', icon: 'calendar' },
-  { label: 'Audit Log', href: '/audit-log', icon: 'shield' },
 ];
 
 function NavIcon({ name, size = 20 }) {
