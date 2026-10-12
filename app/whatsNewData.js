@@ -2,6 +2,54 @@
 // jargon). Newest first. `id` just needs to increase; it's what "seen" is tracked against.
 export const WHATS_NEW = [
   {
+    id: 10,
+    date: '12 Oct 2026',
+    title: 'Attendance export: Excel or CSV, with leave and MC proof',
+    body: 'The Export button on Attendance is now a menu, and the file includes more than clock-ins.',
+    points: [
+      'Choose Excel (.xlsx) or CSV',
+      'Leave of every type is included, with its status',
+      'Sick leave rows have an MC proof link — click it, sign in to the HR portal if asked, and the MC opens',
+      'The column list changed, so reports built on the old file may need a quick check',
+    ],
+  },
+  {
+    id: 9,
+    date: '12 Oct 2026',
+    title: 'Employee and Projects pages, redesigned',
+    body: 'People and projects are easier to browse and manage.',
+    points: [
+      'Employee page: cards with a details drawer, a combined role filter and search',
+      'A Leave tab to set leave days (with presets) and see the change history',
+      'Projects page: project cards with a detail drawer, Deployed and Maintenance statuses, and the Org hierarchy tab',
+      'Deactivate is now "Mark as deployed" — assignments are kept, and Reactivate puts it into Maintenance',
+    ],
+  },
+  {
+    id: 8,
+    date: '12 Oct 2026',
+    title: 'Calendar, holidays and reports',
+    body: 'Smaller improvements across Calendar, Approvals and Reports.',
+    points: [
+      'Calendar shows who is on leave, and has a collapsible sidebar',
+      'After saving a holiday the calendar jumps to its month, and you are told when the date or name is missing',
+      'Importing holidays tells you how many were added and how many were skipped',
+      'The separate Leave page is gone — leave is under Approvals > Leave Requests, with dates like 31-Oct-2026',
+      'PDF reports start each section on a new page, and Supporting detail now adapts to a week or a month',
+      'An account that has been deactivated is signed out within about a minute',
+    ],
+  },
+  {
+    id: 7,
+    date: '12 Oct 2026',
+    title: 'Everyone signs in once more',
+    body: 'Login sessions have been upgraded, so you’ll be asked to log in once after this update.',
+    points: [
+      'Remember me now keeps you signed in on this device for 1 day (see the earlier note)',
+      'Changing your password or signing a device out ends its sign-in everywhere within about a minute',
+    ],
+  },
+  {
     id: 6,
     date: '8 Oct 2026',
     title: 'Remember me on this device',
