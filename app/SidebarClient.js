@@ -68,6 +68,12 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
     return next;
   });
   const menuRef = useRef(null);
+  const navRef = useRef(null);
+
+  // Keep the open page's tab in view when the tab list has to scroll.
+  useEffect(() => {
+    navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
+  }, [pathname]);
 
   useEffect(() => {
     try {
@@ -248,13 +254,14 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
           )}
         </div>
 
-        <nav className="flex flex-col items-center overflow-y-auto hide-native-scrollbar" style={{ paddingTop: 20, flex: 1, minHeight: 0 }}>
+        <nav ref={navRef} className="flex flex-col items-center overflow-y-auto hide-native-scrollbar" style={{ paddingTop: 20, flex: 1, minHeight: 0 }}>
           {NAV.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
               <Link key={item.href} href={item.href}
                 title={item.label}
                 aria-label={item.label}
+                aria-current={active ? 'page' : undefined}
                 className="flex flex-col items-center justify-center transition-all flex-shrink-0"
                 style={{
                   width: collapsed ? (active ? 44 : 40) : (active ? 80 : 69),
