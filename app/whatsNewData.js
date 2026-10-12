@@ -2,6 +2,18 @@
 // jargon). Newest first. `id` just needs to increase; it's what "seen" is tracked against.
 export const WHATS_NEW = [
   {
+    id: 7,
+    date: '12 Oct 2026',
+    title: 'Expense claims',
+    body: 'Staff can now claim expenses from a receipt photo. After their manager approves, claims come to the new Claims page for your final approval.',
+    points: [
+      'Approve or reject claims (a reason is needed to reject), one at a time or in bulk',
+      'Mark approved claims paid with the payment date and a reference; staff are told in their Inbox',
+      'Export a month’s approved claims as a CSV for payroll, with a total per staff member',
+      'See this month’s receipt-scanning spend against its US$20 monthly limit',
+    ],
+  },
+  {
     id: 6,
     date: '8 Oct 2026',
     title: 'Remember me on this device',
