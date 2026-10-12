@@ -107,6 +107,8 @@ export default function AttendancePage() {
   const [expandedId, setExpandedId] = useState(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const calendarRef = useRef(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportRef = useRef(null);
 
   const backendBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
@@ -118,7 +120,7 @@ export default function AttendancePage() {
   }, []);
 
   useEffect(() => {
-    const handler = (e) => { if (calendarRef.current && !calendarRef.current.contains(e.target)) setCalendarOpen(false); };
+    const handler = (e) => { if (calendarRef.current && !calendarRef.current.contains(e.target)) setCalendarOpen(false); if (exportRef.current && !exportRef.current.contains(e.target)) setExportMenuOpen(false); };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
@@ -175,8 +177,30 @@ export default function AttendancePage() {
     });
   }, [rows, nameSearch, statusFilter, dateFrom, dateTo]);
 
-  const handleExport = () => {
-    const csv = toCsv(filteredRows.map((row) => {
+  // Raw data export: attendance rows plus every leave request (all leave types). Sick leave with an
+  // MC gets a link to the portal's /mc page, which needs an HR sign-in. Leave rows follow the name
+  // and date filters; they're left out when a specific attendance status is selected.
+  const handleExport = async (format) => {
+    setExportMenuOpen(false);
+    let leaveRows = [];
+    if (statusFilter === 'ALL') {
+      try {
+        const res = await axios.get(`${backendBaseUrl}/api/v1/hr/leave-requests?requesterId=${requesterId}`);
+        const nameQ = nameSearch.trim().toLowerCase();
+        leaveRows = (res.data.data || []).filter((l) => {
+          if (nameQ && !String(l.full_name || '').toLowerCase().includes(nameQ)) return false;
+          const start = String(l.start_date).slice(0, 10), end = String(l.end_date).slice(0, 10);
+          if (dateFrom && end < dateFrom) return false;
+          if (dateTo && start > dateTo) return false;
+          return true;
+        });
+      } catch {
+        if (!window.confirm('Leave records could not be loaded. Export attendance only?')) return;
+      }
+    }
+
+    const blank = { leave_type: '', leave_status: '', mc_proof: '' };
+    const attendanceExport = filteredRows.map((row) => {
       const allocations = Array.isArray(row.allocations) ? row.allocations : [];
       const projectAllocs = allocations.filter((a) => a.project_code);
       const generalAlloc = allocations.find((a) => !a.project_code);
@@ -188,6 +212,7 @@ export default function AttendancePage() {
         .join('; ');
       return {
         full_name: row.full_name,
+        record_type: 'Attendance',
         project_codes: projectCodes,
         clock_in_date: formatCsvDate(row.clock_in_time),
         clock_in_time: formatCsvTime(row.clock_in_time),
@@ -198,9 +223,52 @@ export default function AttendancePage() {
         general_description: generalAlloc?.description || '',
         project_description: projectDescription,
         remark: row.remark,
+        ...blank,
       };
-    }));
-    if (csv) downloadCsv(`attendance-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    });
+    const leaveExport = leaveRows.map((l) => {
+      const fmt = (s) => { const [y, m, d] = String(s).slice(0, 10).split('-'); return `${d}/${m}/${y}`; };
+      const category = String(l.category || '');
+      return {
+        full_name: l.full_name,
+        record_type: 'Leave',
+        project_codes: '',
+        clock_in_date: fmt(l.start_date),
+        clock_in_time: '',
+        clock_out_date: fmt(l.end_date),
+        clock_out_time: '',
+        hours: '',
+        ot_hours: '',
+        general_description: '',
+        project_description: '',
+        remark: l.reason || '',
+        leave_type: category.charAt(0) + category.slice(1).toLowerCase(),
+        leave_status: String(l.workflow_status || '').replace(/_/g, ' '),
+        mc_proof: category.toUpperCase() === 'SICK' ? (l.mc_file_url ? `${window.location.origin}/mc/${l.leave_id}` : 'No MC attached') : '',
+      };
+    });
+    const data = [...attendanceExport, ...leaveExport];
+    if (data.length === 0) return;
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    if (format === 'xlsx') {
+      const XLSX = await import('xlsx');
+      const sheet = XLSX.utils.json_to_sheet(data);
+      sheet['!cols'] = Object.keys(data[0]).map((k) => ({ wch: Math.min(40, Math.max(k.length + 2, ...data.slice(0, 200).map((r) => String(r[k] ?? '').length + 2))) }));
+      // Make the MC proof links clickable.
+      const proofCol = Object.keys(data[0]).indexOf('mc_proof');
+      data.forEach((r, i) => {
+        if (String(r.mc_proof).startsWith('http')) {
+          const cell = sheet[XLSX.utils.encode_cell({ r: i + 1, c: proofCol })];
+          if (cell) cell.l = { Target: r.mc_proof, Tooltip: 'Open MC proof (HR sign-in required)' };
+        }
+      });
+      const book = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(book, sheet, 'Attendance');
+      XLSX.writeFile(book, `attendance-${stamp}.xlsx`);
+    } else {
+      downloadCsv(`attendance-${stamp}.csv`, toCsv(data));
+    }
   };
 
   const resetFilters = () => {
@@ -286,9 +354,18 @@ export default function AttendancePage() {
         </div>
 
         <div className="mt-4 flex justify-end border-t border-slate-100 pt-4">
-          <button onClick={handleExport} className="rounded-3xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white">
-            Export CSV
-          </button>
+          <div className="relative" ref={exportRef}>
+            <button type="button" onClick={() => setExportMenuOpen((o) => !o)} aria-haspopup="menu" aria-expanded={exportMenuOpen}
+              className="rounded-3xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white">
+              Export ▾
+            </button>
+            {exportMenuOpen && (
+              <div role="menu" className="absolute right-0 bottom-full z-20 mb-2 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 shadow-lg">
+                <button type="button" role="menuitem" onClick={() => handleExport('xlsx')} className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50">Excel (.xlsx)</button>
+                <button type="button" role="menuitem" onClick={() => handleExport('csv')} className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50">CSV (.csv)</button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
