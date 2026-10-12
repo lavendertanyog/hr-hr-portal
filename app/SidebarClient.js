@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
+import { authHeaders, endSession } from './authSession';
 
 function deriveNameFromEmail(email) {
   return String(email || '').split('@')[0].split('.').filter(Boolean)
@@ -16,6 +17,7 @@ const NAV = [
   { label: 'Attendance', href: '/attendance', icon: 'clock' },
   { label: 'Reports', href: '/reports', icon: 'chart' },
   { label: 'Calendar', href: '/calendar', icon: 'calendar' },
+  { label: 'Audit Log', href: '/audit-log', icon: 'shield' },
 ];
 
 function NavIcon({ name, size = 20 }) {
@@ -35,6 +37,8 @@ function NavIcon({ name, size = 20 }) {
       return <svg {...common}><line x1="12" y1="20" x2="12" y2="10" /><line x1="18" y1="20" x2="18" y2="4" /><line x1="6" y1="20" x2="6" y2="16" /></svg>;
     case 'calendar':
       return <svg {...common}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
+    case 'shield':
+      return <svg {...common}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><polyline points="9 12 11 14 15 10" /></svg>;
     case 'settings':
       return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>;
     default:
@@ -69,7 +73,9 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
     } catch {}
   }, [pathname]);
 
-  // Role verification: runs once on initial page load (module var = 0) then every 60s via interval.
+  // Role verification: runs on page load, when the tab comes back into view, and then at most once
+  // a minute. The timer ticks every 15s against the 55s guard: with a 60s timer, a check made on
+  // page load just before a tick made that tick skip, so a revoked account stayed signed in ~2 min.
   useEffect(() => {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
@@ -79,7 +85,7 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
       const u = JSON.parse(stored);
       if (!u?.user_id) return;
       if (Date.now() - _hr_lastVerified < 55_000) return; // skip if checked recently
-      fetch(`${API_BASE}/api/v1/auth/verify-session?userId=${u.user_id}`, { signal })
+      fetch(`${API_BASE}/api/v1/auth/verify-session?userId=${u.user_id}`, { signal, headers: authHeaders() })
         .then((r) => r.json())
         .then((payload) => {
           if (!payload.success) { handleLogout(); return; }
@@ -98,9 +104,12 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
     const id = setInterval(() => {
       const c = new AbortController();
       verify(c.signal);
-    }, 60_000);
+    }, 15_000);
 
-    return () => { ctrl.abort(); clearInterval(id); };
+    const onVisible = () => { if (document.visibilityState === 'visible') verify(new AbortController().signal); };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => { ctrl.abort(); clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
 
   useEffect(() => {
@@ -112,6 +121,7 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
   }, []);
 
   const handleLogout = () => {
+    endSession();
     sessionStorage.removeItem('hr_portal_user');
     router.push('/');
   };
