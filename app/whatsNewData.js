@@ -1,11 +1,11 @@
 // What's New feed — plain-language, user-facing entries only (no internal bug/ticket
 // jargon). Newest first. `id` just needs to increase; it's what "seen" is tracked against.
-// `version` labels the release an entry shipped in (1.0, 1.1, …); entries of one release share it.
+// `version` numbers the updates from the oldest (1.0) upward; give a new entry the next number.
 export const WHATS_NEW = [
   {
     id: 10,
     date: '12 Oct 2026',
-    version: '1.1',
+    version: '1.8',
     title: 'Attendance export: Excel or CSV, with leave and MC proof',
     summary: "Excel or CSV, with leave rows and MC proof links",
     chips: ['Excel or CSV','Leave rows included','MC proof links'],
@@ -20,7 +20,7 @@ export const WHATS_NEW = [
   {
     id: 9,
     date: '12 Oct 2026',
-    version: '1.1',
+    version: '1.7',
     title: 'Employee and Projects pages, redesigned',
     summary: "Cards, a Leave tab, and Deployed and Maintenance statuses",
     chips: ['Employee cards','Leave tab','Project cards'],
@@ -35,7 +35,7 @@ export const WHATS_NEW = [
   {
     id: 8,
     date: '12 Oct 2026',
-    version: '1.1',
+    version: '1.6',
     title: 'Calendar, holidays and reports',
     summary: "Holiday import counts, a cleaner PDF report, and one Leave page",
     chips: ['Calendar shows leave','Holiday import counts','PDF report pages'],
@@ -52,7 +52,7 @@ export const WHATS_NEW = [
   {
     id: 7,
     date: '12 Oct 2026',
-    version: '1.1',
+    version: '1.5',
     title: 'Everyone signs in once more',
     summary: "Login sessions were upgraded, so log in once after this update",
     chips: ['Log in once','Remember me for 1 day'],
@@ -65,7 +65,7 @@ export const WHATS_NEW = [
   {
     id: 6,
     date: '8 Oct 2026',
-    version: '1.1',
+    version: '1.4',
     title: 'Remember me on this device',
     body: 'Tick "Remember me on this device" when you log in and you’ll stay signed in on that browser for 1 day. Next time, the portal signs you straight in without your password.',
     points: [
@@ -79,21 +79,21 @@ export const WHATS_NEW = [
   {
     id: 4,
     date: '18 Sept 2026',
-    version: '1.0',
+    version: '1.3',
     title: 'Find anything faster',
     body: 'The search bar in the top bar now actually works — type a page name or an action like "approve" or "org chart" and jump straight there.',
   },
   {
     id: 3,
     date: '18 Sept 2026',
-    version: '1.0',
+    version: '1.2',
     title: 'People page',
     body: 'User Roles and Organisation Hierarchy now live together under one "People" page, switchable by tab.',
   },
   {
     id: 2,
     date: '18 Sept 2026',
-    version: '1.0',
+    version: '1.1',
     title: 'Redesigned organisation chart',
     body: 'The org chart has colored role tiers and avatar cards, plus a new "Edit Organisation" mode so the chart stays clean until you need to make changes.',
   },
