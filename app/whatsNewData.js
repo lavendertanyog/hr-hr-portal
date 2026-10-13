@@ -89,3 +89,14 @@ export const WHATS_NEW = [
 ];
 export const WHATS_NEW_LATEST_ID = WHATS_NEW[0].id;
 export const WHATS_NEW_SEEN_KEY = 'hr_portal_whats_new_seen';
+
+// Short summary shown in the one-time update notice after login (see UpdateNotice.js). Keep it to
+// three lines and update it with each release; the full list stays in WHATS_NEW above.
+export const WHATS_NEW_NOTICE = {
+  portal: "HR portal",
+  highlights: [
+    { icon: "download", lead: "Attendance export", text: "in Excel or CSV, with leave and MC proof links" },
+    { icon: "users", lead: "Employee and Projects pages", text: "redesigned, with a Leave tab and project cards" },
+    { icon: "lock", lead: "Remember me", text: "keeps you signed in for 1 day" },
+  ],
+};
