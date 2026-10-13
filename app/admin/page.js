@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import Link from 'next/link';
 import { formatLeaveDate, openMcFile } from '../leaveFormat';
@@ -41,10 +42,19 @@ function StatusBadge({ status }) {
   return <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${colors[status] || 'bg-gray-100 text-gray-600'}`}>{status}</span>;
 }
 
-export default function AdminPage() {
+const TAB_KEYS = ['accounts', 'resets', 'leave', 'claims', 'history'];
+
+function AdminContent() {
+  const searchParams = useSearchParams();
   const [adminId, setAdminId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(null); // null = loading
-  const [tab, setTab] = useState(SHOW_ACCOUNT_QUEUES ? 'accounts' : 'leave'); // 'accounts' | 'resets' | 'leave' | 'history'
+  const [tab, setTab] = useState(SHOW_ACCOUNT_QUEUES ? 'accounts' : 'leave'); // 'accounts' | 'resets' | 'leave' | 'claims' | 'history'
+  // ?tab=leave|claims|history opens that tab (used by the top bar's notifications). Watched, not
+  // just read once, so it also switches tab while already on this page.
+  const tabParam = searchParams.get('tab');
+  useEffect(() => {
+    if (TAB_KEYS.includes(tabParam)) setTab(tabParam);
+  }, [tabParam]);
   const [historySubFilter, setHistorySubFilter] = useState('Pending Accounts'); // 'Pending Accounts' | 'Reset History'
   const [historySearch, setHistorySearch] = useState('');
   const [pendingAccounts, setPendingAccounts] = useState([]);
@@ -919,5 +929,13 @@ export default function AdminPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-slate-400 text-sm">Loading…</div>}>
+      <AdminContent />
+    </Suspense>
   );
 }
