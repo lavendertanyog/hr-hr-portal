@@ -7,10 +7,10 @@ export const WHATS_NEW = [
     title: 'Attendance export: Excel or CSV, with leave and MC proof',
     body: 'The Export button on Attendance is now a menu, and the file includes more than clock-ins.',
     points: [
-      'Choose Excel (.xlsx) or CSV',
-      'Leave of every type is included, with its status',
-      'Sick leave rows have an MC proof link — click it, sign in to the HR portal if asked, and the MC opens',
-      'The column list changed, so reports built on the old file may need a quick check',
+      { icon: "download", lead: "Choose Excel (.xlsx) or CSV", text: "from the Export menu" },
+      { icon: "calendar", lead: "Leave of every type", text: "is included, with its status" },
+      { icon: "file", lead: "Sick leave rows", text: "have an MC proof link — click it, sign in to the HR portal if asked, and the MC opens" },
+      { icon: "list", lead: "The column list changed", text: "so reports built on the old file may need a quick check" },
     ],
   },
   {
@@ -19,10 +19,10 @@ export const WHATS_NEW = [
     title: 'Employee and Projects pages, redesigned',
     body: 'People and projects are easier to browse and manage.',
     points: [
-      'Employee page: cards with a details drawer, a combined role filter and search',
-      'A Leave tab to set leave days (with presets) and see the change history',
-      'Projects page: project cards with a detail drawer, Deployed and Maintenance statuses, and the Org hierarchy tab',
-      'Deactivate is now "Mark as deployed" — assignments are kept, and Reactivate puts it into Maintenance',
+      { icon: "users", lead: "Employee page", text: "has cards with a details drawer, a combined role filter and search" },
+      { icon: "calendar", lead: "A Leave tab", text: "to set leave days (with presets) and see the change history" },
+      { icon: "folder", lead: "Projects page", text: "has project cards with a detail drawer, Deployed and Maintenance statuses, and the Org hierarchy tab" },
+      { icon: "undo", lead: "Deactivate is now \"Mark as deployed\"", text: "— assignments are kept, and Reactivate puts it into Maintenance" },
     ],
   },
   {
@@ -31,12 +31,12 @@ export const WHATS_NEW = [
     title: 'Calendar, holidays and reports',
     body: 'Smaller improvements across Calendar, Approvals and Reports.',
     points: [
-      'Calendar shows who is on leave, and has a collapsible sidebar',
-      'After saving a holiday the calendar jumps to its month, and you are told when the date or name is missing',
-      'Importing holidays tells you how many were added and how many were skipped',
-      'The separate Leave page is gone — leave is under Approvals > Leave Requests, with dates like 31-Oct-2026',
-      'PDF reports start each section on a new page, and Supporting detail now adapts to a week or a month',
-      'An account that has been deactivated is signed out within about a minute',
+      { icon: "calendar", lead: "Calendar", text: "shows who is on leave, and has a collapsible sidebar" },
+      { icon: "check", lead: "After saving a holiday", text: "the calendar jumps to its month, and you are told when the date or name is missing" },
+      { icon: "download", lead: "Importing holidays", text: "tells you how many were added and how many were skipped" },
+      { icon: "list", lead: "The separate Leave page is gone", text: "— leave is under Approvals > Leave Requests, with dates like 31-Oct-2026" },
+      { icon: "file", lead: "PDF reports", text: "start each section on a new page, and Supporting detail now adapts to a week or a month" },
+      { icon: "shield", lead: "A deactivated account", text: "is signed out within about a minute" },
     ],
   },
   {
@@ -45,8 +45,8 @@ export const WHATS_NEW = [
     title: 'Everyone signs in once more',
     body: 'Login sessions have been upgraded, so you’ll be asked to log in once after this update.',
     points: [
-      'Remember me now keeps you signed in on this device for 1 day (see the earlier note)',
-      'Changing your password or signing a device out ends its sign-in everywhere within about a minute',
+      { icon: "signin", lead: "Remember me", text: "now keeps you signed in on this device for 1 day (see the earlier note)" },
+      { icon: "lock", lead: "Changing your password", text: "or signing a device out ends its sign-in everywhere within about a minute" },
     ],
   },
   {
