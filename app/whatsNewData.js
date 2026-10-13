@@ -5,6 +5,9 @@ export const WHATS_NEW = [
     id: 10,
     date: '12 Oct 2026',
     title: 'Attendance export: Excel or CSV, with leave and MC proof',
+    icon: "download",
+    summary: "Excel or CSV, with leave rows and MC proof links",
+    chips: ['Excel or CSV','Leave rows included','MC proof links'],
     body: 'The Export button on Attendance is now a menu, and the file includes more than clock-ins.',
     points: [
       { icon: "download", lead: "Choose Excel (.xlsx) or CSV", text: "from the Export menu" },
@@ -17,6 +20,9 @@ export const WHATS_NEW = [
     id: 9,
     date: '12 Oct 2026',
     title: 'Employee and Projects pages, redesigned',
+    icon: "users",
+    summary: "Cards, a Leave tab, and Deployed and Maintenance statuses",
+    chips: ['Employee cards','Leave tab','Project cards'],
     body: 'People and projects are easier to browse and manage.',
     points: [
       { icon: "users", lead: "Employee page", text: "has cards with a details drawer, a combined role filter and search" },
@@ -29,6 +35,9 @@ export const WHATS_NEW = [
     id: 8,
     date: '12 Oct 2026',
     title: 'Calendar, holidays and reports',
+    icon: "calendar",
+    summary: "Holiday import counts, a cleaner PDF report, and one Leave page",
+    chips: ['Calendar shows leave','Holiday import counts','PDF report pages'],
     body: 'Smaller improvements across Calendar, Approvals and Reports.',
     points: [
       { icon: "calendar", lead: "Calendar", text: "shows who is on leave, and has a collapsible sidebar" },
@@ -43,6 +52,9 @@ export const WHATS_NEW = [
     id: 7,
     date: '12 Oct 2026',
     title: 'Everyone signs in once more',
+    icon: "signin",
+    summary: "Login sessions were upgraded, so log in once after this update",
+    chips: ['Log in once','Remember me for 1 day'],
     body: 'Login sessions have been upgraded, so you’ll be asked to log in once after this update.',
     points: [
       { icon: "signin", lead: "Remember me", text: "now keeps you signed in on this device for 1 day (see the earlier note)" },
