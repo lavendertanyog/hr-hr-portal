@@ -9,7 +9,7 @@ export const WHATS_NEW = [
     points: [
       'Approve or reject claims (a reason is needed to reject), one at a time or in bulk',
       'Mark approved claims paid with the payment date and a reference; staff are told in their Inbox',
-      'Export a month’s approved claims as a CSV for payroll, with a total per staff member',
+      'Export a month’s approved claims as a CSV for payroll, with a total per staff member; each claim shows its tax and service charge',
       'See this month’s receipt-scanning spend against its US$20 monthly limit',
     ],
   },
