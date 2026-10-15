@@ -7,6 +7,15 @@ import { authHeaders } from '../authSession';
 import { useConfirm } from '../ConfirmDialog';
 import { formatLeaveDate, openMcFile } from '../leaveFormat';
 
+// One line summing up a claim's charges and tax, e.g. "Service charge 5% 40.66 · SST 6% 48.79".
+const CHARGE_KIND_LABELS = { SERVICE_CHARGE: 'Service charge', TAX: 'Tax', ROUNDING: 'Rounding', DISCOUNT: 'Discount', OTHER: 'Other' };
+const chargesSummary = (c) => {
+  const lines = (c.charges || []).map((ch) => `${ch.label || CHARGE_KIND_LABELS[ch.kind] || ch.kind} ${ch.kind === 'DISCOUNT' ? '−' : ''}${Number(ch.amount).toFixed(2)}`);
+  if (lines.length === 0) return '';
+  return lines.join(' · ') + (c.tax_inclusive ? ' (prices include tax)' : '');
+};
+
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 const PAGE_SIZE = 6;
 
@@ -66,6 +75,7 @@ function ClaimRow({ c, categoryLabel, selectable, selected, onToggle, onReceipt,
                     ))}
                   </ul>
                 )}
+                {chargesSummary(c) && <p><span className="text-slate-400">Charges and tax:</span> {chargesSummary(c)}</p>}
                 <p><span className="text-slate-400">Submitted:</span> {formatLeaveDate(c.created_at)} · {c.claimant_email}</p>
                 {c.project_code && <p><span className="text-slate-400">Project:</span> {c.project_code}{c.project_name ? ` · ${c.project_name}` : ''}</p>}
                 {c.notes && <p><span className="text-slate-400">Notes:</span> {c.notes}</p>}
@@ -245,25 +255,29 @@ export default function HrClaimsPage() {
       const rows = res.data?.data || [];
       if (rows.length === 0) { showToast(`No claims were approved in ${exportMonth}.`, 'error'); return; }
       const lines = [[
-        'Staff', 'Email', 'Date of purchase', 'Merchant', 'Category', 'Currency', 'Amount', 'Project', 'HR approved on', 'Status', 'Paid on', 'Payment reference', 'Claim ID',
+        'Staff', 'Email', 'Date of purchase', 'Merchant', 'Category', 'Currency', 'Amount', 'Tax', 'Service charge', 'Project', 'HR approved on', 'Status', 'Paid on', 'Payment reference', 'Claim ID',
       ]];
       const totals = new Map();
       for (const c of rows) {
+        // Sum of the claim's tax lines (a receipt can have more than one) and service charges.
+        const sumOf = (kind) => (c.charges || []).filter((ch) => ch.kind === kind).reduce((s, ch) => s + Number(ch.amount), 0);
+        const tax = sumOf('TAX');
         lines.push([
           c.claimant_name, c.claimant_email, c.purchase_date, c.merchant, categoryLabel(c.category), c.currency,
-          Number(c.total_amount).toFixed(2), c.project_code || '',
+          Number(c.total_amount).toFixed(2), tax.toFixed(2), sumOf('SERVICE_CHARGE').toFixed(2), c.project_code || '',
           c.hr_reviewed_at ? new Date(c.hr_reviewed_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }) : '',
           STATUS_LABEL[c.status] || c.status, c.paid_at || '', c.paid_reference || '', c.claim_id,
         ]);
         const key = `${c.claimant_name}|${c.claimant_email}|${c.currency}`;
-        totals.set(key, (totals.get(key) || 0) + Number(c.total_amount));
+        const t = totals.get(key) || { total: 0, tax: 0 };
+        totals.set(key, { total: t.total + Number(c.total_amount), tax: t.tax + tax });
       }
       lines.push([]);
       lines.push(['Total per staff member']);
-      lines.push(['Staff', 'Email', 'Currency', 'Total']);
-      for (const [key, total] of totals) {
+      lines.push(['Staff', 'Email', 'Currency', 'Total', 'Tax']);
+      for (const [key, t] of totals) {
         const [name, email, currency] = key.split('|');
-        lines.push([name, email, currency, total.toFixed(2)]);
+        lines.push([name, email, currency, t.total.toFixed(2), t.tax.toFixed(2)]);
       }
       // The BOM makes Excel open the file as UTF-8.
       const csv = String.fromCharCode(0xfeff) + lines.map((l) => l.map(csvCell).join(',')).join(String.fromCharCode(13, 10));
