@@ -15,6 +15,14 @@ const chargesSummary = (c) => {
   return lines.join(' · ') + (c.tax_inclusive ? ' (prices include tax)' : '');
 };
 
+// Claims in another currency also carry the amount in SGD at the purchase date's rate.
+const fxNote = (c) => (c.currency !== 'SGD' && c.amount_base != null ? `≈ SGD ${Number(c.amount_base).toFixed(2)}` : '');
+const fxDetail = (c) => {
+  if (c.currency === 'SGD') return '';
+  if (c.fx_rate == null) return `No exchange rate found for ${c.currency} on the purchase date.`;
+  return `1 ${c.currency} = ${Number(c.fx_rate)} SGD (${c.fx_source || 'rate'} for ${c.fx_rate_date})`;
+};
+
 // Amber note on a claim that looks like the same receipt as another claim (same date, amount,
 // currency and merchant), from the server's possible_duplicates.
 const DUP_STATUS = { PENDING: 'waiting for manager', MANAGER_APPROVED: 'waiting for HR', APPROVED: 'approved', PAID: 'paid' };
@@ -75,6 +83,7 @@ function ClaimRow({ c, categoryLabel, selectable, selected, onToggle, onReceipt,
             <p className="mt-1 text-sm text-slate-500">
               {c.merchant} • {formatLeaveDate(c.purchase_date)}
               <span className="ml-1.5 font-semibold text-[#1540A8]">{money(c.currency, c.total_amount)}</span>
+              {fxNote(c) && <span className="ml-1.5 text-xs text-slate-400">{fxNote(c)}</span>}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_COLOR[c.status] || 'bg-slate-100 text-slate-600'}`}>{STATUS_LABEL[c.status] || c.status}</span>
@@ -92,6 +101,7 @@ function ClaimRow({ c, categoryLabel, selectable, selected, onToggle, onReceipt,
                   </ul>
                 )}
                 {chargesSummary(c) && <p><span className="text-slate-400">Charges and tax:</span> {chargesSummary(c)}</p>}
+                {fxDetail(c) && <p><span className="text-slate-400">Exchange rate:</span> {fxDetail(c)}</p>}
                 <p><span className="text-slate-400">Submitted:</span> {formatLeaveDate(c.created_at)} · {c.claimant_email}</p>
                 {c.project_code && <p><span className="text-slate-400">Project:</span> {c.project_code}{c.project_name ? ` · ${c.project_name}` : ''}</p>}
                 {c.notes && <p><span className="text-slate-400">Notes:</span> {c.notes}</p>}
@@ -271,7 +281,9 @@ export default function HrClaimsPage() {
       const rows = res.data?.data || [];
       if (rows.length === 0) { showToast(`No claims were approved in ${exportMonth}.`, 'error'); return; }
       const lines = [[
-        'Staff', 'Email', 'Date of purchase', 'Merchant', 'Category', 'Currency', 'Amount', 'Tax', 'Service charge', 'Project', 'HR approved on', 'Status', 'Paid on', 'Payment reference', 'Possible duplicate', 'Claim ID',
+        'Staff', 'Email', 'Date of purchase', 'Merchant', 'Category', 'Currency', 'Amount', 'Tax', 'Service charge',
+        'Exchange rate to SGD', 'Rate date', 'Amount (SGD)',
+        'Project', 'HR approved on', 'Status', 'Paid on', 'Payment reference', 'Possible duplicate', 'Claim ID',
       ]];
       const totals = new Map();
       for (const c of rows) {
@@ -280,21 +292,25 @@ export default function HrClaimsPage() {
         const tax = sumOf('TAX');
         lines.push([
           c.claimant_name, c.claimant_email, c.purchase_date, c.merchant, categoryLabel(c.category), c.currency,
-          Number(c.total_amount).toFixed(2), tax.toFixed(2), sumOf('SERVICE_CHARGE').toFixed(2), c.project_code || '',
+          Number(c.total_amount).toFixed(2), tax.toFixed(2), sumOf('SERVICE_CHARGE').toFixed(2),
+          c.currency === 'SGD' ? '1' : c.fx_rate != null ? String(Number(c.fx_rate)) : '',
+          c.currency === 'SGD' ? '' : c.fx_rate_date || '',
+          sgdOf(c) != null ? sgdOf(c).toFixed(2) : '',
+          c.project_code || '',
           c.hr_reviewed_at ? new Date(c.hr_reviewed_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }) : '',
           STATUS_LABEL[c.status] || c.status, c.paid_at || '', c.paid_reference || '',
           (c.possible_duplicates || []).length ? 'Yes' : '', c.claim_id,
         ]);
         const key = `${c.claimant_name}|${c.claimant_email}|${c.currency}`;
-        const t = totals.get(key) || { total: 0, tax: 0 };
-        totals.set(key, { total: t.total + Number(c.total_amount), tax: t.tax + tax });
+        const t = totals.get(key) || { total: 0, tax: 0, sgd: 0, noRate: false };
+        totals.set(key, { total: t.total + Number(c.total_amount), tax: t.tax + tax, sgd: t.sgd + (sgdOf(c) ?? 0), noRate: t.noRate || sgdOf(c) === null });
       }
       lines.push([]);
       lines.push(['Total per staff member']);
-      lines.push(['Staff', 'Email', 'Currency', 'Total', 'Tax']);
+      lines.push(['Staff', 'Email', 'Currency', 'Total', 'Tax', 'Total (SGD)']);
       for (const [key, t] of totals) {
         const [name, email, currency] = key.split('|');
-        lines.push([name, email, currency, t.total.toFixed(2), t.tax.toFixed(2)]);
+        lines.push([name, email, currency, t.total.toFixed(2), t.tax.toFixed(2), t.noRate ? `${t.sgd.toFixed(2)} (some claims have no exchange rate)` : t.sgd.toFixed(2)]);
       }
       // The BOM makes Excel open the file as UTF-8.
       const csv = String.fromCharCode(0xfeff) + lines.map((l) => l.map(csvCell).join(',')).join(String.fromCharCode(13, 10));
@@ -319,7 +335,10 @@ export default function HrClaimsPage() {
   const selectable = tab !== 'HISTORY';
   const toggle = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   const allSelected = selectable && list.length > 0 && selected.length === list.length;
-  const toPayTotal = toPay.reduce((sum, c) => (c.currency === 'SGD' ? sum + Number(c.total_amount) : sum), 0);
+  // Everything owed, in SGD: other currencies use the rate saved for their purchase date.
+  const sgdOf = (c) => (c.currency === 'SGD' ? Number(c.total_amount) : c.amount_base != null ? Number(c.amount_base) : null);
+  const toPayTotal = toPay.reduce((sum, c) => sum + (sgdOf(c) ?? 0), 0);
+  const toPayNoRate = toPay.filter((c) => sgdOf(c) === null).length;
 
   return (
     <div className="p-8">
@@ -337,7 +356,11 @@ export default function HrClaimsPage() {
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Approved, to pay</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{toPay.length}</p>
-          {toPay.length > 0 && <p className="mt-1 text-xs text-slate-500">SGD {toPayTotal.toFixed(2)} in SGD claims</p>}
+          {toPay.length > 0 && (
+            <p className="mt-1 text-xs text-slate-500">
+              SGD {toPayTotal.toFixed(2)} in total{toPayNoRate > 0 ? ` (${toPayNoRate} claim${toPayNoRate === 1 ? '' : 's'} without an exchange rate not included)` : ''}
+            </p>
+          )}
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Receipt scanning this month</p>
