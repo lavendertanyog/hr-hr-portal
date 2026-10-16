@@ -23,6 +23,7 @@ export const WHATS_NEW = [
       'Mark approved claims paid with the payment date and a reference; staff are told in their Inbox',
       'Export a month’s approved claims as a CSV for payroll, with a total per staff member; each claim shows its tax and service charge',
       'Claims that look like the same receipt as another claim (same date, amount and merchant), by anyone, are flagged as a possible duplicate',
+      'Claims in another currency show the SGD amount at the purchase date’s exchange rate, and the payroll CSV has the rate and the SGD amount',
       'See this month’s receipt-scanning spend against its US$20 monthly limit',
     ],
   },

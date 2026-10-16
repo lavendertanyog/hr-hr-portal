@@ -15,6 +15,14 @@ const chargesSummary = (c) => {
   return lines.join(' · ') + (c.tax_inclusive ? ' (prices include tax)' : '');
 };
 
+// Claims in another currency also carry the amount in SGD at the purchase date's rate.
+const fxNote = (c) => (c.currency !== 'SGD' && c.amount_base != null ? `≈ SGD ${Number(c.amount_base).toFixed(2)}` : '');
+const fxDetail = (c) => {
+  if (c.currency === 'SGD') return '';
+  if (c.fx_rate == null) return `No exchange rate found for ${c.currency} on the purchase date.`;
+  return `1 ${c.currency} = ${Number(c.fx_rate)} SGD (${c.fx_source || 'rate'} for ${c.fx_rate_date})`;
+};
+
 // Amber note on a claim that looks like the same receipt as another claim (same date, amount,
 // currency and merchant), from the server's possible_duplicates.
 const DUP_STATUS = { PENDING: 'waiting for manager', MANAGER_APPROVED: 'waiting for HR', APPROVED: 'approved', PAID: 'paid' };
@@ -590,6 +598,7 @@ function AdminContent() {
                         <p className="mt-1 text-sm text-slate-500">
                           {c.merchant} • {formatLeaveDate(c.purchase_date)}
                           <span className="ml-1.5 font-semibold text-[#1540A8]">{c.currency} {Number(c.total_amount).toFixed(2)}</span>
+                          {fxNote(c) && <span className="ml-1.5 text-xs text-slate-400" title={fxDetail(c)}>{fxNote(c)}</span>}
                         </p>
                         {c.items?.length > 0 && (
                           <p className="mt-1 text-xs text-slate-500">{c.items.map((it) => `${it.quantity ? `${Number(it.quantity)} × ` : ''}${it.description}`).join(', ')}</p>
