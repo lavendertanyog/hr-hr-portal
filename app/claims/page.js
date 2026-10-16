@@ -15,6 +15,21 @@ const chargesSummary = (c) => {
   return lines.join(' · ') + (c.tax_inclusive ? ' (prices include tax)' : '');
 };
 
+// Amber note on a claim that looks like the same receipt as another claim (same date, amount,
+// currency and merchant), from the server's possible_duplicates.
+const DUP_STATUS = { PENDING: 'waiting for manager', MANAGER_APPROVED: 'waiting for HR', APPROVED: 'approved', PAID: 'paid' };
+function DuplicateFlag({ claim }) {
+  const dups = claim.possible_duplicates || [];
+  if (dups.length === 0) return null;
+  const who = dups.map((d) => `${d.same_person ? 'their own earlier claim' : `${d.claimant_name || 'another employee'}'s claim`} (${DUP_STATUS[d.status] || d.status.toLowerCase()})`);
+  return (
+    <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+      <p><span className="font-semibold">Possible duplicate:</span> same date, amount and merchant as {who.join(', ')}.</p>
+      {claim.duplicate_acknowledged && <p className="mt-0.5">The claimant was warned and submitted it anyway.</p>}
+    </div>
+  );
+}
+
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 const PAGE_SIZE = 6;
@@ -66,6 +81,7 @@ function ClaimRow({ c, categoryLabel, selectable, selected, onToggle, onReceipt,
               <button type="button" onClick={onReceipt} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 underline">View receipt</button>
               <button type="button" onClick={() => setOpen((o) => !o)} className="text-xs font-semibold text-slate-500 hover:text-slate-700 underline">{open ? 'Hide details' : 'Details'}</button>
             </div>
+            <DuplicateFlag claim={c} />
             {open && (
               <div className="mt-3 space-y-1 text-sm text-slate-600">
                 {c.items?.length > 0 && (
@@ -255,7 +271,7 @@ export default function HrClaimsPage() {
       const rows = res.data?.data || [];
       if (rows.length === 0) { showToast(`No claims were approved in ${exportMonth}.`, 'error'); return; }
       const lines = [[
-        'Staff', 'Email', 'Date of purchase', 'Merchant', 'Category', 'Currency', 'Amount', 'Tax', 'Service charge', 'Project', 'HR approved on', 'Status', 'Paid on', 'Payment reference', 'Claim ID',
+        'Staff', 'Email', 'Date of purchase', 'Merchant', 'Category', 'Currency', 'Amount', 'Tax', 'Service charge', 'Project', 'HR approved on', 'Status', 'Paid on', 'Payment reference', 'Possible duplicate', 'Claim ID',
       ]];
       const totals = new Map();
       for (const c of rows) {
@@ -266,7 +282,8 @@ export default function HrClaimsPage() {
           c.claimant_name, c.claimant_email, c.purchase_date, c.merchant, categoryLabel(c.category), c.currency,
           Number(c.total_amount).toFixed(2), tax.toFixed(2), sumOf('SERVICE_CHARGE').toFixed(2), c.project_code || '',
           c.hr_reviewed_at ? new Date(c.hr_reviewed_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }) : '',
-          STATUS_LABEL[c.status] || c.status, c.paid_at || '', c.paid_reference || '', c.claim_id,
+          STATUS_LABEL[c.status] || c.status, c.paid_at || '', c.paid_reference || '',
+          (c.possible_duplicates || []).length ? 'Yes' : '', c.claim_id,
         ]);
         const key = `${c.claimant_name}|${c.claimant_email}|${c.currency}`;
         const t = totals.get(key) || { total: 0, tax: 0 };

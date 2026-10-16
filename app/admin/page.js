@@ -15,6 +15,21 @@ const chargesSummary = (c) => {
   return lines.join(' · ') + (c.tax_inclusive ? ' (prices include tax)' : '');
 };
 
+// Amber note on a claim that looks like the same receipt as another claim (same date, amount,
+// currency and merchant), from the server's possible_duplicates.
+const DUP_STATUS = { PENDING: 'waiting for manager', MANAGER_APPROVED: 'waiting for HR', APPROVED: 'approved', PAID: 'paid' };
+function DuplicateFlag({ claim }) {
+  const dups = claim.possible_duplicates || [];
+  if (dups.length === 0) return null;
+  const who = dups.map((d) => `${d.same_person ? 'their own earlier claim' : `${d.claimant_name || 'another employee'}'s claim`} (${DUP_STATUS[d.status] || d.status.toLowerCase()})`);
+  return (
+    <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+      <p><span className="font-semibold">Possible duplicate:</span> same date, amount and merchant as {who.join(', ')}.</p>
+      {claim.duplicate_acknowledged && <p className="mt-0.5">The claimant was warned and submitted it anyway.</p>}
+    </div>
+  );
+}
+
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 const LEAVE_CATEGORIES = ['ANNUAL', 'EMERGENCY', 'SICK'];
@@ -580,6 +595,7 @@ function AdminContent() {
                           <p className="mt-1 text-xs text-slate-500">{c.items.map((it) => `${it.quantity ? `${Number(it.quantity)} × ` : ''}${it.description}`).join(', ')}</p>
                         )}
                         {chargesSummary(c) && <p className="mt-1 text-xs text-slate-500">{chargesSummary(c)}</p>}
+                        <DuplicateFlag claim={c} />
                         {c.manager_reviewer_name && (
                           <p className="mt-1 text-xs text-slate-400">Approved by {c.manager_reviewer_name}{c.manager_remarks ? `: "${c.manager_remarks}"` : ''}</p>
                         )}
