@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { formatLeaveDate } from '../leaveFormat';
+import { useT, getLocale } from '../i18n/LanguageProvider';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 const LEAVE_CATEGORIES = ['ANNUAL', 'EMERGENCY', 'SICK'];
@@ -11,35 +12,39 @@ const LEAVE_CATEGORIES = ['ANNUAL', 'EMERGENCY', 'SICK'];
 const SHOW_ACCOUNT_QUEUES = false;
 
 function LeaveStatusPill({ status }) {
+  const { t } = useT();
   const s = String(status || '').toUpperCase();
   const map = {
     APPROVED: 'bg-green-50 text-green-700', REJECTED: 'bg-red-50 text-red-600',
     PENDING: 'bg-yellow-50 text-yellow-700',
   };
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${map[s] || 'bg-gray-100 text-gray-600'}`}>{s}</span>;
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${map[s] || 'bg-gray-100 text-gray-600'}`}>{t(s)}</span>;
 }
 
 function formatDt(dt) {
   if (!dt) return '—';
   const d = new Date(dt);
   // timeZone pinned explicitly — see AttendanceReminders.js for why 'en-SG' alone isn't enough.
-  const datePart = d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Singapore' });
-  const timePart = d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
+  const datePart = d.toLocaleDateString(getLocale(), { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Singapore' });
+  const timePart = d.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
   return `${datePart}, ${timePart}`;
 }
 
 function RoleBadge({ role }) {
+  const { t } = useT();
   const colors = { manager: 'bg-blue-50 text-blue-700', account_manager: 'bg-purple-50 text-purple-700', hr: 'bg-green-50 text-green-700', staff: 'bg-gray-100 text-gray-600' };
   const label = String(role || '').split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${colors[role] || 'bg-gray-100 text-gray-600'}`}>{label}</span>;
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${colors[role] || 'bg-gray-100 text-gray-600'}`}>{t(label)}</span>;
 }
 
 function StatusBadge({ status }) {
+  const { t } = useT();
   const colors = { pending: 'bg-yellow-50 text-yellow-700', active: 'bg-green-50 text-green-700', rejected: 'bg-red-50 text-red-600', approved: 'bg-green-50 text-green-700' };
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${colors[status] || 'bg-gray-100 text-gray-600'}`}>{status}</span>;
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${colors[status] || 'bg-gray-100 text-gray-600'}`}>{t(status)}</span>;
 }
 
 export default function AdminPage() {
+  const { t } = useT();
   const [adminId, setAdminId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(null); // null = loading
   const [tab, setTab] = useState(SHOW_ACCOUNT_QUEUES ? 'accounts' : 'leave'); // 'accounts' | 'resets' | 'leave' | 'history'
@@ -79,10 +84,10 @@ export default function AdminPage() {
   const [roleFeedback, setRoleFeedback] = useState('');
 
   const ALL_ROLES = [
-    { key: 'hr', label: 'HR' },
-    { key: 'account_manager', label: 'Account Manager' },
-    { key: 'manager', label: 'Manager' },
-    { key: 'staff', label: 'Staff' },
+    { key: 'hr', label: t("HR") },
+    { key: 'account_manager', label: t("Account Manager") },
+    { key: 'manager', label: t("Manager") },
+    { key: 'staff', label: t("Staff") },
   ];
 
   const openRoleModal = (u) => {
@@ -221,21 +226,21 @@ export default function AdminPage() {
 
   const TABS = [
     ...(SHOW_ACCOUNT_QUEUES ? [
-      { key: 'accounts', label: `Pending Accounts (${pendingAccounts.length})` },
-      { key: 'resets', label: `Password Resets (${pendingResets.length})` },
+      { key: 'accounts', label: t("Pending Accounts ({length})", { length: pendingAccounts.length }) },
+      { key: 'resets', label: t("Password Resets ({length})", { length: pendingResets.length }) },
     ] : []),
-    { key: 'leave', label: `Leave Requests (${pendingLeaveCount})` },
-    { key: 'history', label: 'History' },
+    { key: 'leave', label: t("Leave Requests ({pendingLeaveCount})", { pendingLeaveCount: pendingLeaveCount }) },
+    { key: 'history', label: t("History") },
   ];
 
-  if (isAdmin === null) return <div className="p-8 text-slate-500">Loading...</div>;
+  if (isAdmin === null) return <div className="p-8 text-slate-500">{t("Loading...")}</div>;
 
   if (isAdmin === false) {
     return (
       <div className="p-8">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
-          <h2 className="text-lg font-semibold text-red-700">Access Denied</h2>
-          <p className="text-sm text-red-600 mt-1">You don't have permission to view this page.</p>
+          <h2 className="text-lg font-semibold text-red-700">{t("Access Denied")}</h2>
+          <p className="text-sm text-red-600 mt-1">{t("You don't have permission to view this page.")}</p>
         </div>
       </div>
     );
@@ -245,9 +250,9 @@ export default function AdminPage() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-10 pl-3">
-        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-        <h1 className="mt-3 text-4xl font-semibold text-slate-950">Welcome back, {displayName}</h1>
-        <p className="mt-2 text-sm text-slate-500">{SHOW_ACCOUNT_QUEUES ? 'Approve accounts and password resets, or review past decisions.' : 'Review leave requests and past decisions.'}</p>
+        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">{t("HR Portal")}</p>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-950">{t("Welcome back, {displayName}", { displayName: displayName })}</h1>
+        <p className="mt-2 text-sm text-slate-500">{SHOW_ACCOUNT_QUEUES ? t("Approve accounts and password resets, or review past decisions.") : t("Review leave requests and past decisions.")}</p>
       </div>
 
       {/* Stat cards — Pending Accounts / Password Resets act as filters into the tabs below */}
@@ -257,14 +262,14 @@ export default function AdminPage() {
           className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
             tab === 'accounts' ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
           }`}>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Pending Accounts</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t("Pending Accounts")}</p>
           <p className="mt-3 text-4xl font-semibold text-slate-900">{pendingAccounts.length}</p>
         </button>
         <button type="button" onClick={() => setTab('resets')}
           className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
             tab === 'resets' ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
           }`}>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Password Resets</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t("Password Resets")}</p>
           <p className="mt-3 text-4xl font-semibold text-slate-900">{pendingResets.length}</p>
         </button>
         </>)}
@@ -272,7 +277,7 @@ export default function AdminPage() {
           className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
             tab === 'leave' ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
           }`}>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Leave Requests</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t("Leave Requests")}</p>
           <p className="mt-3 text-4xl font-semibold text-slate-900">{pendingLeaveCount}</p>
         </button>
       </div>
@@ -286,26 +291,26 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
         <div className="flex gap-1 border-b border-gray-100 px-4 pt-4">
-          {TABS.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`rounded-t-xl px-4 py-2.5 text-sm font-semibold transition ${tab === t.key ? 'bg-[#e8edf8] text-[#1a3a8f]' : 'text-slate-500 hover:text-slate-700'}`}>
-              {t.label}
+          {TABS.map((tabItem) => (
+            <button key={tabItem.key} onClick={() => setTab(tabItem.key)}
+              className={`rounded-t-xl px-4 py-2.5 text-sm font-semibold transition ${tab === tabItem.key ? 'bg-[#e8edf8] text-[#1a3a8f]' : 'text-slate-500 hover:text-slate-700'}`}>
+              {t(tabItem.label)}
             </button>
           ))}
         </div>
 
         {loading ? (
-          <p className="px-6 py-8 text-sm text-slate-400">Loading...</p>
+          <p className="px-6 py-8 text-sm text-slate-400">{t("Loading...")}</p>
         ) : tab === 'accounts' ? (
           pendingAccounts.length === 0 ? (
-            <p className="px-6 py-8 text-sm text-slate-400 text-center">No pending account registrations.</p>
+            <p className="px-6 py-8 text-sm text-slate-400 text-center">{t("No pending account registrations.")}</p>
           ) : (
             <table className="min-w-full text-sm">
               <thead className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 <tr>
-                  <th className="px-6 py-4">Name</th><th className="px-6 py-4">Email</th>
-                  <th className="px-6 py-4">Role</th><th className="px-6 py-4">Requested</th>
-                  <th className="px-6 py-4">Action</th>
+                  <th className="px-6 py-4">{t("Name")}</th><th className="px-6 py-4">{t("Email")}</th>
+                  <th className="px-6 py-4">{t("Role")}</th><th className="px-6 py-4">{t("Requested")}</th>
+                  <th className="px-6 py-4">{t("Action")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -320,13 +325,13 @@ export default function AdminPage() {
                           <td className="px-6 py-4 font-semibold text-slate-900">{u.full_name}</td>
                           <td className="px-6 py-4 text-slate-600">{u.email}</td>
                           <td className="px-6 py-4"><RoleBadge role={u.user_role} /></td>
-                          <td className="px-6 py-4 text-xs text-slate-400">{new Date(u.created_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' })}</td>
+                          <td className="px-6 py-4 text-xs text-slate-400">{new Date(u.created_at).toLocaleString(getLocale(), { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' })}</td>
                           <td className="px-6 py-4">
                             <div className="flex gap-2">
                               <button onClick={() => handleAccount(u.user_id, 'approve')}
-                                className="rounded-xl bg-[#1a3a8f] px-4 py-2 text-xs font-semibold text-white hover:bg-[#12307a]">Approve</button>
+                                className="rounded-xl bg-[#1a3a8f] px-4 py-2 text-xs font-semibold text-white hover:bg-[#12307a]">{t("Approve")}</button>
                               <button onClick={() => handleAccount(u.user_id, 'reject')}
-                                className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-gray-100">Reject</button>
+                                className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-gray-100">{t("Reject")}</button>
                             </div>
                           </td>
                         </tr>
@@ -334,12 +339,12 @@ export default function AdminPage() {
                       {totalPages > 1 && (
                         <tr><td colSpan={5} className="px-6 py-3 bg-slate-50">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-slate-500">Page {safePage} of {totalPages}</span>
+                            <span className="text-xs text-slate-500">{t("Page {safePage} of {totalPages}", { safePage: safePage, totalPages: totalPages })}</span>
                             <div className="flex gap-2">
                               <button onClick={() => setAccountsPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
-                                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Prev</button>
+                                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">{t("Prev")}</button>
                               <button onClick={() => setAccountsPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Next</button>
+                                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">{t("Next")}</button>
                             </div>
                           </div>
                         </td></tr>
@@ -352,14 +357,14 @@ export default function AdminPage() {
           )
         ) : tab === 'resets' ? (
           pendingResets.length === 0 ? (
-            <p className="px-6 py-8 text-sm text-slate-400 text-center">No pending password reset requests.</p>
+            <p className="px-6 py-8 text-sm text-slate-400 text-center">{t("No pending password reset requests.")}</p>
           ) : (
             <table className="min-w-full text-sm">
               <thead className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 <tr>
-                  <th className="px-6 py-4">Name</th><th className="px-6 py-4">Email</th>
-                  <th className="px-6 py-4">Role</th><th className="px-6 py-4">Requested</th>
-                  <th className="px-6 py-4">Action</th>
+                  <th className="px-6 py-4">{t("Name")}</th><th className="px-6 py-4">{t("Email")}</th>
+                  <th className="px-6 py-4">{t("Role")}</th><th className="px-6 py-4">{t("Requested")}</th>
+                  <th className="px-6 py-4">{t("Action")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -374,13 +379,13 @@ export default function AdminPage() {
                           <td className="px-6 py-4 font-semibold text-slate-900">{r.full_name}</td>
                           <td className="px-6 py-4 text-slate-600">{r.email}</td>
                           <td className="px-6 py-4"><RoleBadge role={r.user_role} /></td>
-                          <td className="px-6 py-4 text-xs text-slate-400">{new Date(r.requested_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' })}</td>
+                          <td className="px-6 py-4 text-xs text-slate-400">{new Date(r.requested_at).toLocaleString(getLocale(), { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' })}</td>
                           <td className="px-6 py-4">
                             <div className="flex gap-2">
                               <button onClick={() => handleReset(r.request_id, 'approve')}
-                                className="rounded-xl bg-[#1a3a8f] px-4 py-2 text-xs font-semibold text-white hover:bg-[#12307a]">Approve</button>
+                                className="rounded-xl bg-[#1a3a8f] px-4 py-2 text-xs font-semibold text-white hover:bg-[#12307a]">{t("Approve")}</button>
                               <button onClick={() => handleReset(r.request_id, 'reject')}
-                                className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-gray-100">Reject</button>
+                                className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-gray-100">{t("Reject")}</button>
                             </div>
                           </td>
                         </tr>
@@ -388,12 +393,12 @@ export default function AdminPage() {
                       {totalPages > 1 && (
                         <tr><td colSpan={5} className="px-6 py-3 bg-slate-50">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-slate-500">Page {safePage} of {totalPages}</span>
+                            <span className="text-xs text-slate-500">{t("Page {safePage} of {totalPages}", { safePage: safePage, totalPages: totalPages })}</span>
                             <div className="flex gap-2">
                               <button onClick={() => setResetsPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
-                                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Prev</button>
+                                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">{t("Prev")}</button>
                               <button onClick={() => setResetsPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Next</button>
+                                className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">{t("Next")}</button>
                             </div>
                           </div>
                         </td></tr>
@@ -414,7 +419,7 @@ export default function AdminPage() {
                     className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
                       leaveCategoryFilter === c ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}>
-                    {c.charAt(0) + c.slice(1).toLowerCase()}
+                    {t(c.charAt(0) + c.slice(1).toLowerCase())}
                   </button>
                 ))}
               </div>
@@ -423,7 +428,7 @@ export default function AdminPage() {
                   <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
                 <input type="text" value={leaveSearch} onChange={(e) => setLeaveSearch(e.target.value)}
-                  placeholder="Search employee name or email…"
+                  placeholder={t("Search employee name or email…")}
                   className="rounded-2xl border border-slate-200 bg-white pl-10 pr-4 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64" />
               </div>
             </div>
@@ -435,20 +440,20 @@ export default function AdminPage() {
             )}
 
             {pendingLeaveRequests.length === 0 ? (
-              <p className="px-6 py-8 text-sm text-slate-400 text-center">No pending leave requests.</p>
+              <p className="px-6 py-8 text-sm text-slate-400 text-center">{t("No pending leave requests.")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                     <tr>
-                      <th className="px-6 py-4 whitespace-nowrap">Employee</th>
-                      <th className="px-6 py-4 whitespace-nowrap">Category</th>
-                      <th className="px-6 py-4 whitespace-nowrap">Start</th>
-                      <th className="px-6 py-4 whitespace-nowrap">End</th>
-                      <th className="px-6 py-4 whitespace-nowrap">Status</th>
-                      <th className="px-6 py-4">Reviewer Remarks</th>
-                      <th className="px-6 py-4 whitespace-nowrap">Submitted</th>
-                      <th className="px-6 py-4 whitespace-nowrap">Action</th>
+                      <th className="px-6 py-4 whitespace-nowrap">{t("Employee")}</th>
+                      <th className="px-6 py-4 whitespace-nowrap">{t("Category")}</th>
+                      <th className="px-6 py-4 whitespace-nowrap">{t("Start")}</th>
+                      <th className="px-6 py-4 whitespace-nowrap">{t("End")}</th>
+                      <th className="px-6 py-4 whitespace-nowrap">{t("Status")}</th>
+                      <th className="px-6 py-4">{t("Reviewer Remarks")}</th>
+                      <th className="px-6 py-4 whitespace-nowrap">{t("Submitted")}</th>
+                      <th className="px-6 py-4 whitespace-nowrap">{t("Action")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -458,7 +463,7 @@ export default function AdminPage() {
                           <p className="font-semibold text-slate-800">{r.full_name}</p>
                           <p className="text-xs text-slate-400">{r.email}</p>
                         </td>
-                        <td className="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">{r.category}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">{t(r.category)}</td>
                         <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.start_date).slice(0, 10))}</td>
                         <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.end_date).slice(0, 10))}</td>
                         <td className="px-6 py-4 whitespace-nowrap"><LeaveStatusPill status={r.workflow_status} /></td>
@@ -466,9 +471,7 @@ export default function AdminPage() {
                         <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">{formatDt(r.created_at)}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <button type="button" onClick={() => openEditLeave(r)}
-                            className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-100">
-                            Edit
-                          </button>
+                            className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-100">{t("Edit")}</button>
                         </td>
                       </tr>
                     ))}
@@ -482,12 +485,12 @@ export default function AdminPage() {
             {/* Sub-filter */}
             <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-100">
               <div className="flex gap-1.5">
-                {[{ id: 'Pending Accounts', label: 'Pending Accounts' }, { id: 'Reset History', label: 'Password Reset' }, { id: 'Leave Requests', label: 'Leave Requests' }].map((sf) => (
+                {[{ id: 'Pending Accounts', label: t("Pending Accounts") }, { id: 'Reset History', label: t("Password Reset") }, { id: 'Leave Requests', label: t("Leave Requests") }].map((sf) => (
                   <button key={sf.id} onClick={() => { setHistorySubFilter(sf.id); setHistorySearch(''); }}
                     className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
                       historySubFilter === sf.id ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}>
-                    {sf.label}
+                    {t(sf.label)}
                   </button>
                 ))}
               </div>
@@ -499,7 +502,7 @@ export default function AdminPage() {
                   type="text"
                   value={historySearch}
                   onChange={(e) => setHistorySearch(e.target.value)}
-                  placeholder="Search by name or email..."
+                  placeholder={t("Search by name or email...")}
                   className="rounded-2xl border border-slate-200 bg-white pl-10 pr-4 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
                 />
               </div>
@@ -507,21 +510,21 @@ export default function AdminPage() {
             {historySubFilter === 'Leave Requests' ? (
               historyLeaveRequests.length === 0 ? (
                 <p className="px-6 py-8 text-sm text-slate-400 text-center">
-                  {leaveRequests.length === 0 ? 'No leave requests exist yet.' : 'No leave requests match this filter.'}
+                  {leaveRequests.length === 0 ? t("No leave requests exist yet.") : t("No leave requests match this filter.")}
                 </p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                       <tr>
-                        <th className="px-6 py-4 whitespace-nowrap">Employee</th>
-                        <th className="px-6 py-4 whitespace-nowrap">Category</th>
-                        <th className="px-6 py-4 whitespace-nowrap">Start</th>
-                        <th className="px-6 py-4 whitespace-nowrap">End</th>
-                        <th className="px-6 py-4 whitespace-nowrap">Status</th>
-                        <th className="px-6 py-4">Reviewer Remarks</th>
-                        <th className="px-6 py-4 whitespace-nowrap">Submitted</th>
-                        <th className="px-6 py-4 whitespace-nowrap">Action</th>
+                        <th className="px-6 py-4 whitespace-nowrap">{t("Employee")}</th>
+                        <th className="px-6 py-4 whitespace-nowrap">{t("Category")}</th>
+                        <th className="px-6 py-4 whitespace-nowrap">{t("Start")}</th>
+                        <th className="px-6 py-4 whitespace-nowrap">{t("End")}</th>
+                        <th className="px-6 py-4 whitespace-nowrap">{t("Status")}</th>
+                        <th className="px-6 py-4">{t("Reviewer Remarks")}</th>
+                        <th className="px-6 py-4 whitespace-nowrap">{t("Submitted")}</th>
+                        <th className="px-6 py-4 whitespace-nowrap">{t("Action")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -531,7 +534,7 @@ export default function AdminPage() {
                             <p className="font-semibold text-slate-800">{r.full_name}</p>
                             <p className="text-xs text-slate-400">{r.email}</p>
                           </td>
-                          <td className="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">{r.category}</td>
+                          <td className="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">{t(r.category)}</td>
                           <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.start_date).slice(0, 10))}</td>
                           <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.end_date).slice(0, 10))}</td>
                           <td className="px-6 py-4 whitespace-nowrap"><LeaveStatusPill status={r.workflow_status} /></td>
@@ -539,9 +542,7 @@ export default function AdminPage() {
                           <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">{formatDt(r.created_at)}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <button type="button" onClick={() => openEditLeave(r)}
-                              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-100">
-                              Edit
-                            </button>
+                              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-100">{t("Edit")}</button>
                           </td>
                         </tr>
                       ))}
@@ -551,14 +552,14 @@ export default function AdminPage() {
               )
             ) : historySubFilter === 'Pending Accounts' ? (
               historyAccounts.length === 0 ? (
-                <p className="px-6 py-8 text-sm text-slate-400 text-center">No account history yet.</p>
+                <p className="px-6 py-8 text-sm text-slate-400 text-center">{t("No account history yet.")}</p>
               ) : (
                 <table className="min-w-full text-sm">
                   <thead className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                     <tr>
-                      <th className="px-6 py-4">Name</th><th className="px-6 py-4">Email</th>
-                      <th className="px-6 py-4">Roles</th><th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Actions</th>
+                      <th className="px-6 py-4">{t("Name")}</th><th className="px-6 py-4">{t("Email")}</th>
+                      <th className="px-6 py-4">{t("Roles")}</th><th className="px-6 py-4">{t("Status")}</th>
+                      <th className="px-6 py-4">{t("Actions")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -588,15 +589,13 @@ export default function AdminPage() {
                               <td className="px-6 py-4">
                                 <div className="flex gap-2">
                                   <button onClick={() => openRoleModal(u)}
-                                    className="rounded-xl border border-[#1a3a8f] px-3 py-1.5 text-xs font-semibold text-[#1a3a8f] hover:bg-[#e8edf8]">
-                                    Manage Roles
-                                  </button>
+                                    className="rounded-xl border border-[#1a3a8f] px-3 py-1.5 text-xs font-semibold text-[#1a3a8f] hover:bg-[#e8edf8]">{t("Manage Roles")}</button>
                                   {u.account_status === 'active' ? (
                                     <button onClick={() => handleAccount(u.user_id, 'reject')}
-                                      className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">Revoke</button>
+                                      className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">{t("Revoke")}</button>
                                   ) : (
                                     <button onClick={() => handleAccount(u.user_id, 'approve')}
-                                      className="rounded-xl bg-[#1a3a8f] px-4 py-2 text-xs font-semibold text-white hover:bg-[#12307a]">Reactivate</button>
+                                      className="rounded-xl bg-[#1a3a8f] px-4 py-2 text-xs font-semibold text-white hover:bg-[#12307a]">{t("Reactivate")}</button>
                                   )}
                                 </div>
                               </td>
@@ -606,12 +605,12 @@ export default function AdminPage() {
                           {totalPages > 1 && (
                             <tr><td colSpan={5} className="px-6 py-3 bg-slate-50">
                               <div className="flex items-center justify-between">
-                                <span className="text-xs text-slate-500">Page {safePage} of {totalPages}</span>
+                                <span className="text-xs text-slate-500">{t("Page {safePage} of {totalPages}", { safePage: safePage, totalPages: totalPages })}</span>
                                 <div className="flex gap-2">
                                   <button onClick={() => setHistAccPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
-                                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Prev</button>
+                                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">{t("Prev")}</button>
                                   <button onClick={() => setHistAccPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Next</button>
+                                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">{t("Next")}</button>
                                 </div>
                               </div>
                             </td></tr>
@@ -624,14 +623,14 @@ export default function AdminPage() {
               )
             ) : (
               historyResets.length === 0 ? (
-                <p className="px-6 py-8 text-sm text-slate-400 text-center">No password reset history yet.</p>
+                <p className="px-6 py-8 text-sm text-slate-400 text-center">{t("No password reset history yet.")}</p>
               ) : (
                 <table className="min-w-full text-sm">
                   <thead className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                     <tr>
-                      <th className="px-6 py-4">Name</th><th className="px-6 py-4">Email</th>
-                      <th className="px-6 py-4">Role</th><th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Requested</th><th className="px-6 py-4">Reviewed</th>
+                      <th className="px-6 py-4">{t("Name")}</th><th className="px-6 py-4">{t("Email")}</th>
+                      <th className="px-6 py-4">{t("Role")}</th><th className="px-6 py-4">{t("Status")}</th>
+                      <th className="px-6 py-4">{t("Requested")}</th><th className="px-6 py-4">{t("Reviewed")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -651,19 +650,19 @@ export default function AdminPage() {
                               <td className="px-6 py-4 text-slate-600">{r.email}</td>
                               <td className="px-6 py-4"><RoleBadge role={r.user_role} /></td>
                               <td className="px-6 py-4"><StatusBadge status={r.status} /></td>
-                              <td className="px-6 py-4 text-xs text-slate-400">{new Date(r.requested_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' })}</td>
-                              <td className="px-6 py-4 text-xs text-slate-400">{r.reviewed_at ? new Date(r.reviewed_at).toLocaleString('en-SG', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' }) : '—'}</td>
+                              <td className="px-6 py-4 text-xs text-slate-400">{new Date(r.requested_at).toLocaleString(getLocale(), { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' })}</td>
+                              <td className="px-6 py-4 text-xs text-slate-400">{r.reviewed_at ? new Date(r.reviewed_at).toLocaleString(getLocale(), { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Singapore' }) : '—'}</td>
                             </tr>
                           ))}
                           {totalPages > 1 && (
                             <tr><td colSpan={6} className="px-6 py-3 bg-slate-50">
                               <div className="flex items-center justify-between">
-                                <span className="text-xs text-slate-500">Page {safePage} of {totalPages}</span>
+                                <span className="text-xs text-slate-500">{t("Page {safePage} of {totalPages}", { safePage: safePage, totalPages: totalPages })}</span>
                                 <div className="flex gap-2">
                                   <button onClick={() => setHistResPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
-                                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Prev</button>
+                                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">{t("Prev")}</button>
                                   <button onClick={() => setHistResPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">Next</button>
+                                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">{t("Next")}</button>
                                 </div>
                               </div>
                             </td></tr>
@@ -685,16 +684,14 @@ export default function AdminPage() {
           <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Manage Roles</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{t("Manage Roles")}</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{roleModal.full_name} — {roleModal.email}</p>
               </div>
               <button onClick={() => setRoleModal(null)}
                 className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 text-xl leading-none">&times;</button>
             </div>
             <div className="px-6 py-5 space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 mb-3">
-                Select all applicable roles. You must select at least one role.
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 mb-3">{t("Select all applicable roles. You must select at least one role.")}</p>
               {ALL_ROLES.map(({ key, label }) => (
                 <label key={key}
                   className={`flex items-center gap-3 rounded-2xl border px-4 py-3 cursor-pointer transition ${
@@ -703,7 +700,7 @@ export default function AdminPage() {
                   <input type="checkbox" checked={selectedRoles.includes(key)} onChange={() => toggleRole(key)}
                     className="rounded border-slate-300 text-[#1a3a8f]" />
                   <span className={`text-sm font-semibold ${selectedRoles.includes(key) ? 'text-[#1a3a8f]' : 'text-slate-700'}`}>
-                    {label}
+                    {t(label)}
                   </span>
                 </label>
               ))}
@@ -715,12 +712,10 @@ export default function AdminPage() {
             </div>
             <div className="flex gap-3 justify-end px-6 pb-6">
               <button onClick={() => setRoleModal(null)}
-                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Cancel
-              </button>
+                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">{t("Cancel")}</button>
               <button onClick={submitRoles} disabled={roleSubmitting || selectedRoles.length === 0}
                 className="rounded-2xl bg-[#1a3a8f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12307a] disabled:opacity-60 transition">
-                {roleSubmitting ? 'Saving…' : 'Save Roles'}
+                {roleSubmitting ? t("Saving…") : t("Save Roles")}
               </button>
             </div>
           </div>
@@ -734,10 +729,10 @@ export default function AdminPage() {
           <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Edit Leave Request</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">{t("Edit Leave Request")}</p>
                 <p className="mt-1 text-sm font-semibold text-slate-800">{editingLeave.full_name}</p>
               </div>
-              <button type="button" onClick={closeEditLeave} className="text-xs font-semibold text-slate-400 hover:text-slate-600">Cancel</button>
+              <button type="button" onClick={closeEditLeave} className="text-xs font-semibold text-slate-400 hover:text-slate-600">{t("Cancel")}</button>
             </div>
 
             {leaveMessage && (
@@ -748,7 +743,7 @@ export default function AdminPage() {
 
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Category</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t("Category")}</label>
                 <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                   {LEAVE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -756,28 +751,26 @@ export default function AdminPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Start Date</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">{t("Start Date")}</label>
                   <input type="date" value={editStartDate} onChange={(e) => setEditStartDate(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">End Date</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">{t("End Date")}</label>
                   <input type="date" value={editEndDate} min={editStartDate || undefined} onChange={(e) => setEditEndDate(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Reason <span className="font-normal text-slate-400">(optional)</span></label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t("Reason")}{" "}<span className="font-normal text-slate-400">{t("(optional)")}</span></label>
                 <textarea rows={3} value={editReason} onChange={(e) => setEditReason(e.target.value)}
-                  placeholder="Brief reason for leave…"
+                  placeholder={t("Brief reason for leave…")}
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
-              <p className="text-xs text-slate-400">
-                Editing as HR overrides the normal "pending only" restriction — this can be applied to a request in any status.
-              </p>
+              <p className="text-xs text-slate-400">{t("Editing as HR overrides the normal \"pending only\" restriction — this can be applied to a request in any status.")}</p>
               <button type="button" onClick={handleSaveLeaveEdit} disabled={leaveSaving}
                 className="w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-60 transition" style={{ background: '#0c3b8f' }}>
-                {leaveSaving ? 'Saving…' : 'Save Changes'}
+                {leaveSaving ? t("Saving…") : t("Save Changes")}
               </button>
             </div>
           </div>

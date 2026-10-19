@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
+import { useT } from '../i18n/LanguageProvider';
 
 // Project lifecycle: ACTIVE -> DEPLOYED -> MAINTENANCE (-> DEPLOYED again). Legacy INACTIVE
 // projects (from the old Deactivate action) are shown as DEPLOYED.
@@ -74,6 +75,7 @@ const SearchIcon = () => (
 
 // -- Multi-select dropdown for managers/account_managers ----------------------
 function UserMultiSelect({ label, placeholder, users, selected, onChange }) {
+  const { t } = useT();
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -97,13 +99,13 @@ function UserMultiSelect({ label, placeholder, users, selected, onChange }) {
 
   return (
     <div className="relative">
-      <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>
+      <label className="block text-sm font-semibold text-slate-700 mb-2">{t(label)}</label>
       {selectedUsers.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {selectedUsers.map((u) => (
             <span key={u.user_id} className="flex items-center gap-1 rounded-full bg-[#E8EEFF] px-3 py-1 text-xs font-semibold text-[#1540A8]">
               {u.full_name}
-              <button type="button" onClick={() => toggle(u.user_id)} className="ml-0.5 leading-none hover:text-red-500" aria-label={`Remove ${u.full_name}`}>&times;</button>
+              <button type="button" onClick={() => toggle(u.user_id)} className="ml-0.5 leading-none hover:text-red-500" aria-label={t("Remove {full_name}", { full_name: u.full_name })}>&times;</button>
             </span>
           ))}
         </div>
@@ -121,7 +123,7 @@ function UserMultiSelect({ label, placeholder, users, selected, onChange }) {
         {open && (
           <div className="absolute z-50 mt-1 max-h-52 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
             {filtered.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-slate-400">No results</p>
+              <p className="px-4 py-3 text-sm text-slate-400">{t("No results")}</p>
             ) : filtered.map((u) => {
               const isSelected = selected.includes(u.user_id);
               return (
@@ -162,12 +164,13 @@ function Avatar({ name, size = 32 }) {
 const headerBtn = 'grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white';
 
 function Section({ title, onEdit, children }) {
+  const { t } = useT();
   return (
     <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+        <h3 className="text-base font-semibold text-slate-900">{t(title)}</h3>
         {onEdit && (
-          <button type="button" onClick={onEdit} aria-label={`Edit ${title.toLowerCase()}`}
+          <button type="button" onClick={onEdit} aria-label={t("Edit {v}", { v: title.toLowerCase() })}
             className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700">
             <PencilIcon size={14} />
           </button>
@@ -179,15 +182,17 @@ function Section({ title, onEdit, children }) {
 }
 
 function Field({ label, children }) {
+  const { t } = useT();
   return (
     <div className="min-w-0">
-      <p className="text-xs text-slate-400">{label}</p>
+      <p className="text-xs text-slate-400">{t(label)}</p>
       <p className="mt-1 truncate text-[15px] font-medium text-slate-900">{children}</p>
     </div>
   );
 }
 
 function PersonRow({ name, sub, role }) {
+  const { t } = useT();
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3.5 py-2.5">
       <div className="flex min-w-0 items-center gap-2.5">
@@ -197,7 +202,7 @@ function PersonRow({ name, sub, role }) {
           {sub && <p className="truncate text-xs text-slate-400">{sub}</p>}
         </div>
       </div>
-      <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-200">{role}</span>
+      <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-200">{t(role)}</span>
     </div>
   );
 }
@@ -214,6 +219,7 @@ export default function ProjectCards({
   managerFilterOptions,
   requireAccountManager = true,
 }) {
+  const { t } = useT();
   const [projects, setProjects] = useState([]);
   const [utilisationMap, setUtilisationMap] = useState({});
   const [loading, setLoading] = useState(true);
@@ -440,7 +446,7 @@ export default function ProjectCards({
               className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
                 on ? 'bg-[#1540A8] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}>
-              {label}
+              {t(label)}
             </button>
           );
         })}
@@ -451,33 +457,29 @@ export default function ProjectCards({
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search code or project name"
-              aria-label="Search projects"
+              placeholder={t("Search code or project name")}
+              aria-label={t("Search projects")}
               className="w-full min-w-0 bg-transparent text-sm text-slate-900 outline-none sm:w-52"
             />
           </label>
           {managerFilterOptions && (
-            <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} aria-label="Filter by manager"
+            <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} aria-label={t("Filter by manager")}
               className="rounded-full border-0 bg-white px-4 py-2 text-sm text-slate-700 ring-1 ring-inset ring-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="ALL">Filter by Manager</option>
+              <option value="ALL">{t("Filter by Manager")}</option>
               {managerFilterOptions.map((u) => <option key={u.user_id} value={u.user_id}>{u.full_name}</option>)}
             </select>
           )}
           <button type="button" onClick={openCreate}
-            className="rounded-full bg-[#1540A8] px-5 py-2 text-sm font-semibold text-white hover:bg-[#12378F]">
-            + Issue New Code
-          </button>
+            className="rounded-full bg-[#1540A8] px-5 py-2 text-sm font-semibold text-white hover:bg-[#12378F]">{t("+ Issue New Code")}</button>
         </div>
       </div>
 
       <p className="text-sm text-slate-500">
-        {loading ? 'Loading project codes…' : `${filtered.length} project${filtered.length === 1 ? '' : 's'}`}
+        {loading ? t("Loading project codes…") : t("{length} project{v}", { length: filtered.length, v: filtered.length === 1 ? '' : 's' })}
       </p>
 
       {!loading && filtered.length === 0 ? (
-        <div className="rounded-[28px] bg-white px-6 py-12 text-center text-sm text-slate-500 ring-1 ring-inset ring-slate-200">
-          No project codes found.
-        </div>
+        <div className="rounded-[28px] bg-white px-6 py-12 text-center text-sm text-slate-500 ring-1 ring-inset ring-slate-200">{t("No project codes found.")}</div>
       ) : (
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
           {filtered.map((project) => {
@@ -491,7 +493,7 @@ export default function ProjectCards({
                 type="button"
                 data-project-card={project.project_code}
                 aria-pressed={isOpen}
-                aria-label={`${project.project_name}, ${theme.label}, ${utilization}% utilised`}
+                aria-label={t("{project_name}, {label}, {utilization}% utilised", { project_name: project.project_name, label: theme.label, utilization: utilization })}
                 onClick={() => showProject(project.project_code)}
                 className="flex min-h-[188px] flex-col gap-3.5 rounded-[28px] p-5 text-left transition hover:-translate-y-0.5 hover:shadow-lg motion-reduce:transition-none motion-reduce:hover:translate-y-0"
                 style={{ background: theme.bg, boxShadow: isOpen ? '0 0 0 2px #1540A8' : undefined }}
@@ -499,14 +501,14 @@ export default function ProjectCards({
                 <div className="flex items-center justify-between gap-2">
                   <span className="inline-flex items-center gap-2 text-[13px] font-medium" style={{ color: theme.ink }}>
                     <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-white"><StatusIcon status={status} /></span>
-                    {theme.label}
+                    {t(theme.label)}
                   </span>
                   <span className="grid h-[30px] w-[30px] place-items-center rounded-full bg-white/70 text-slate-500"><ArrowIcon /></span>
                 </div>
                 <h3 className="text-[1.15rem] font-medium leading-snug text-slate-900" style={{ textWrap: 'balance' }}>{project.project_name}</h3>
                 <div className="mt-auto space-y-1.5">
                   <div className="flex justify-between text-xs text-slate-600">
-                    <span>Utilization</span>
+                    <span>{t("Utilization")}</span>
                     <span className="font-semibold tabular-nums" style={{ color: theme.ink }}>{utilization}%</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full" style={{ background: theme.track }}>
@@ -525,52 +527,52 @@ export default function ProjectCards({
   const formFields = (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Project Code <span className="text-red-500">*</span></label>
+        <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t("Project Code")}{" "}<span className="text-red-500">*</span></label>
         <input
           type="text"
           value={formCode}
           onChange={(e) => setFormCode(e.target.value)}
-          placeholder="e.g. PROJ-001"
+          placeholder={t("e.g. PROJ-001")}
           disabled={panel === 'edit'}
           required
           className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
         />
       </div>
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Project Name <span className="text-red-500">*</span></label>
+        <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t("Project Name")}{" "}<span className="text-red-500">*</span></label>
         <input
           type="text"
           value={formName}
           onChange={(e) => setFormName(e.target.value)}
-          placeholder="e.g. Website Redesign"
+          placeholder={t("e.g. Website Redesign")}
           required
           className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Budget Hours <span className="text-red-500">*</span></label>
+        <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t("Budget Hours")}{" "}<span className="text-red-500">*</span></label>
         <input
           type="number"
           min="0"
           value={formHours}
           onChange={(e) => setFormHours(e.target.value)}
-          placeholder="e.g. 200"
+          placeholder={t("e.g. 200")}
           required
           className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
       <UserMultiSelect
         label={requireAccountManager
-          ? <>Account Manager <span className="text-red-500">*</span></>
-          : <>Account Manager <span className="text-slate-400 font-normal">(optional)</span></>}
-        placeholder="Search by name or email..."
+          ? <>{t("Account Manager")}{" "}<span className="text-red-500">*</span></>
+          : <>{t("Account Manager")}{" "}<span className="text-slate-400 font-normal">{t("(optional)")}</span></>}
+        placeholder={t("Search by name or email...")}
         users={accountManagerOptions}
         selected={formAccountManagerIds}
         onChange={setFormAccountManagerIds}
       />
       <UserMultiSelect
-        label={<>Manager <span className="text-red-500">*</span></>}
-        placeholder="Search by name or email..."
+        label={<>{t("Manager")}{" "}<span className="text-red-500">*</span></>}
+        placeholder={t("Search by name or email...")}
         users={managerOptions}
         selected={formManagerIds}
         onChange={setFormManagerIds}
@@ -595,24 +597,22 @@ export default function ProjectCards({
     if (panel === 'create' || panel === 'edit') {
       body = (
         <form onSubmit={isCreate ? handleCreate : handleEdit} className="space-y-5">
-          <Section title={isCreate ? 'New project code' : 'Edit project'}>{formFields}</Section>
+          <Section title={isCreate ? t("New project code") : t("Edit project")}>{formFields}</Section>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => { if (isCreate) { closePanel(); } else { setPanel('view'); setDrawerTab('details'); } }}
-              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-              Cancel
-            </button>
+              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">{t("Cancel")}</button>
             <button type="submit" disabled={busy}
               className="rounded-xl bg-[#1540A8] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#12378F] disabled:opacity-60">
-              {busy ? 'Saving...' : isCreate ? 'Create' : 'Save Changes'}
+              {busy ? t("Saving...") : isCreate ? t("Create") : t("Save Changes")}
             </button>
           </div>
         </form>
       );
     } else if (drawerTab === 'team') {
       body = (
-        <Section title={`Staff assigned (${staff.length})`} onEdit={undefined}>
+        <Section title={t("Staff assigned ({length})", { length: staff.length })} onEdit={undefined}>
           {staff.length === 0 ? (
-            <p className="text-sm text-slate-400">No staff assigned to this project yet. Managers assign staff from their Team page.</p>
+            <p className="text-sm text-slate-400">{t("No staff assigned to this project yet. Managers assign staff from their Team page.")}</p>
           ) : (
             <div className="space-y-2">
               {staff.map((m) => <PersonRow key={m.user_id} name={m.full_name} sub={m.email} role={roleLabel(m.project_role)} />)}
@@ -623,20 +623,20 @@ export default function ProjectCards({
     } else {
       body = (
         <div className="space-y-4">
-          <Section title="Project information" onEdit={startEdit}>
+          <Section title={t("Project information")} onEdit={startEdit}>
             <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-              <Field label="Project code">{selected.project_code}</Field>
-              <Field label="Project name">{selected.project_name}</Field>
-              <Field label="Budget hours">{selected.budget_hours ?? 0} hrs</Field>
-              <Field label="Utilization">{utilization}%</Field>
-              <Field label="Status">{theme.label}</Field>
-              <Field label="Created">{formatDate(selected.created_at)}</Field>
+              <Field label={t("Project code")}>{selected.project_code}</Field>
+              <Field label={t("Project name")}>{selected.project_name}</Field>
+              <Field label={t("Budget hours")}>{selected.budget_hours ?? 0}{" "}{t("hrs")}</Field>
+              <Field label={t("Utilization")}>{utilization}%</Field>
+              <Field label={t("Status")}>{t(theme.label)}</Field>
+              <Field label={t("Created")}>{formatDate(selected.created_at)}</Field>
             </div>
           </Section>
 
-          <Section title="Managers" onEdit={startEdit}>
+          <Section title={t("Managers")} onEdit={startEdit}>
             {amNames.length === 0 && mgrNames.length === 0 ? (
-              <p className="text-sm text-slate-400">No managers assigned.</p>
+              <p className="text-sm text-slate-400">{t("No managers assigned.")}</p>
             ) : (
               <div className="space-y-2">
                 {amNames.map((n) => <PersonRow key={`am-${n}`} name={n} role="Account Manager" />)}
@@ -645,42 +645,37 @@ export default function ProjectCards({
             )}
           </Section>
 
-          <Section title="Project status">
+          <Section title={t("Project status")}>
             {status === 'DEPLOYED' ? (
               <div className="space-y-3">
-                <p className="text-sm leading-relaxed text-slate-600">This project is deployed. Staff keep their assignments but can&apos;t log time, progress or budget requests against it. Reactivate it for maintenance or updates.</p>
+                <p className="text-sm leading-relaxed text-slate-600">{t("This project is deployed. Staff keep their assignments but can't log time, progress or budget requests against it. Reactivate it for maintenance or updates.")}</p>
                 <button type="button" onClick={handleReactivate} disabled={busy}
                   className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
                   style={{ background: STATUS_THEME.MAINTENANCE.bg, color: STATUS_THEME.MAINTENANCE.ink }}>
-                  <StatusIcon status="MAINTENANCE" /> {busy ? 'Reactivating…' : 'Reactivate for maintenance'}
+                  <StatusIcon status="MAINTENANCE" /> {busy ? t("Reactivating…") : t("Reactivate for maintenance")}
                 </button>
               </div>
             ) : confirmDeploy ? (
               <div className="space-y-3">
                 <p className="text-sm leading-relaxed text-slate-700">
-                  <span className="font-semibold">Mark {selected.project_code} as deployed?</span> Staff assignments are kept, but no one can log time, progress or budget requests against it until it is reactivated for maintenance.
-                </p>
+                  <span className="font-semibold">{t("Mark {project_code} as deployed?", { project_code: selected.project_code })}</span>{" "}{t("Staff assignments are kept, but no one can log time, progress or budget requests against it until it is reactivated for maintenance.")}</p>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setConfirmDeploy(false)}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-                    Cancel
-                  </button>
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">{t("Cancel")}</button>
                   <button type="button" onClick={handleDeploy} disabled={busy}
                     className="rounded-xl bg-[#1540A8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#12378F] disabled:opacity-60">
-                    {busy ? 'Saving...' : 'Yes, mark as deployed'}
+                    {busy ? t("Saving...") : t("Yes, mark as deployed")}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-sm leading-relaxed text-slate-600">
-                  {status === 'MAINTENANCE' ? 'Back in progress for maintenance or updates.' : 'In progress.'} Mark it as deployed once the work is live.
-                </p>
+                  {status === 'MAINTENANCE' ? t("Back in progress for maintenance or updates.") : t("In progress.")}{" "}{t("Mark it as deployed once the work is live.")}</p>
                 <button type="button" onClick={() => setConfirmDeploy(true)}
                   className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
                   style={{ background: STATUS_THEME.DEPLOYED.bg, color: STATUS_THEME.DEPLOYED.ink }}>
-                  <StatusIcon status="DEPLOYED" /> Mark as deployed
-                </button>
+                  <StatusIcon status="DEPLOYED" />{" "}{t("Mark as deployed")}</button>
               </div>
             )}
           </Section>
@@ -696,11 +691,11 @@ export default function ProjectCards({
           data-project-panel=""
           role="dialog"
           aria-modal="true"
-          aria-label={title}
+          aria-label={t(title)}
           className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[600px] flex-col bg-white shadow-[-12px_0_40px_rgba(15,23,42,0.18)]"
         >
           {/* Edge handle, like the Employee drawer */}
-          <button type="button" onClick={closePanel} aria-label="Collapse panel"
+          <button type="button" onClick={closePanel} aria-label={t("Collapse panel")}
             className="absolute left-0 top-1/2 hidden h-9 w-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:text-slate-900 sm:grid">
             <ChevronIcon dir="right" />
           </button>
@@ -710,11 +705,11 @@ export default function ProjectCards({
             <div className="flex gap-2">
               {!isCreate && (
                 <>
-                  <button type="button" className={headerBtn} disabled={!prevProject} aria-label="Previous project"
+                  <button type="button" className={headerBtn} disabled={!prevProject} aria-label={t("Previous project")}
                     onClick={() => prevProject && showProject(prevProject.project_code)}>
                     <ChevronIcon dir="left" />
                   </button>
-                  <button type="button" className={headerBtn} disabled={!nextProject} aria-label="Next project"
+                  <button type="button" className={headerBtn} disabled={!nextProject} aria-label={t("Next project")}
                     onClick={() => nextProject && showProject(nextProject.project_code)}>
                     <ChevronIcon dir="right" />
                   </button>
@@ -723,11 +718,11 @@ export default function ProjectCards({
             </div>
             <div className="flex gap-2">
               {panel === 'view' && (
-                <button type="button" className={headerBtn} onClick={startEdit} aria-label="Edit project" title="Edit project">
+                <button type="button" className={headerBtn} onClick={startEdit} aria-label={t("Edit project")} title={t("Edit project")}>
                   <PencilIcon />
                 </button>
               )}
-              <button ref={closeBtnRef} type="button" className={headerBtn} onClick={closePanel} aria-label="Close panel" title="Close">
+              <button ref={closeBtnRef} type="button" className={headerBtn} onClick={closePanel} aria-label={t("Close panel")} title={t("Close")}>
                 <CloseIcon />
               </button>
             </div>
@@ -743,16 +738,16 @@ export default function ProjectCards({
                 </span>
               </div>
               <div className="min-w-0">
-                <h2 className="text-xl font-semibold leading-tight text-slate-900" style={{ textWrap: 'balance' }}>{title}</h2>
+                <h2 className="text-xl font-semibold leading-tight text-slate-900" style={{ textWrap: 'balance' }}>{t(title)}</h2>
                 {isCreate ? (
-                  <p className="mt-2 text-sm text-slate-500">Create a project code staff can log time against.</p>
+                  <p className="mt-2 text-sm text-slate-500">{t("Create a project code staff can log time against.")}</p>
                 ) : (
                   <>
                     <div className="mt-2 flex flex-wrap items-center gap-2.5">
-                      <span className="rounded-md px-2 py-0.5 text-xs font-semibold" style={{ background: theme.bg, color: theme.ink }}>{theme.label}</span>
+                      <span className="rounded-md px-2 py-0.5 text-xs font-semibold" style={{ background: theme.bg, color: theme.ink }}>{t(theme.label)}</span>
                       <span className="text-sm text-slate-500">{selected.project_code}</span>
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">{selected.budget_hours ?? 0} budget hrs · Created {formatDate(selected.created_at)}</p>
+                    <p className="mt-2 text-sm text-slate-500">{selected.budget_hours ?? 0}{" "}{t("budget hrs · Created {formatDate}", { formatDate: formatDate(selected.created_at) })}</p>
                   </>
                 )}
               </div>
@@ -760,13 +755,13 @@ export default function ProjectCards({
 
             {/* Tabs */}
             {panel === 'view' && (
-              <div role="tablist" aria-label="Project sections" className="flex gap-6 border-b border-slate-100 px-6">
+              <div role="tablist" aria-label={t("Project sections")} className="flex gap-6 border-b border-slate-100 px-6">
                 {[['details', 'Details'], ['team', 'Team']].map(([id, label]) => (
                   <button key={id} type="button" role="tab" aria-selected={drawerTab === id} onClick={() => setDrawerTab(id)}
                     className={`-mb-px border-b-2 py-3.5 text-xs font-semibold uppercase tracking-[0.2em] transition ${
                       drawerTab === id ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-700'
                     }`}>
-                    {label}
+                    {t(label)}
                   </button>
                 ))}
               </div>

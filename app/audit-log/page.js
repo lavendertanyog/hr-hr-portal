@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { RangeCalendarPopover, toDateStr, parseDateStr } from '../RangeCalendarPopover';
+import { useT, getLocale } from '../i18n/LanguageProvider';
 
 const PAGE_SIZE = 20;
 
@@ -62,7 +63,7 @@ function formatValue(value) {
   if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
     const d = new Date(s);
     if (!Number.isNaN(d.getTime())) {
-      return d.toLocaleString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
+      return d.toLocaleString(getLocale(), { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
     }
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
@@ -85,7 +86,7 @@ function displayValue(key, value, nameById) {
 }
 
 function formatWhen(dt) {
-  return new Date(dt).toLocaleString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
+  return new Date(dt).toLocaleString(getLocale(), { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
 }
 
 // Fields whose value differs between the before and after snapshots. A snapshot can be null
@@ -119,6 +120,7 @@ function summarise(row) {
 }
 
 export default function AuditLogPage() {
+  const { t } = useT();
   const [requesterId, setRequesterId] = useState('');
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -181,7 +183,7 @@ export default function AuditLogPage() {
       .catch((err) => {
         setRows([]);
         setTotal(0);
-        showToast(err.response?.data?.error || 'Failed to load the audit log.', 'error');
+        showToast(t(err.response?.data?.error || 'Failed to load the audit log.'), 'error');
       })
       .finally(() => setLoading(false));
   }, [requesterId, page, dateFrom, dateTo, recordType, changedBy, affected, backendBaseUrl]);
@@ -212,16 +214,16 @@ export default function AuditLogPage() {
   return (
     <div className="p-8">
       <div className="mb-10 pl-3">
-        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-        <h1 className="mt-3 text-4xl font-semibold text-slate-900">Audit Log</h1>
-        <p className="mt-2 text-sm text-slate-500">A read-only record of changes to timesheets, leave, budgets, projects and employee settings.</p>
+        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">{t("HR Portal")}</p>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-900">{t("Audit Log")}</h1>
+        <p className="mt-2 text-sm text-slate-500">{t("A read-only record of changes to timesheets, leave, budgets, projects and employee settings.")}</p>
       </div>
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
           <div className={`rounded-full px-4 py-2.5 text-sm font-medium shadow-lg border ${
             toast.type === 'error' ? 'bg-red-600 border-red-700 text-white' : 'bg-slate-900 border-slate-950 text-white'
-          }`}>{toast.text}</div>
+          }`}>{t(toast.text)}</div>
         </div>
       )}
 
@@ -229,7 +231,7 @@ export default function AuditLogPage() {
       <div className="mb-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
           <div ref={calendarRef} className="relative">
-            <label className={filterLabel}>Date</label>
+            <label className={filterLabel}>{t("Date")}</label>
             <button type="button" onClick={() => setCalendarOpen((o) => !o)}
               className="w-full flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 hover:bg-slate-100 transition">
               <svg className="flex-shrink-0 text-slate-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -248,34 +250,32 @@ export default function AuditLogPage() {
           </div>
 
           <div>
-            <label className={filterLabel}>Record type</label>
+            <label className={filterLabel}>{t("Record type")}</label>
             <select value={recordType} onChange={(e) => applyFilter(setRecordType)(e.target.value)} className={filterSelect}>
-              <option value="">All record types</option>
-              {RECORD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              <option value="">{t("All record types")}</option>
+              {RECORD_TYPES.map((tabItem) => <option key={tabItem.value} value={tabItem.value}>{t(tabItem.label)}</option>)}
             </select>
           </div>
 
           <div>
-            <label className={filterLabel}>Changed by</label>
+            <label className={filterLabel}>{t("Changed by")}</label>
             <select value={changedBy} onChange={(e) => applyFilter(setChangedBy)(e.target.value)} className={filterSelect}>
-              <option value="">Anyone</option>
+              <option value="">{t("Anyone")}</option>
               {people.map((p) => <option key={p.user_id} value={p.user_id}>{p.full_name}</option>)}
             </select>
           </div>
 
           <div>
-            <label className={filterLabel}>Affected employee</label>
+            <label className={filterLabel}>{t("Affected employee")}</label>
             <select value={affected} onChange={(e) => applyFilter(setAffected)(e.target.value)} className={filterSelect}>
-              <option value="">Anyone</option>
+              <option value="">{t("Anyone")}</option>
               {people.map((p) => <option key={p.user_id} value={p.user_id}>{p.full_name}</option>)}
             </select>
           </div>
 
           <div className="flex items-end">
             <button type="button" onClick={resetFilters}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-              Reset Filters
-            </button>
+              className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">{t("Reset Filters")}</button>
           </div>
         </div>
       </div>
@@ -285,19 +285,19 @@ export default function AuditLogPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase tracking-[0.22em] text-[0.65rem]">
               <tr>
-                <th className="px-4 py-3">When</th>
-                <th className="px-4 py-3">Record</th>
-                <th className="px-4 py-3">Change</th>
-                <th className="px-4 py-3">Changed by</th>
-                <th className="px-4 py-3">Affected</th>
+                <th className="px-4 py-3">{t("When")}</th>
+                <th className="px-4 py-3">{t("Record")}</th>
+                <th className="px-4 py-3">{t("Change")}</th>
+                <th className="px-4 py-3">{t("Changed by")}</th>
+                <th className="px-4 py-3">{t("Affected")}</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-sm text-slate-400 text-center">Loading audit log…</td></tr>
+                <tr><td colSpan={6} className="px-6 py-8 text-sm text-slate-400 text-center">{t("Loading audit log…")}</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-sm text-slate-400 text-center">No changes match these filters.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-8 text-sm text-slate-400 text-center">{t("No changes match these filters.")}</td></tr>
               ) : rows.map((row) => {
                 const isOpen = expandedId === row.audit_id;
                 const changes = changedFields(row.pre_value, row.post_value);
@@ -313,7 +313,7 @@ export default function AuditLogPage() {
                         {row.table_name === 'projects' && <span className="ml-2 text-xs text-slate-500">{row.record_id}</span>}
                       </td>
                       <td className="px-4 py-3 text-slate-700">{summarise(row)}</td>
-                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{row.altered_by_name || <span className="text-slate-400 italic">System</span>}</td>
+                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{row.altered_by_name || <span className="text-slate-400 italic">{t("System")}</span>}</td>
                       <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{row.subject_name || <span className="text-slate-400">—</span>}</td>
                       <td className="px-4 py-3 text-right text-slate-400">{isOpen ? '▲' : '▼'}</td>
                     </tr>
@@ -322,17 +322,17 @@ export default function AuditLogPage() {
                         <td colSpan={6} className="p-0">
                           <div className="border-l-4 border-[#1540A8] bg-[#F5F8FF] px-6 py-5">
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 mb-3">
-                              {isDeleted ? 'Record as it was before it was deleted' : 'Before and after'}
+                              {isDeleted ? t("Record as it was before it was deleted") : t("Before and after")}
                             </p>
                             {changes.length === 0 ? (
-                              <p className="text-sm text-slate-400 italic">No field values changed in this record.</p>
+                              <p className="text-sm text-slate-400 italic">{t("No field values changed in this record.")}</p>
                             ) : (
                               <table className="w-full max-w-3xl table-fixed text-sm">
                                 <thead>
                                   <tr className="text-xs text-slate-500">
-                                    <th className="w-1/4 py-1.5 pr-4 font-semibold">Field</th>
-                                    <th className="py-1.5 pr-4 font-semibold">{isDeleted ? 'Value' : 'Before'}</th>
-                                    {!isDeleted && <th className="py-1.5 font-semibold">After</th>}
+                                    <th className="w-1/4 py-1.5 pr-4 font-semibold">{t("Field")}</th>
+                                    <th className="py-1.5 pr-4 font-semibold">{isDeleted ? t("Value") : t("Before")}</th>
+                                    {!isDeleted && <th className="py-1.5 font-semibold">{t("After")}</th>}
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200/60">
@@ -359,18 +359,14 @@ export default function AuditLogPage() {
 
         <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
           <p className="text-xs text-slate-500">
-            {total === 0 ? 'No records' : `Showing ${firstShown}–${lastShown} of ${total}`}
+            {total === 0 ? t("No records") : t("Showing {firstShown}–{lastShown} of {total}", { firstShown: firstShown, lastShown: lastShown, total: total })}
           </p>
           <div className="flex items-center gap-2">
             <button type="button" disabled={page <= 1 || loading} onClick={() => { setPage((p) => p - 1); setExpandedId(null); }}
-              className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">
-              Previous
-            </button>
-            <span className="text-xs text-slate-500">Page {page} of {totalPages}</span>
+              className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">{t("Previous")}</button>
+            <span className="text-xs text-slate-500">{t("Page {page} of {totalPages}", { page: page, totalPages: totalPages })}</span>
             <button type="button" disabled={page >= totalPages || loading} onClick={() => { setPage((p) => p + 1); setExpandedId(null); }}
-              className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">
-              Next
-            </button>
+              className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-gray-100">{t("Next")}</button>
           </div>
         </div>
       </div>

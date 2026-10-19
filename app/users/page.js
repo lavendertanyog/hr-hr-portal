@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import FilterSearch from '../people/FilterSearch';
 import LeaveDaysModal, { LeaveHistoryModal } from '../people/LeaveDaysModal';
+import { useT } from '../i18n/LanguageProvider';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
@@ -23,7 +24,8 @@ function roleLabel(role) {
 }
 
 function RoleBadge({ role }) {
-  return <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{roleLabel(role)}</span>;
+  const { t } = useT();
+  return <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{t(roleLabel(role))}</span>;
 }
 
 const ROLE_ICON = { hr: 'shield', account_manager: 'briefcase', manager: 'users', staff: 'user' };
@@ -47,6 +49,7 @@ function primaryRoleOf(user) {
 // not colour. Only fields the system actually tracks — no invented department/phone/photo — so
 // "Joined" is the account's created_at.
 function EmployeeCard({ user, isSelected, onSelect }) {
+  const { t } = useT();
   const { roles, primary } = primaryRoleOf(user);
   const initials = (user.full_name || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
   const joined = user.created_at
@@ -54,32 +57,32 @@ function EmployeeCard({ user, isSelected, onSelect }) {
     : '—';
 
   return (
-    <div role="button" tabIndex={0} onClick={onSelect} title="View employee details"
+    <div role="button" tabIndex={0} onClick={onSelect} title={t("View employee details")}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}
       className={`cursor-pointer rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md ${
         isSelected ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/20' : 'border-slate-200 hover:border-slate-300'
       }`}>
       <div className="flex justify-end -mb-2">
-        <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Active</span>
+        <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">{t("Active")}</span>
       </div>
 
       <div className="flex flex-col items-center text-center">
         <span className="flex items-center justify-center w-16 h-16 rounded-full bg-[#e8edf8] text-[#1a3a8f] text-lg font-semibold">{initials}</span>
         <p className="mt-3 text-base font-semibold text-slate-900 leading-snug max-w-full truncate">{user.full_name}</p>
         <p className="flex items-center gap-1.5 text-sm text-slate-400 max-w-full">
-          <RoleIcon name={ROLE_ICON[primary]} size={13} /><span className="truncate">{primary ? roleLabel(primary) : '—'}</span>
+          <RoleIcon name={ROLE_ICON[primary]} size={13} /><span className="truncate">{primary ? t(roleLabel(primary)) : '—'}</span>
         </p>
       </div>
 
       <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <p className="text-[10px] text-slate-400">Joined</p>
+            <p className="text-[10px] text-slate-400">{t("Joined")}</p>
             <p className="text-xs font-semibold text-slate-700">{joined}</p>
           </div>
           <div>
-            <p className="text-[10px] text-slate-400">Leave / yr</p>
-            <p className="text-xs font-semibold text-slate-700">{user.leave_entitlement_days ?? 12} days</p>
+            <p className="text-[10px] text-slate-400">{t("Leave / yr")}</p>
+            <p className="text-xs font-semibold text-slate-700">{user.leave_entitlement_days ?? 12}{" "}{t("days")}</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-slate-600 min-w-0 mt-3 pt-3 border-t border-slate-200/70">
@@ -108,8 +111,9 @@ const PROJECT_ROLE_OPTIONS = [
 
 
 function EditIconButton({ onClick, label }) {
+  const { t } = useT();
   return (
-    <button type="button" onClick={onClick} title={label} aria-label={label}
+    <button type="button" onClick={onClick} title={t(label)} aria-label={t(label)}
       className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full text-slate-400 hover:bg-slate-100 hover:text-[#1a3a8f] transition">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 20h9" />
@@ -123,13 +127,14 @@ function EditIconButton({ onClick, label }) {
 // employees currently shown; the pencil and bin icons open the same edit and delete modals
 // as before, so each kind of edit still has exactly one code path for saving.
 function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onPrev, onNext, hasPrev, hasNext, onEditUser, onManageRoles, onLeaveDays, onSetDays, onProjectRoles, onDeleteUser }) {
+  const { t } = useT();
   const [tab, setTab] = useState('details');
   const [settingDays, setSettingDays] = useState(false);
   const [daysMsg, setDaysMsg] = useState(null);
   const pickDays = async (d) => {
     setSettingDays(true); setDaysMsg(null);
-    try { await onSetDays(user, d); setDaysMsg({ ok: true, text: `Set to ${d} days.` }); }
-    catch (e) { setDaysMsg({ ok: false, text: e.message || 'Could not save.' }); }
+    try { await onSetDays(user, d); setDaysMsg({ ok: true, text: t("Set to {d} days.", { d: d }) }); }
+    catch (e) { setDaysMsg({ ok: false, text: e.message || t("Could not save.") }); }
     finally { setSettingDays(false); }
   };
   const [balance, setBalance] = useState(null);
@@ -172,31 +177,31 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onP
   return (
     <div className="fixed inset-0 z-40">
       <div className="absolute inset-0 bg-slate-900/30" onClick={onClose} />
-      <aside className="absolute right-0 top-0 h-full w-full max-w-xl bg-white shadow-2xl flex flex-col" role="dialog" aria-label={`${user.full_name} details`}>
-        <button type="button" onClick={onClose} aria-label="Close details" title="Close"
+      <aside className="absolute right-0 top-0 h-full w-full max-w-xl bg-white shadow-2xl flex flex-col" role="dialog" aria-label={t("{full_name} details", { full_name: user.full_name })}>
+        <button type="button" onClick={onClose} aria-label={t("Close details")} title={t("Close")}
           className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md text-slate-500 hover:text-slate-900 transition">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
         </button>
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={onPrev} disabled={!hasPrev} aria-label="Previous employee" title="Previous employee" className={iconBtn}>
+            <button type="button" onClick={onPrev} disabled={!hasPrev} aria-label={t("Previous employee")} title={t("Previous employee")} className={iconBtn}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
-            <button type="button" onClick={onNext} disabled={!hasNext} aria-label="Next employee" title="Next employee" className={iconBtn}>
+            <button type="button" onClick={onNext} disabled={!hasNext} aria-label={t("Next employee")} title={t("Next employee")} className={iconBtn}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
             </button>
           </div>
           <div className="flex items-center gap-2">
             {!isHr && (
-              <button type="button" onClick={() => onEditUser(user)} aria-label="Edit name and email" title="Edit name and email" className={iconBtn}>
+              <button type="button" onClick={() => onEditUser(user)} aria-label={t("Edit name and email")} title={t("Edit name and email")} className={iconBtn}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
             )}
-            <button type="button" onClick={() => onDeleteUser(user)} aria-label="Delete employee" title="Delete employee"
+            <button type="button" onClick={() => onDeleteUser(user)} aria-label={t("Delete employee")} title={t("Delete employee")}
               className={`${iconBtn} hover:!bg-red-50 hover:!text-red-600 hover:!border-red-200`}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /></svg>
             </button>
-            <button type="button" onClick={onClose} aria-label="Close" title="Close" className={iconBtn}>
+            <button type="button" onClick={onClose} aria-label={t("Close")} title={t("Close")} className={iconBtn}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
           </div>
@@ -209,21 +214,21 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onP
           <div className="min-w-0">
             <p className="text-lg font-semibold text-slate-900 truncate">{user.full_name}</p>
             <div className="flex flex-wrap items-center gap-2 mt-1">
-              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">Active</span>
-              <span className="text-xs text-slate-500">{primaryRole ? roleLabel(primaryRole) : '—'}</span>
+              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">{t("Active")}</span>
+              <span className="text-xs text-slate-500">{primaryRole ? t(roleLabel(primaryRole)) : '—'}</span>
             </div>
             <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
               <span className="truncate">{user.email}</span>
-              <span>Joined {joined}</span>
+              <span>{t("Joined {joined}", { joined: joined })}</span>
             </div>
           </div>
         </div>
 
         <div className="flex gap-6 px-6 border-b border-slate-100">
-          {[{ key: 'details', label: 'Details' }, { key: 'leave', label: 'Leave' }].map((t) => (
-            <button key={t.key} type="button" onClick={() => setTab(t.key)}
-              className={`py-3 text-xs font-semibold uppercase tracking-[0.18em] border-b-2 transition ${tab === t.key ? 'border-[#1a3a8f] text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-              {t.label}
+          {[{ key: 'details', label: t("Details") }, { key: 'leave', label: t("Leave") }].map((tabItem) => (
+            <button key={tabItem.key} type="button" onClick={() => setTab(tabItem.key)}
+              className={`py-3 text-xs font-semibold uppercase tracking-[0.18em] border-b-2 transition ${tab === tabItem.key ? 'border-[#1a3a8f] text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+              {t(tabItem.label)}
             </button>
           ))}
         </div>
@@ -232,11 +237,11 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onP
           {tab === 'details' ? (
             <>
               <section className="rounded-2xl border border-slate-100 bg-white p-5">
-                <p className="text-sm font-semibold text-slate-900 mb-4">Personal information</p>
+                <p className="text-sm font-semibold text-slate-900 mb-4">{t("Personal information")}</p>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                   {[['Full name', user.full_name], ['Email', user.email], ['Joined', joined], ['Status', 'Active']].map(([label, value]) => (
                     <div key={label} className="min-w-0">
-                      <p className="text-[11px] text-slate-400 mb-0.5">{label}</p>
+                      <p className="text-[11px] text-slate-400 mb-0.5">{t(label)}</p>
                       <p className="text-sm font-medium text-slate-800 break-words">{value}</p>
                     </div>
                   ))}
@@ -245,8 +250,8 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onP
 
               <section className="rounded-2xl border border-slate-100 bg-white p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-slate-900">Roles</p>
-                  <EditIconButton label="Manage roles" onClick={() => onManageRoles(user)} />
+                  <p className="text-sm font-semibold text-slate-900">{t("Roles")}</p>
+                  <EditIconButton label={t("Manage roles")} onClick={() => onManageRoles(user)} />
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {roles.map((r) => <RoleBadge key={r} role={r} />)}
@@ -255,13 +260,13 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onP
 
               <section className="rounded-2xl border border-slate-100 bg-white p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-slate-900">Project assignments</p>
-                  <EditIconButton label="Manage project assignments" onClick={() => onProjectRoles(user)} />
+                  <p className="text-sm font-semibold text-slate-900">{t("Project assignments")}</p>
+                  <EditIconButton label={t("Manage project assignments")} onClick={() => onProjectRoles(user)} />
                 </div>
                 {projectRolesLoading ? (
-                  <p className="text-sm text-slate-400">Loading…</p>
+                  <p className="text-sm text-slate-400">{t("Loading…")}</p>
                 ) : projectRoles.length === 0 ? (
-                  <p className="text-sm text-slate-400 italic">No project assignments.</p>
+                  <p className="text-sm text-slate-400 italic">{t("No project assignments.")}</p>
                 ) : (
                   <div className="space-y-1.5">
                     {projectRoles.map((r) => (
@@ -277,20 +282,20 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onP
           ) : (
             <section className="rounded-2xl border border-slate-100 bg-white p-5">
               <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-semibold text-slate-900">Leave entitlement</p>
-                <EditIconButton label="Edit leave entitlement" onClick={() => onLeaveDays(user)} />
+                <p className="text-sm font-semibold text-slate-900">{t("Leave entitlement")}</p>
+                <EditIconButton label={t("Edit leave entitlement")} onClick={() => onLeaveDays(user)} />
               </div>
-              <p className="text-3xl font-semibold text-slate-900">{total} <span className="text-sm font-normal text-slate-400">days per year</span></p>
+              <p className="text-3xl font-semibold text-slate-900">{total} <span className="text-sm font-normal text-slate-400">{t("days per year")}</span></p>
               <div className="mt-4">
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
-                  <span>{used} used</span>
-                  <span className={left === 0 ? 'text-red-600 font-semibold' : ''}>{left} left</span>
+                  <span>{t("{used} used", { used: used })}</span>
+                  <span className={left === 0 ? 'text-red-600 font-semibold' : ''}>{t("{left} left", { left: left })}</span>
                 </div>
                 <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                   <div className={`h-full rounded-full ${left === 0 ? 'bg-red-400' : left <= 3 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${usedPct}%` }} />
                 </div>
               </div>
-              <p className="mt-5 mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Quick set</p>
+              <p className="mt-5 mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("Quick set")}</p>
               <div className="flex flex-wrap gap-2">
                 {[12, 14, 16, 18].map((d) => (
                   <button key={d} type="button" disabled={settingDays} onClick={() => pickDays(d)}
@@ -300,10 +305,10 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onP
                   </button>
                 ))}
                 <button type="button" onClick={() => onLeaveDays(user)}
-                  className="rounded-full bg-[#f1f4fa] px-4 py-1.5 text-sm font-semibold text-slate-600 hover:bg-[#e6ebf5] transition">Other…</button>
+                  className="rounded-full bg-[#f1f4fa] px-4 py-1.5 text-sm font-semibold text-slate-600 hover:bg-[#e6ebf5] transition">{t("Other…")}</button>
               </div>
-              {daysMsg && <p className={`mt-3 text-xs font-medium ${daysMsg.ok ? 'text-green-600' : 'text-red-600'}`}>{daysMsg.text}</p>}
-              <p className="mt-4 text-xs text-slate-400">Used counts approved Annual and Emergency leave. Annual and Emergency share this balance; Sick leave has no cap.</p>
+              {daysMsg && <p className={`mt-3 text-xs font-medium ${daysMsg.ok ? 'text-green-600' : 'text-red-600'}`}>{t(daysMsg.text)}</p>}
+              <p className="mt-4 text-xs text-slate-400">{t("Used counts approved Annual and Emergency leave. Annual and Emergency share this balance; Sick leave has no cap.")}</p>
             </section>
           )}
         </div>
@@ -313,6 +318,7 @@ function UserDetailPanel({ user, projectRoles, projectRolesLoading, onClose, onP
 }
 
 export default function UserRolesPage({ hideHeader = false } = {}) {
+  const { t } = useT();
   const [requesterId, setRequesterId] = useState(null);
   const [requesterUser, setRequesterUser] = useState(null);
 
@@ -395,7 +401,7 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
 
   const quickAddDay = async (people) => {
     if (people.length === 0) return;
-    if (!window.confirm(`Add 1 leave day for ${people.length} ${people.length === 1 ? 'person' : 'people'}?`)) return;
+    if (!window.confirm(t("Add 1 leave day for {length} {v}?", { length: people.length, v: people.length === 1 ? 'person' : 'people' }))) return;
     setFeedback('');
     try {
       const res = await axios.patch(`${BACKEND}/api/v1/hr/update-leave-entitlement-bulk`, {
@@ -625,11 +631,9 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
       {/* Header */}
       {!hideHeader && (
         <div className="mb-10 pl-3">
-          <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-          <h1 className="mt-3 text-4xl font-semibold text-slate-950">User Role Management</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Assign and manage multiple roles for any Nextan employee. Changes take effect on their next login.
-          </p>
+          <p className="text-sm uppercase tracking-[0.32em] text-slate-500">{t("HR Portal")}</p>
+          <h1 className="mt-3 text-4xl font-semibold text-slate-950">{t("User Role Management")}</h1>
+          <p className="mt-2 text-sm text-slate-500">{t("Assign and manage multiple roles for any Nextan employee. Changes take effect on their next login.")}</p>
         </div>
       )}
 
@@ -648,14 +652,14 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
             <FilterSearch
               role={roleFilter}
               onRole={(v) => { setRoleFilter(v); setPage(1); }}
-              roleOptions={[{ key: 'ALL', label: `All roles (${allUsers.length})` }, ...roleCounts.map((r) => ({ key: r.key, label: `${r.label} (${r.count})` }))]}
+              roleOptions={[{ key: 'ALL', label: t("All roles ({length})", { length: allUsers.length }) }, ...roleCounts.map((r) => ({ key: r.key, label: `${r.label} (${r.count})` }))]}
               search={searchQuery}
               onSearch={(v) => { setSearchQuery(v); setPage(1); }}
             />
-            <span className="text-sm text-slate-500">{filtered.length} {filtered.length === 1 ? 'user' : 'users'}</span>
+            <span className="text-sm text-slate-500">{filtered.length} {filtered.length === 1 ? t("user") : t("users")}</span>
 
             <div ref={moreRef} className="relative ml-auto">
-              <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-label="More actions" title="More actions"
+              <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-label={t("More actions")} title={t("More actions")}
                 className="flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
               </button>
@@ -663,27 +667,21 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
                 <div className="absolute right-0 top-12 z-30 w-64 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-lg">
                   <button type="button" disabled={filtered.length === 0}
                     onClick={() => { setMoreOpen(false); setLeavePeople(filtered); }}
-                    className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40">
-                    Set leave days for these {filtered.length}…
-                  </button>
+                    className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40">{t("Set leave days for these {length}…", { length: filtered.length })}</button>
                   <button type="button" disabled={filtered.length === 0}
                     onClick={() => { setMoreOpen(false); quickAddDay(filtered); }}
-                    className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40">
-                    Add 1 day to all {filtered.length}
-                  </button>
+                    className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40">{t("Add 1 day to all {length}", { length: filtered.length })}</button>
                   <button type="button" onClick={() => { setMoreOpen(false); setHistoryOpen(true); }}
-                    className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50">
-                    Leave change history
-                  </button>
+                    className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50">{t("Leave change history")}</button>
                 </div>
               )}
             </div>
           </div>
 
           {loading ? (
-            <p className="py-8 text-sm text-slate-400">Loading users…</p>
+            <p className="py-8 text-sm text-slate-400">{t("Loading users…")}</p>
           ) : filtered.length === 0 ? (
-            <p className="py-8 text-sm text-slate-400">No users match this filter.</p>
+            <p className="py-8 text-sm text-slate-400">{t("No users match this filter.")}</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
               {pageData.map((u) => (
@@ -695,12 +693,12 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
 
           {totalPages > 1 && (
             <div className="mt-5 flex items-center justify-between">
-              <span className="text-xs text-slate-500">Page {safePage} of {totalPages} · {filtered.length} users</span>
+              <span className="text-xs text-slate-500">{t("Page {safePage} of {totalPages} · {length} users", { safePage: safePage, totalPages: totalPages, length: filtered.length })}</span>
               <div className="flex gap-2">
                 <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-slate-50">Prev</button>
+                  className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-slate-50">{t("Prev")}</button>
                 <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-slate-50">Next</button>
+                  className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 hover:bg-slate-50">{t("Next")}</button>
               </div>
             </div>
           )}
@@ -745,11 +743,11 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
           <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
             <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Manage Roles</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{t("Manage Roles")}</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{roleModal.full_name}</p>
                 <p className="text-xs text-slate-400">{roleModal.email}</p>
               </div>
-              <button onClick={() => setRoleModal(null)} aria-label="Close"
+              <button onClick={() => setRoleModal(null)} aria-label={t("Close")}
                 className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -757,9 +755,7 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
               </button>
             </div>
             <div className="px-6 py-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 mb-4">
-                Select all applicable roles. You must select at least one role.
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 mb-4">{t("Select all applicable roles. You must select at least one role.")}</p>
               <div className="space-y-2.5">
                 {ALL_ROLES.map(({ key, label, color }) => {
                   const checked = selectedRoles.includes(key);
@@ -770,7 +766,7 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
                       }`}>
                       <input type="checkbox" checked={checked} onChange={() => toggleRole(key)}
                         className="rounded border-slate-300" />
-                      <span className={`text-sm font-semibold ${checked ? 'text-[#1a3a8f]' : 'text-slate-700'}`}>{label}</span>
+                      <span className={`text-sm font-semibold ${checked ? 'text-[#1a3a8f]' : 'text-slate-700'}`}>{t(label)}</span>
                     </label>
                   );
                 })}
@@ -783,12 +779,10 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
             </div>
             <div className="flex gap-3 justify-end px-6 pb-6 pt-2">
               <button onClick={() => setRoleModal(null)}
-                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Cancel
-              </button>
+                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">{t("Cancel")}</button>
               <button onClick={submitRoles} disabled={roleSubmitting || selectedRoles.length === 0}
                 className="rounded-2xl bg-[#1a3a8f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12307a] disabled:opacity-60 transition">
-                {roleSubmitting ? 'Saving…' : 'Save Roles'}
+                {roleSubmitting ? t("Saving…") : t("Save Roles")}
               </button>
             </div>
           </div>
@@ -802,11 +796,11 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
           <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
             <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Leave Entitlement</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{t("Leave Entitlement")}</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{leaveModal.full_name}</p>
                 <p className="text-xs text-slate-400">{leaveModal.email}</p>
               </div>
-              <button onClick={() => setLeaveModal(null)} aria-label="Close"
+              <button onClick={() => setLeaveModal(null)} aria-label={t("Close")}
                 className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -814,9 +808,7 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
               </button>
             </div>
             <div className="px-6 py-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 mb-3">
-                Annual + emergency leave days allowed for this employee per year.
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 mb-3">{t("Annual + emergency leave days allowed for this employee per year.")}</p>
               <input type="number" min="0" step="1" value={leaveDays}
                 onChange={(e) => setLeaveDays(e.target.value)}
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400" />
@@ -828,12 +820,10 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
             </div>
             <div className="flex gap-3 justify-end px-6 pb-6 pt-2">
               <button onClick={() => setLeaveModal(null)}
-                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Cancel
-              </button>
+                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">{t("Cancel")}</button>
               <button onClick={submitLeaveDays} disabled={leaveSubmitting || leaveDays === '' || Number(leaveDays) < 0}
                 className="rounded-2xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60 transition">
-                {leaveSubmitting ? 'Saving…' : 'Save'}
+                {leaveSubmitting ? t("Saving…") : t("Save")}
               </button>
             </div>
           </div>
@@ -847,11 +837,11 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
           <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl overflow-hidden">
             <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Manage Project Roles</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{t("Manage Project Roles")}</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{projectRolesModal.full_name}</p>
                 <p className="text-xs text-slate-400">{projectRolesModal.email}</p>
               </div>
-              <button onClick={() => setProjectRolesModal(null)} aria-label="Close"
+              <button onClick={() => setProjectRolesModal(null)} aria-label={t("Close")}
                 className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -860,36 +850,34 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
             </div>
             <div className="px-6 py-5">
               {projectRolesLoading ? (
-                <p className="text-sm text-slate-400 py-4">Loading current assignments…</p>
+                <p className="text-sm text-slate-400 py-4">{t("Loading current assignments…")}</p>
               ) : (
                 <div className="space-y-3">
                   <div className="hidden sm:grid grid-cols-[1fr_1fr_auto] gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 px-1">
-                    <span>Project</span>
-                    <span>Role</span>
+                    <span>{t("Project")}</span>
+                    <span>{t("Role")}</span>
                     <span></span>
                   </div>
                   {projectRoleRows.map((row, i) => (
                     <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-center min-w-0">
                       <select value={row.projectCode} onChange={(e) => updateProjectRoleRow(i, 'projectCode', e.target.value)}
                         className="min-w-0 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">Select project…</option>
+                        <option value="">{t("Select project…")}</option>
                         {projects.map((p) => <option key={p.project_code} value={p.project_code}>{p.project_code} — {p.project_name}</option>)}
                       </select>
                       <select value={row.projectRole} onChange={(e) => updateProjectRoleRow(i, 'projectRole', e.target.value)}
                         className="min-w-0 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        {PROJECT_ROLE_OPTIONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                        {PROJECT_ROLE_OPTIONS.map((r) => <option key={r.key} value={r.key}>{t(r.label)}</option>)}
                       </select>
                       <button type="button" onClick={() => removeProjectRoleRow(i)}
-                        title="Remove this assignment"
+                        title={t("Remove this assignment")}
                         className="flex-shrink-0 justify-self-start sm:justify-self-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100">
                         &#128465;
                       </button>
                     </div>
                   ))}
                   <button type="button" onClick={addProjectRoleRow}
-                    className="text-sm font-semibold text-[#1a3a8f] hover:underline">
-                    + Add Another Project Assignment
-                  </button>
+                    className="text-sm font-semibold text-[#1a3a8f] hover:underline">{t("+ Add Another Project Assignment")}</button>
                 </div>
               )}
               {projectRolesFeedback && (
@@ -900,12 +888,10 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
             </div>
             <div className="flex gap-3 justify-end px-6 pb-6 pt-2">
               <button onClick={() => setProjectRolesModal(null)}
-                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Cancel
-              </button>
+                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">{t("Cancel")}</button>
               <button onClick={submitProjectRoles} disabled={projectRolesSubmitting || projectRolesLoading}
                 className="rounded-2xl bg-[#1a3a8f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12307a] disabled:opacity-60 transition">
-                {projectRolesSubmitting ? 'Saving…' : 'Save All'}
+                {projectRolesSubmitting ? t("Saving…") : t("Save All")}
               </button>
             </div>
           </div>
@@ -918,10 +904,10 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
           <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Edit User</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{t("Edit User")}</h2>
                 <p className="text-xs text-slate-400">{editModal.email}</p>
               </div>
-              <button onClick={() => setEditModal(null)} aria-label="Close"
+              <button onClick={() => setEditModal(null)} aria-label={t("Close")}
                 className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -930,12 +916,12 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
             </div>
             <div className="px-6 py-5 space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t("Full Name")}</label>
                 <input value={editFullName} onChange={(e) => setEditFullName(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t("Email")}</label>
                 <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
@@ -947,12 +933,10 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
             </div>
             <div className="flex gap-3 justify-end px-6 pb-6 pt-2">
               <button onClick={() => setEditModal(null)}
-                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Cancel
-              </button>
+                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">{t("Cancel")}</button>
               <button onClick={submitEditUser} disabled={editSubmitting}
                 className="rounded-2xl bg-[#1a3a8f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12307a] disabled:opacity-60 transition">
-                {editSubmitting ? 'Saving…' : 'Save Changes'}
+                {editSubmitting ? t("Saving…") : t("Save Changes")}
               </button>
             </div>
           </div>
@@ -964,18 +948,13 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
           onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteModal(null); }}>
           <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100">
-              <h2 className="text-lg font-semibold text-red-600">Delete User</h2>
+              <h2 className="text-lg font-semibold text-red-600">{t("Delete User")}</h2>
               <p className="text-sm text-slate-500 mt-0.5">{deleteModal.full_name}</p>
               <p className="text-xs text-slate-400">{deleteModal.email}</p>
             </div>
             <div className="px-6 py-5">
-              <p className="text-sm text-slate-600">
-                This permanently deletes this user's account and all of their attendance, leave,
-                and project-assignment records. This action can't be undone.
-              </p>
-              <label className="block text-sm font-semibold text-slate-700 mt-5 mb-2">
-                Type <span className="font-bold">{deleteModal.full_name}</span> to confirm
-              </label>
+              <p className="text-sm text-slate-600">{t("This permanently deletes this user's account and all of their attendance, leave, and project-assignment records. This action can't be undone.")}</p>
+              <label className="block text-sm font-semibold text-slate-700 mt-5 mb-2">{t("Type")}{" "}<span className="font-bold">{deleteModal.full_name}</span>{" "}{t("to confirm")}</label>
               <input value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)}
                 placeholder={deleteModal.full_name}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
@@ -985,12 +964,10 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
             </div>
             <div className="flex gap-3 justify-end px-6 pb-6 pt-2">
               <button onClick={() => setDeleteModal(null)}
-                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Cancel
-              </button>
+                className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">{t("Cancel")}</button>
               <button onClick={submitDeleteUser} disabled={deleteSubmitting || deleteConfirmText !== deleteModal.full_name}
                 className="rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40 transition">
-                {deleteSubmitting ? 'Deleting…' : 'Delete User'}
+                {deleteSubmitting ? t("Deleting…") : t("Delete User")}
               </button>
             </div>
           </div>

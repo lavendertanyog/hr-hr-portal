@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import ProjectCards from './ProjectCards';
 import HierarchyPage from '../hierarchy/page';
+import { useT } from '../i18n/LanguageProvider';
 
 const TABS = [
   { id: 'codes', label: 'Project Codes' },
@@ -12,6 +13,7 @@ const TABS = [
 ];
 
 function ProjectsTabs() {
+  const { t } = useT();
   // /project-codes?tab=hierarchy (used by the top-bar search) opens the hierarchy tab
   const searchParams = useSearchParams();
   const [tab, setTab] = useState(searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'codes');
@@ -48,28 +50,28 @@ function ProjectsTabs() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-6 pl-3">
-        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-        <h1 className="mt-3 text-4xl font-semibold text-slate-950">Projects</h1>
-        <p className="mt-2 text-sm text-slate-500">Create and manage project codes, and see who reports to whom on each project.</p>
+        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">{t("HR Portal")}</p>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-950">{t("Projects")}</h1>
+        <p className="mt-2 text-sm text-slate-500">{t("Create and manage project codes, and see who reports to whom on each project.")}</p>
       </div>
 
-      <div role="tablist" aria-label="Projects views" onKeyDown={onTabKeyDown}
+      <div role="tablist" aria-label={t("Projects views")} onKeyDown={onTabKeyDown}
         className="mb-6 flex flex-wrap gap-x-8 border-b border-slate-200">
-        {TABS.map((t) => (
+        {TABS.map((tabItem) => (
           <button
-            key={t.id}
-            id={`projects-tab-${t.id}`}
+            key={tabItem.id}
+            id={`projects-tab-${tabItem.id}`}
             type="button"
             role="tab"
-            aria-selected={tab === t.id}
-            aria-controls={`projects-panel-${t.id}`}
-            tabIndex={tab === t.id ? 0 : -1}
-            onClick={() => setTab(t.id)}
+            aria-selected={tab === tabItem.id}
+            aria-controls={`projects-panel-${tabItem.id}`}
+            tabIndex={tab === tabItem.id ? 0 : -1}
+            onClick={() => setTab(tabItem.id)}
             className={`-mb-px whitespace-nowrap border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition ${
-              tab === t.id ? 'border-[#1540A8] text-[#1540A8]' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900'
+              tab === tabItem.id ? 'border-[#1540A8] text-[#1540A8]' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900'
             }`}
           >
-            {t.label}
+            {t(tabItem.label)}
           </button>
         ))}
       </div>
@@ -92,8 +94,9 @@ function ProjectsTabs() {
 }
 
 export default function ProjectCodesPage() {
+  const { t } = useT();
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading…</div>}>
+    <Suspense fallback={<div className="p-8 text-sm text-slate-400">{t("Loading…")}</div>}>
       <ProjectsTabs />
     </Suspense>
   );

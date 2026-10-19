@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
+import { useT, getLocale } from '../i18n/LanguageProvider';
 
 function formatCsvDate(dt) {
   if (!dt) return '';
@@ -153,13 +154,14 @@ function timelineHourLabel(h) {
 }
 
 function ClockInChart({ sessions }) {
+  const { t } = useT();
   const points = sessions
     .filter((s) => s.clock_in_time)
     .sort((a, b) => new Date(a.clock_in_time) - new Date(b.clock_in_time))
     .map((s) => ({ minutes: sgtMinutes(s.clock_in_time), dateLabel: formatCsvDate(s.clock_in_time).slice(0, 5) }));
 
   if (points.length === 0) {
-    return <p className="text-sm text-slate-400 italic">No clock-in times in this period.</p>;
+    return <p className="text-sm text-slate-400 italic">{t("No clock-in times in this period.")}</p>;
   }
 
   const allMinutes = points.map((p) => p.minutes);
@@ -205,6 +207,7 @@ function ClockInChart({ sessions }) {
 }
 
 function HoursBarChart({ sessions }) {
+  const { t } = useT();
   const byDate = new Map();
   for (const s of sessions) {
     if (!s.clock_in_time) continue;
@@ -214,7 +217,7 @@ function HoursBarChart({ sessions }) {
   }
   const dates = Array.from(byDate.keys()).sort();
   if (dates.length === 0) {
-    return <p className="text-sm text-slate-400 italic">No completed hours in this period.</p>;
+    return <p className="text-sm text-slate-400 italic">{t("No completed hours in this period.")}</p>;
   }
   const max = niceMax(Math.max(...dates.map((d) => byDate.get(d))));
   const slot = (PLOT_R - PLOT_L) / dates.length;
@@ -262,9 +265,10 @@ function HoursBarChart({ sessions }) {
 // segmented by project in the order its allocations were worked, with any untracked leftover
 // time (staff extended past what was allocated) rendered as General.
 function SessionTimelineChart({ sessions, startStr, endStr }) {
+  const { t } = useT();
   const withClockIn = sessions.filter((s) => s.clock_in_time);
   if (withClockIn.length === 0) {
-    return <p className="text-sm text-slate-400 italic">No attendance sessions in this period.</p>;
+    return <p className="text-sm text-slate-400 italic">{t("No attendance sessions in this period.")}</p>;
   }
 
   const colorIndex = new Map();
@@ -335,12 +339,12 @@ function SessionTimelineChart({ sessions, startStr, endStr }) {
       {dayKeys.map((day, i) => {
         const y = plotT + i * rowH;
         const label = dayKeys.length <= 7
-          ? new Date(day + 'T00:00:00').toLocaleDateString('en-SG', { weekday: 'short', timeZone: 'UTC' })
+          ? new Date(day + 'T00:00:00').toLocaleDateString(getLocale(), { weekday: 'short', timeZone: 'UTC' })
           : formatCsvDate(day).slice(0, 5);
         return (
           <g key={day}>
             <line x1={plotL} y1={y + rowH} x2={plotR} y2={y + rowH} stroke="#F1F3F8" strokeWidth="1" />
-            <text x={plotL - 10} y={y + rowH / 2 + 4} fontSize="11" fontWeight="500" fill="#5B6478" textAnchor="end">{label}</text>
+            <text x={plotL - 10} y={y + rowH / 2 + 4} fontSize="11" fontWeight="500" fill="#5B6478" textAnchor="end">{t(label)}</text>
             {byDay.get(day).map((s) => {
               const startMin = sgtMinutes(s.clock_in_time);
               const rawEndMin = s.clock_out_time ? sgtMinutes(s.clock_out_time) : null;
@@ -462,17 +466,18 @@ function consolidateMicroSessions(sorted) {
 }
 
 function ActivityLogTable({ sorted }) {
+  const { t } = useT();
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-200">
       <table className="min-w-full text-sm">
         <thead className="bg-[#EAF0FF] text-[#33415C] font-semibold uppercase tracking-wider text-xs">
           <tr>
-            <th className="px-4 py-2.5 text-left sticky left-0 bg-[#EAF0FF] z-10">Project Code(s)</th>
-            <th className="px-4 py-2.5 text-left">Clock In</th>
-            <th className="px-4 py-2.5 text-left">Clock Out</th>
-            <th className="px-4 py-2.5 text-left">Hours</th>
-            <th className="px-4 py-2.5 text-left">Description</th>
-            <th className="px-4 py-2.5 text-left">Remark</th>
+            <th className="px-4 py-2.5 text-left sticky left-0 bg-[#EAF0FF] z-10">{t("Project Code(s)")}</th>
+            <th className="px-4 py-2.5 text-left">{t("Clock In")}</th>
+            <th className="px-4 py-2.5 text-left">{t("Clock Out")}</th>
+            <th className="px-4 py-2.5 text-left">{t("Hours")}</th>
+            <th className="px-4 py-2.5 text-left">{t("Description")}</th>
+            <th className="px-4 py-2.5 text-left">{t("Remark")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -485,27 +490,23 @@ function ActivityLogTable({ sorted }) {
             const consolidatedCount = s.__consolidatedCount;
             const rowBg = overnight ? 'bg-amber-50' : consolidatedCount ? 'bg-slate-50' : 'bg-white';
             const descriptionLines = [
-              ...(generalAlloc?.description ? [{ key: 'general', label: 'General', text: generalAlloc.description }] : []),
+              ...(generalAlloc?.description ? [{ key: 'general', label: t("General"), text: generalAlloc.description }] : []),
               ...projectAllocs.filter((a) => a.description).map((a) => ({ key: a.project_code, label: a.project_code, text: a.description })),
             ];
             return (
               <tr key={s.attendance_id} className={overnight ? 'border-l-4 border-amber-400' : undefined}>
                 <td className={`px-4 py-2.5 whitespace-nowrap sticky left-0 z-10 ${rowBg}`}>
                   {overnight && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-800 bg-amber-200 rounded-full px-2 py-0.5 mr-1.5 align-middle">
-                      ⚠ Flagged
-                    </span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-800 bg-amber-200 rounded-full px-2 py-0.5 mr-1.5 align-middle">{t("⚠ Flagged")}</span>
                   )}
                   {consolidatedCount ? (
-                    <span className="inline-block font-mono text-xs bg-slate-100 border border-slate-200 text-slate-600 rounded px-2 py-0.5">General (admin)</span>
+                    <span className="inline-block font-mono text-xs bg-slate-100 border border-slate-200 text-slate-600 rounded px-2 py-0.5">{t("General (admin)")}</span>
                   ) : codes.map((c) => (
                     <span key={c} className="inline-block font-mono text-xs bg-[#EAF0FF] border border-[#C9D9FB] text-[#0E2E7A] rounded px-2 py-0.5 mr-1 mb-1">{c}</span>
                   ))}
                 </td>
                 {consolidatedCount ? (
-                  <td className={`px-4 py-2.5 text-slate-500 italic ${rowBg}`} colSpan={2}>
-                    {formatCsvDate(s.clock_in_time)} — {consolidatedCount} admin check-ins, consolidated
-                  </td>
+                  <td className={`px-4 py-2.5 text-slate-500 italic ${rowBg}`} colSpan={2}>{t("{formatCsvDate} — {consolidatedCount} admin check-ins, consolidated", { formatCsvDate: formatCsvDate(s.clock_in_time), consolidatedCount: consolidatedCount })}</td>
                 ) : (
                   <>
                     <td className={`px-4 py-2.5 whitespace-nowrap ${rowBg}`}>
@@ -518,22 +519,22 @@ function ActivityLogTable({ sorted }) {
                         <div className="font-mono text-xs text-slate-500">{formatCsvTime(s.clock_out_time)}</div>
                       </td>
                     ) : (
-                      <td className={`px-4 py-2.5 font-semibold text-green-600 ${rowBg}`}>Ongoing</td>
+                      <td className={`px-4 py-2.5 font-semibold text-green-600 ${rowBg}`}>{t("Ongoing")}</td>
                     )}
                   </>
                 )}
                 <td className={`px-4 py-2.5 font-mono whitespace-nowrap ${rowBg}`}>
                   <div>{s.daily_worktime_hours != null ? `${Number(s.daily_worktime_hours).toFixed(2)}h` : '—'}</div>
                   {Number(s.ot_hours_accrued) > 0 && (
-                    <div className="text-xs font-semibold text-amber-700">+{Number(s.ot_hours_accrued).toFixed(2)}h OT</div>
+                    <div className="text-xs font-semibold text-amber-700">{t("+{v}h OT", { v: Number(s.ot_hours_accrued).toFixed(2) })}</div>
                   )}
                 </td>
                 <td className={`px-4 py-2.5 max-w-[260px] ${rowBg}`}>
                   {consolidatedCount ? (
-                    <span className="text-slate-500 italic">Admin check-ins consolidated</span>
+                    <span className="text-slate-500 italic">{t("Admin check-ins consolidated")}</span>
                   ) : descriptionLines.length > 0 ? (
                     descriptionLines.map((d) => (
-                      <div key={d.key}>{descriptionLines.length > 1 && <span className="font-semibold">{d.label}: </span>}{d.text}</div>
+                      <div key={d.key}>{descriptionLines.length > 1 && <span className="font-semibold">{t(d.label)}: </span>}{t(d.text)}</div>
                     ))
                   ) : (
                     <span className="text-slate-400 italic">—</span>
@@ -553,6 +554,7 @@ function ActivityLogTable({ sorted }) {
 // totals first, then open a section for the line-by-line detail. Print/PDF is unaffected;
 // this only wraps EmployeeReport's on-screen sections.
 function CollapsibleSection({ title, defaultOpen = true, children }) {
+  const { t } = useT();
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div>
@@ -562,7 +564,7 @@ function CollapsibleSection({ title, defaultOpen = true, children }) {
         className="flex w-full items-center justify-between gap-2 text-left mb-2"
         aria-expanded={open}
       >
-        <span className="text-sm font-semibold text-slate-700">{title}</span>
+        <span className="text-sm font-semibold text-slate-700">{t(title)}</span>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
           strokeLinecap="round" strokeLinejoin="round"
           className={`flex-shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}>
@@ -578,6 +580,7 @@ function CollapsibleSection({ title, defaultOpen = true, children }) {
 // shareholder-template redesign. The fancier template lives only in EmployeeReportPrint,
 // captured off-screen for the PDF, so this stays whatever the portal itself should look like.
 function EmployeeReport({ employee, sessions, periodLabel, startStr, endStr }) {
+  const { t } = useT();
   const { totalHours, otHours, daysWorked, avgClockIn, projectCodes, flagged, sorted } = computeReportStats(sessions);
 
   return (
@@ -593,7 +596,7 @@ function EmployeeReport({ employee, sessions, periodLabel, startStr, endStr }) {
         <div className="flex flex-wrap gap-1.5 justify-end">
           {projectCodes.size > 0 ? Array.from(projectCodes).map((c) => (
             <span key={c} className="text-[11px] font-mono font-medium rounded-full bg-white border border-[#C9D9FB] text-[#0E2E7A] px-2.5 py-0.5">{c}</span>
-          )) : <span className="text-[11px] text-slate-400">No project codes</span>}
+          )) : <span className="text-[11px] text-slate-400">{t("No project codes")}</span>}
         </div>
       </div>
 
@@ -601,7 +604,7 @@ function EmployeeReport({ employee, sessions, periodLabel, startStr, endStr }) {
         <p className="text-xs font-mono font-semibold uppercase tracking-[0.16em] text-[#1540A8] mb-3">{periodLabel}</p>
 
         <div className="mb-6">
-          <CollapsibleSection title="Activity summary" defaultOpen>
+          <CollapsibleSection title={t("Activity summary")} defaultOpen>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               {[
                 ['Hours logged', `${totalHours.toFixed(2)}h`],
@@ -612,7 +615,7 @@ function EmployeeReport({ employee, sessions, periodLabel, startStr, endStr }) {
               ].map(([label, value]) => (
                 <div key={label} className="rounded-2xl border border-slate-200 px-4 py-3">
                   <div className="font-mono text-xl font-semibold text-slate-900">{value}</div>
-                  <div className="text-xs text-slate-500 mt-1">{label}</div>
+                  <div className="text-xs text-slate-500 mt-1">{t(label)}</div>
                 </div>
               ))}
             </div>
@@ -620,28 +623,26 @@ function EmployeeReport({ employee, sessions, periodLabel, startStr, endStr }) {
         </div>
 
         {sessions.length === 0 ? (
-          <p className="text-sm text-slate-400 italic mb-2">No attendance sessions logged in this period.</p>
+          <p className="text-sm text-slate-400 italic mb-2">{t("No attendance sessions logged in this period.")}</p>
         ) : (
           <>
             <div className="mb-6">
-              <CollapsibleSection title="Visual charts" defaultOpen>
+              <CollapsibleSection title={t("Visual charts")} defaultOpen>
                 <div>
-                  <p className="text-base font-semibold text-slate-900 mb-2">Daily activity timeline</p>
+                  <p className="text-base font-semibold text-slate-900 mb-2">{t("Daily activity timeline")}</p>
                   <SessionTimelineChart sessions={sessions} startStr={startStr} endStr={endStr} />
                 </div>
 
                 {flagged.length > 0 && (
                   <div className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
                     <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-sm font-bold">!</span>
-                    <p className="text-sm text-amber-800">
-                      {flagged.length} session{flagged.length > 1 ? 's' : ''} auto-flagged as overnight / unusual-hours shifts — see the highlighted rows below.
-                    </p>
+                    <p className="text-sm text-amber-800">{t("{length} session", { length: flagged.length })}{flagged.length > 1 ? 's' : ''}{" "}{t("auto-flagged as overnight / unusual-hours shifts — see the highlighted rows below.")}</p>
                   </div>
                 )}
               </CollapsibleSection>
             </div>
 
-            <CollapsibleSection title="Full activity log" defaultOpen>
+            <CollapsibleSection title={t("Full activity log")} defaultOpen>
               <ActivityLogTable sorted={sorted} />
             </CollapsibleSection>
           </>
@@ -661,6 +662,7 @@ const PLEX_MONO = { fontFamily: "'IBM Plex Mono', ui-monospace, monospace" };
 // hours it ran, in hours rather than a percentage that can reach 800%. Red is used only for
 // "over budget", so the page still reads correctly when printed in black and white.
 function BudgetUtilisationSection({ budgetRows }) {
+  const { t } = useT();
   if (!budgetRows || budgetRows.length === 0) return null;
 
   const rows = budgetRows.map((row) => {
@@ -690,15 +692,15 @@ function BudgetUtilisationSection({ budgetRows }) {
 
   return (
     <div data-pdf-block data-pdf-newpage className="px-12 pb-8">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>Budget utilisation</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>{t("Budget utilisation")}</p>
       <h3 className="text-2xl font-semibold text-[#10172A] mb-3" style={FRAUNCES}>{headline}</h3>
-      <p className="text-xs text-[#5B6478] leading-relaxed mb-8">Approved weekly allocation compared against hours actually logged against each project. The black tick marks the approved limit.</p>
+      <p className="text-xs text-[#5B6478] leading-relaxed mb-8">{t("Approved weekly allocation compared against hours actually logged against each project. The black tick marks the approved limit.")}</p>
 
       <div className="grid grid-cols-4 gap-4 mb-9">
         {kpis.map(([value, label, color]) => (
           <div key={label} className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
             <div className="text-2xl font-semibold whitespace-nowrap" style={{ ...PLEX_MONO, color }}>{value}</div>
-            <div className="text-xs text-[#5B6478] mt-1 leading-snug">{label}</div>
+            <div className="text-xs text-[#5B6478] mt-1 leading-snug">{t(label)}</div>
           </div>
         ))}
       </div>
@@ -727,8 +729,8 @@ function BudgetUtilisationSection({ budgetRows }) {
                   <div className="absolute -top-1 h-5 w-0.5 bg-[#10172A]" style={{ left: `calc(${Math.min(limitPct, 100)}% - 1px)` }} />
                 </div>
                 <div className="flex justify-between mt-1.5 text-[11px] text-[#5B6478]" style={PLEX_MONO}>
-                  <span>{r.used.toFixed(2)}h used</span>
-                  <span>{r.allocated.toFixed(2)}h approved{r.extension > 0 ? ` · +${r.extension.toFixed(2)}h extension` : ''}</span>
+                  <span>{t("{v}h used", { v: r.used.toFixed(2) })}</span>
+                  <span>{t("{v}h approved", { v: r.allocated.toFixed(2) })}{r.extension > 0 ? t(" · +{v}h extension", { v: r.extension.toFixed(2) }) : ''}</span>
                 </div>
               </div>
               <div className={`text-sm font-semibold text-right whitespace-nowrap ${r.over ? 'text-red-700' : 'text-[#10172A]'}`}>{outcome}</div>
@@ -773,6 +775,7 @@ function sdBuildWeeks(fromStr, toStr, periodStartStr, periodEndStr, byDay) {
 }
 
 function SdCalendar({ weeks, showWeekTotals, compact }) {
+  const { t } = useT();
   const weekTotals = weeks.map((w) => w.reduce((sum, c) => sum + (c.inPeriod && c.data ? c.data.hours : 0), 0));
   const maxWeek = Math.max(...weekTotals, 0.01);
   const cols = showWeekTotals ? `repeat(7, 1fr) ${compact ? 64 : 92}px` : 'repeat(7, 1fr)';
@@ -781,9 +784,9 @@ function SdCalendar({ weeks, showWeekTotals, compact }) {
     <div>
       <div className="grid gap-1.5 mb-1.5" style={{ gridTemplateColumns: cols }}>
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-          <div key={d} className="text-center text-[11px] font-semibold text-[#5B6478]" style={PLEX_MONO}>{d}</div>
+          <div key={d} className="text-center text-[11px] font-semibold text-[#5B6478]" style={PLEX_MONO}>{t(d)}</div>
         ))}
-        {showWeekTotals && <div className="text-[11px] font-semibold text-[#5B6478] pl-2" style={PLEX_MONO}>Week</div>}
+        {showWeekTotals && <div className="text-[11px] font-semibold text-[#5B6478] pl-2" style={PLEX_MONO}>{t("Week")}</div>}
       </div>
       <div className="flex flex-col gap-1.5">
         {weeks.map((week, wi) => (
@@ -796,7 +799,7 @@ function SdCalendar({ weeks, showWeekTotals, compact }) {
                 <div key={c.key} className="rounded-lg px-1.5 py-1 flex flex-col justify-between"
                   style={{ backgroundColor: s.bg, color: s.fg, height: cellH, border: c.inPeriod ? 'none' : '1px dashed #E2E6EE' }}>
                   <span className="text-[11px] font-semibold leading-none">{first ? c.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : c.date.getUTCDate()}</span>
-                  {c.inPeriod && hours > 0 && <span className="text-[11px] font-semibold leading-none" style={PLEX_MONO}>{hours < 0.05 ? '<0.1h' : `${hours.toFixed(1)}h`}</span>}
+                  {c.inPeriod && hours > 0 && <span className="text-[11px] font-semibold leading-none" style={PLEX_MONO}>{hours < 0.05 ? t("<0.1h") : `${hours.toFixed(1)}h`}</span>}
                 </div>
               );
             })}
@@ -816,6 +819,7 @@ function SdCalendar({ weeks, showWeekTotals, compact }) {
 }
 
 function SupportingDetailSection({ sessions, startStr, endStr, holidayDates = [], leaveDates = [] }) {
+  const { t } = useT();
   const byDay = new Map(); // yyyy-mm-dd (SGT, day the shift started) -> { hours, ot, count, overnight[] }
   sessions.filter((s) => s.clock_in_time).forEach((s) => {
     const key = sgtDateStr(s.clock_in_time);
@@ -882,18 +886,16 @@ function SupportingDetailSection({ sessions, startStr, endStr, holidayDates = []
 
   return (
     <div data-pdf-block data-pdf-newpage className="px-12 pb-10">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>Supporting detail</p>
-      <h3 className="text-2xl font-semibold text-[#10172A] mb-3" style={FRAUNCES}>{layout === 'week' ? 'The period at a glance' : layout === 'month' ? 'The month at a glance' : 'The period, month by month'}</h3>
-      <p className="text-xs text-[#5B6478] leading-relaxed mb-8">
-        Each day is shaded by hours worked — darker means more.{layout === 'month' ? ' The column on the right totals each week.' : ''} Days that need attention are listed underneath.
-      </p>
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>{t("Supporting detail")}</p>
+      <h3 className="text-2xl font-semibold text-[#10172A] mb-3" style={FRAUNCES}>{layout === 'week' ? t("The period at a glance") : layout === 'month' ? t("The month at a glance") : t("The period, month by month")}</h3>
+      <p className="text-xs text-[#5B6478] leading-relaxed mb-8">{t("Each day is shaded by hours worked — darker means more.")}{layout === 'month' ? t(" The column on the right totals each week.") : ''}{" "}{t("Days that need attention are listed underneath.")}</p>
 
       {layout === 'months' ? (
         <div className="grid grid-cols-2 gap-x-8 gap-y-8">
           {monthBlocks.map((mb) => (
             <div key={mb.key}>
               <div className="flex items-baseline justify-between mb-3">
-                <p className="text-sm font-semibold text-[#10172A]">{mb.label}</p>
+                <p className="text-sm font-semibold text-[#10172A]">{t(mb.label)}</p>
                 <p className="text-xs text-[#5B6478]" style={PLEX_MONO}>{mb.hours.toFixed(1)}h</p>
               </div>
               <SdCalendar weeks={mb.weeks} showWeekTotals compact />
@@ -907,10 +909,10 @@ function SupportingDetailSection({ sessions, startStr, endStr, holidayDates = []
       )}
 
       <div className="flex items-center gap-3 mt-5 text-[11px] text-[#5B6478]">
-        <span>Hours per day:</span>
+        <span>{t("Hours per day:")}</span>
         {[['None', 0], ['Under 2h', 1], ['2–4h', 3], ['4–7h', 5], ['7h+', 8]].map(([label, sample]) => (
           <span key={label} className="inline-flex items-center gap-1.5">
-            <span className="inline-block w-3.5 h-3.5 rounded" style={{ backgroundColor: sdShade(sample).bg }} />{label}
+            <span className="inline-block w-3.5 h-3.5 rounded" style={{ backgroundColor: sdShade(sample).bg }} />{t(label)}
           </span>
         ))}
       </div>
@@ -919,18 +921,16 @@ function SupportingDetailSection({ sessions, startStr, endStr, holidayDates = []
         {kpis.map(([value, label, color]) => (
           <div key={label} className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
             <div className="text-xl font-semibold whitespace-nowrap" style={{ ...PLEX_MONO, color }}>{value}</div>
-            <div className="text-xs text-[#5B6478] mt-1 leading-snug">{label}</div>
+            <div className="text-xs text-[#5B6478] mt-1 leading-snug">{t(label)}</div>
           </div>
         ))}
       </div>
 
       <div className="mt-10">
-        <p className="text-sm font-semibold text-[#10172A] mb-4">
-          Days that need attention
-          {notableAll.length > 0 && hiddenCount > 0 && <span className="ml-2 text-xs font-normal text-[#5B6478]">showing {notable.length} of {notableAll.length}</span>}
+        <p className="text-sm font-semibold text-[#10172A] mb-4">{t("Days that need attention")}{" "}{notableAll.length > 0 && hiddenCount > 0 && <span className="ml-2 text-xs font-normal text-[#5B6478]">{t("showing {length} of {length2}", { length: notable.length, length2: notableAll.length })}</span>}
         </p>
         {notableAll.length === 0 ? (
-          <p className="text-sm text-[#5B6478]">No overnight shifts, overtime or unusually long days in this period.</p>
+          <p className="text-sm text-[#5B6478]">{t("No overnight shifts, overtime or unusually long days in this period.")}</p>
         ) : (
           <div className="flex flex-col gap-3">
             {notable.map(([key, d]) => (
@@ -938,16 +938,15 @@ function SupportingDetailSection({ sessions, startStr, endStr, holidayDates = []
                 <span className="w-24 flex-shrink-0 text-sm font-semibold text-[#10172A]">{dayLabel(key)}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap gap-1.5 mb-1">
-                    {d.overnight.length > 0 && <span className="text-[11px] font-semibold rounded-full bg-[#EAF0FF] text-[#0E2E7A] px-2.5 py-0.5">Overnight</span>}
-                    {d.ot > 0 && <span className="text-[11px] font-semibold rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5">+{d.ot.toFixed(2)}h overtime</span>}
-                    {d.hours >= SD_LONG_DAY_HOURS && <span className="text-[11px] font-semibold rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5">Long day</span>}
+                    {d.overnight.length > 0 && <span className="text-[11px] font-semibold rounded-full bg-[#EAF0FF] text-[#0E2E7A] px-2.5 py-0.5">{t("Overnight")}</span>}
+                    {d.ot > 0 && <span className="text-[11px] font-semibold rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5">{t("+{v}h overtime", { v: d.ot.toFixed(2) })}</span>}
+                    {d.hours >= SD_LONG_DAY_HOURS && <span className="text-[11px] font-semibold rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5">{t("Long day")}</span>}
                   </div>
-                  <p className="text-xs text-[#5B6478]">
-                    {d.hours.toFixed(2)}h across {d.count} session{d.count === 1 ? '' : 's'}
+                  <p className="text-xs text-[#5B6478]">{t("{v}h across {count} session", { v: d.hours.toFixed(2), count: d.count })}{d.count === 1 ? '' : 's'}
                     {d.overnight.map((s) => ` · ${formatCsvTime(s.clock_in_time)} to ${s.clock_out_time ? formatCsvTime(s.clock_out_time) : 'still active'}`).join('')}
                     {d.overnight.length > 0 && (d.overnight.some((s) => s.remark)
-                      ? ` · Note: ${d.overnight.filter((s) => s.remark).map((s) => s.remark).join('; ')}`
-                      : ' · No note on file')}
+                      ? t(" · Note: {v}", { v: d.overnight.filter((s) => s.remark).map((s) => s.remark).join('; ') })
+                      : t(" · No note on file"))}
                   </p>
                 </div>
               </div>
@@ -955,9 +954,7 @@ function SupportingDetailSection({ sessions, startStr, endStr, holidayDates = []
           </div>
         )}
         <p className="mt-6 text-xs text-[#5B6478]">
-          {hiddenCount > 0 ? `${hiddenCount} more ${hiddenCount === 1 ? 'day is' : 'days are'} listed on the Attendance Logs page. ` : ''}
-          The full session-by-session log is available on the Attendance Logs page.
-        </p>
+          {hiddenCount > 0 ? t("{hiddenCount} more {v} listed on the Attendance Logs page. ", { hiddenCount: hiddenCount, v: hiddenCount === 1 ? 'day is' : 'days are' }) : ''}{t("The full session-by-session log is available on the Attendance Logs page.")}</p>
       </div>
     </div>
   );
@@ -967,6 +964,7 @@ function SupportingDetailSection({ sessions, startStr, endStr, holidayDates = []
 // serif headings, real "vs. prior period" deltas). Rendered off-screen purely so the PDF can
 // capture it; the visible portal page always shows EmployeeReport above instead.
 function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr, priorHours = 0, daysInPeriod = 7, leaveNote = null, budgetRows = [], holidayDates = [], leaveDates = [] }) {
+  const { t } = useT();
   const {
     totalHours, otHours, daysWorked, avgClockIn, avgClockInMinutes, projectCodes, generalSessionsCount,
     flagged, sorted, billableHours, nonBillableHours, projectHours,
@@ -1009,15 +1007,15 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
           the KPI grid, or a table row. */}
       <div data-pdf-block className="flex items-start justify-between gap-6 px-12 pt-10 pb-9 border-b border-slate-200">
         <div>
-          <p className="text-sm font-semibold text-[#1540A8]" style={PLEX_MONO}>nextan <span className="text-slate-400 font-normal">/ HR Portal</span></p>
-          <h2 className="mt-3 text-4xl font-semibold text-[#10172A]" style={FRAUNCES}>Staff Activity Report</h2>
-          <p className="mt-2 text-base text-[#5B6478] max-w-md">Attendance, project allocation and punctuality summary, prepared for the shareholder review pack.</p>
+          <p className="text-sm font-semibold text-[#1540A8]" style={PLEX_MONO}>{t("nextan")}{" "}<span className="text-slate-400 font-normal">{t("/ HR Portal")}</span></p>
+          <h2 className="mt-3 text-4xl font-semibold text-[#10172A]" style={FRAUNCES}>{t("Staff Activity Report")}</h2>
+          <p className="mt-2 text-base text-[#5B6478] max-w-md">{t("Attendance, project allocation and punctuality summary, prepared for the shareholder review pack.")}</p>
         </div>
         <div className="text-right text-sm text-[#5B6478] leading-relaxed whitespace-nowrap">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#5B6478]" style={PLEX_MONO}>Reporting period</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#5B6478]" style={PLEX_MONO}>{t("Reporting period")}</p>
           <p className="font-semibold text-[#10172A] text-base">{periodLabel}</p>
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#5B6478]" style={PLEX_MONO}>Generated</p>
-          <p className="font-semibold text-[#10172A] text-base">{new Date().toLocaleString('en-SG', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}</p>
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#5B6478]" style={PLEX_MONO}>{t("Generated")}</p>
+          <p className="font-semibold text-[#10172A] text-base">{new Date().toLocaleString(getLocale(), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}</p>
         </div>
       </div>
 
@@ -1032,12 +1030,12 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
         <div className="flex flex-wrap gap-2 justify-end">
           {projectCodes.size > 0 ? Array.from(projectCodes).map((c) => (
             <span key={c} className="text-sm font-medium rounded-full bg-white border border-[#C9D9FB] text-[#0E2E7A] px-3.5 py-1" style={PLEX_MONO}>{c}</span>
-          )) : <span className="text-sm text-slate-400">No project codes</span>}
+          )) : <span className="text-sm text-slate-400">{t("No project codes")}</span>}
         </div>
       </div>
 
       <div data-pdf-block className="px-12 pt-7 pb-7 border-b border-slate-200 bg-slate-50">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>Executive summary</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>{t("Executive summary")}</p>
         <p className="text-base text-[#10172A] leading-relaxed max-w-3xl">{execSummary}</p>
       </div>
 
@@ -1047,8 +1045,8 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
           Keeping the chart in its own block means only a whole block ever gets sliced, never
           the inside of the chart image itself. */}
       <div data-pdf-block className={sessions.length === 0 ? 'px-12 pt-8 pb-8' : 'px-12 pt-8 pb-6'}>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>At a glance</p>
-        <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>Activity summary</h3>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>{t("At a glance")}</p>
+        <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>{t("Activity summary")}</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             ['Hours logged', `${totalHours.toFixed(2)}h`, hoursCaption, hoursCaptionColor],
@@ -1061,21 +1059,21 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
           ].map(([label, value, caption, captionColor]) => (
             <div key={label} className="rounded-2xl border border-slate-200 px-5 py-3.5">
               <div className="text-xl font-semibold text-[#10172A] whitespace-nowrap" style={PLEX_MONO}>{value}</div>
-              <div className="text-sm text-[#5B6478] mt-1.5">{label}</div>
-              <div className="text-xs font-semibold mt-2" style={{ color: captionColor }}>{caption}</div>
+              <div className="text-sm text-[#5B6478] mt-1.5">{t(label)}</div>
+              <div className="text-xs font-semibold mt-2" style={{ color: captionColor }}>{t(caption)}</div>
             </div>
           ))}
         </div>
         {sessions.length === 0 && (
-          <p className="text-base text-slate-400 italic mt-6">No attendance sessions logged in this period.</p>
+          <p className="text-base text-slate-400 italic mt-6">{t("No attendance sessions logged in this period.")}</p>
         )}
       </div>
 
       {sessions.length > 0 && (
         <div data-pdf-block data-pdf-newpage data-pdf-atomic className="px-12 pt-2 pb-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>Visual summary</p>
-          <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>When {(employee.full_name || 'they').split(' ')[0]} clocks in, and how the hours land</h3>
-          <p className="text-base font-semibold text-[#10172A] mb-4">Daily activity timeline</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>{t("Visual summary")}</p>
+          <h3 className="text-2xl font-semibold text-[#10172A] mb-6" style={FRAUNCES}>{t("When {v} clocks in, and how the hours land", { v: (employee.full_name || 'they').split(' ')[0] })}</h3>
+          <p className="text-base font-semibold text-[#10172A] mb-4">{t("Daily activity timeline")}</p>
           <SessionTimelineChart sessions={sessions} startStr={startStr} endStr={endStr} />
         </div>
       )}
@@ -1084,9 +1082,9 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
         <>
           {projectHours.length > 0 && (
             <div data-pdf-block data-pdf-newpage className="px-12 pb-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>Project activity breakdown</p>
-              <h3 className="text-2xl font-semibold text-[#10172A] mb-3" style={FRAUNCES}>Where the billable hours went</h3>
-              <p className="text-xs text-[#5B6478] leading-relaxed mb-8">Hours per project code — a proxy for activity, not a milestone or completion measure (not tracked in this system).</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1540A8] mb-4" style={PLEX_MONO}>{t("Project activity breakdown")}</p>
+              <h3 className="text-2xl font-semibold text-[#10172A] mb-3" style={FRAUNCES}>{t("Where the billable hours went")}</h3>
+              <p className="text-xs text-[#5B6478] leading-relaxed mb-8">{t("Hours per project code — a proxy for activity, not a milestone or completion measure (not tracked in this system).")}</p>
               <div className="flex flex-col gap-2.5">
                 {projectHours.map(({ code, hours }) => {
                   const pct = billableHours > 0 ? (hours / billableHours) * 100 : 0;
@@ -1118,6 +1116,7 @@ function EmployeeReportPrint({ employee, sessions, periodLabel, startStr, endStr
 // Searchable employee picker — type to filter, or pick from the list — replacing the plain
 // <select>, which got unwieldy to scan once headcount grows past a handful of names.
 function EmployeeSearchSelect({ value, onChange, employees }) {
+  const { t } = useT();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -1147,13 +1146,13 @@ function EmployeeSearchSelect({ value, onChange, employees }) {
         value={open ? query : (selected?.full_name || '')}
         onFocus={() => { setOpen(true); setQuery(''); }}
         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-        placeholder="Search employee…"
+        placeholder={t("Search employee…")}
         className="w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       {open && (
         <div className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
           {filtered.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-slate-400">No matching employees</p>
+            <p className="px-4 py-3 text-sm text-slate-400">{t("No matching employees")}</p>
           ) : filtered.map((o) => (
             <button key={o.user_id} type="button"
               onClick={() => { onChange(o.user_id); setOpen(false); setQuery(''); }}
@@ -1185,6 +1184,7 @@ function monthMatrix(viewMonth) {
 const CALENDAR_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function RangeCalendarPopover({ initialStart, initialEnd, onApply, onClose }) {
+  const { t } = useT();
   const [viewMonth, setViewMonth] = useState(() => {
     const d = parseDateStr(initialStart || toDateStr(new Date()));
     return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 12));
@@ -1214,7 +1214,7 @@ function RangeCalendarPopover({ initialStart, initialEnd, onApply, onClose }) {
     <div className="absolute z-50 mt-1 w-full min-w-[260px] rounded-2xl border border-slate-200 bg-white shadow-xl p-3" onMouseLeave={() => setHoverDate(null)}>
       <div className="flex items-center justify-between mb-2 gap-1">
         <button type="button" onClick={() => setViewMonth(new Date(Date.UTC(viewMonth.getUTCFullYear(), viewMonth.getUTCMonth() - 1, 1, 12)))}
-          aria-label="Previous month" className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:bg-slate-100">
+          aria-label={t("Previous month")} className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:bg-slate-100">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
         </button>
         {/* Month and year as selects (rather than plain text) so you can jump straight to a
@@ -1222,19 +1222,19 @@ function RangeCalendarPopover({ initialStart, initialEnd, onApply, onClose }) {
         <div className="flex items-center gap-1 min-w-0">
           <select value={viewMonth.getUTCMonth()}
             onChange={(e) => setViewMonth(new Date(Date.UTC(viewMonth.getUTCFullYear(), Number(e.target.value), 1, 12)))}
-            aria-label="Month"
+            aria-label={t("Month")}
             className="rounded-lg bg-transparent text-sm font-semibold text-slate-900 py-1 pl-1.5 pr-0.5 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
             {CALENDAR_MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
           </select>
           <select value={viewMonth.getUTCFullYear()}
             onChange={(e) => setViewMonth(new Date(Date.UTC(Number(e.target.value), viewMonth.getUTCMonth(), 1, 12)))}
-            aria-label="Year"
+            aria-label={t("Year")}
             className="rounded-lg bg-transparent text-sm font-semibold text-slate-900 py-1 pl-0.5 pr-1.5 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
             {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
         <button type="button" onClick={() => setViewMonth(new Date(Date.UTC(viewMonth.getUTCFullYear(), viewMonth.getUTCMonth() + 1, 1, 12)))}
-          aria-label="Next month" className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:bg-slate-100">
+          aria-label={t("Next month")} className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:bg-slate-100">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
         </button>
       </div>
@@ -1265,17 +1265,13 @@ function RangeCalendarPopover({ initialStart, initialEnd, onApply, onClose }) {
       </div>
       <div className="mt-3 border-t border-slate-100 pt-3">
         <p className="text-xs text-slate-500 truncate mb-2.5">
-          {!draftStart ? 'Pick a start date' : !draftEnd ? 'Pick an end date, or apply for one day' : `${draftStart} → ${draftEnd}`}
+          {!draftStart ? t("Pick a start date") : !draftEnd ? t("Pick an end date, or apply for one day") : `${draftStart} → ${draftEnd}`}
         </p>
         <div className="flex gap-2">
-          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">
-            Cancel
-          </button>
+          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">{t("Cancel")}</button>
           <button type="button" disabled={!draftStart}
             onClick={() => onApply(draftStart, draftEnd || draftStart)}
-            className="flex-1 rounded-xl bg-[#1540A8] px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition">
-            Apply
-          </button>
+            className="flex-1 rounded-xl bg-[#1540A8] px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition">{t("Apply")}</button>
         </div>
       </div>
     </div>
@@ -1283,6 +1279,7 @@ function RangeCalendarPopover({ initialStart, initialEnd, onApply, onClose }) {
 }
 
 export default function ReportsPage() {
+  const { t } = useT();
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -1367,10 +1364,10 @@ export default function ReportsPage() {
   // The ranges HR actually asks for most, one click away instead of stepping or picking a date.
   const todayStr = toDateStr(new Date());
   const quickRanges = useMemo(() => [
-    { key: 'this-week', label: 'This week', periodType: 'weekly', anchorDate: todayStr },
-    { key: 'last-week', label: 'Last week', periodType: 'weekly', anchorDate: getPreviousAnchor('weekly', todayStr) },
-    { key: 'this-month', label: 'This month', periodType: 'monthly', anchorDate: todayStr },
-    { key: 'last-month', label: 'Last month', periodType: 'monthly', anchorDate: getPreviousAnchor('monthly', todayStr) },
+    { key: 'this-week', label: t("This week"), periodType: 'weekly', anchorDate: todayStr },
+    { key: 'last-week', label: t("Last week"), periodType: 'weekly', anchorDate: getPreviousAnchor('weekly', todayStr) },
+    { key: 'this-month', label: t("This month"), periodType: 'monthly', anchorDate: todayStr },
+    { key: 'last-month', label: t("Last month"), periodType: 'monthly', anchorDate: getPreviousAnchor('monthly', todayStr) },
   ], [todayStr]);
   const activeQuickRangeKey = useMemo(() => {
     const match = quickRanges.find((q) => q.periodType === periodType && getPeriodRange(q.periodType, q.anchorDate).startStr === periodRange.startStr);
@@ -1489,7 +1486,7 @@ export default function ReportsPage() {
     if (sections.length === 0) return;
 
     setGenerating(true);
-    showToast('Generating your report…', 'info');
+    showToast(t("Generating your report…"), 'info');
     try {
       const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
         import('jspdf'),
@@ -1589,9 +1586,9 @@ export default function ReportsPage() {
       const next = [entry, ...history].slice(0, 8);
       setHistory(next);
       try { localStorage.setItem('hr_reports_history', JSON.stringify(next)); } catch {}
-      showToast('Your report is ready — check your downloads.', 'success');
+      showToast(t("Your report is ready — check your downloads."), 'success');
     } catch (err) {
-      showToast('Something went wrong generating the report. Please try again.', 'error');
+      showToast(t("Something went wrong generating the report. Please try again."), 'error');
     } finally {
       setGenerating(false);
     }
@@ -1615,21 +1612,21 @@ export default function ReportsPage() {
             {toast.type === 'success' && (
               <svg className="flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
             )}
-            {toast.text}
+            {t(toast.text)}
           </div>
         </div>
       )}
 
       <div className="mb-10 pl-3">
-        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-        <h1 className="mt-3 text-4xl font-semibold text-slate-900">Reports</h1>
-        <p className="mt-2 text-sm text-slate-500">Generate a shareholder-ready PDF activity report for one employee or all staff.</p>
+        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">{t("HR Portal")}</p>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-900">{t("Reports")}</h1>
+        <p className="mt-2 text-sm text-slate-500">{t("Generate a shareholder-ready PDF activity report for one employee or all staff.")}</p>
       </div>
 
       <div className="sticky top-0 z-20 mb-8 rounded-3xl border border-slate-200 bg-white p-4 shadow-md">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 basis-0 min-w-[200px]">
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Employee</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">{t("Employee")}</label>
             <EmployeeSearchSelect value={employeeFilter} onChange={setEmployeeFilter} employees={employees} />
           </div>
           {/* The range is the thing that actually drives the report, so it's the visually
@@ -1640,11 +1637,11 @@ export default function ReportsPage() {
               toggle is gone — Quick select (below) is now what sets the period type, alongside
               the resolved range. */}
           <div ref={calendarRef} className="relative flex-1 basis-0 min-w-[240px]">
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Date</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">{t("Date")}</label>
             <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 px-1.5 py-1.5">
               <button type="button" onClick={() => setAnchorDate(getPreviousAnchor(periodType, anchorDate))}
                 disabled={periodType === 'custom'}
-                aria-label={`Previous ${periodType === 'daily' ? 'day' : periodType === 'monthly' ? 'month' : 'week'}`}
+                aria-label={periodType === 'daily' ? t("Previous day") : periodType === 'monthly' ? t("Previous month") : t("Previous week")}
                 className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-500">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
               </button>
@@ -1656,12 +1653,12 @@ export default function ReportsPage() {
                 <svg className="flex-shrink-0 text-slate-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
-                <span className="text-sm font-normal text-slate-900 truncate">{periodRange.label}</span>
+                <span className="text-sm font-normal text-slate-900 truncate">{t(periodRange.label)}</span>
               </button>
               <button type="button" onClick={() => setAnchorDate(getNextAnchor(periodType, anchorDate))}
                 disabled={nextDisabled || periodType === 'custom'}
-                aria-label={`Next ${periodType === 'daily' ? 'day' : periodType === 'monthly' ? 'month' : 'week'}`}
-                title={nextDisabled ? "Already at today — nothing beyond this to show yet" : undefined}
+                aria-label={periodType === 'daily' ? t("Next day") : periodType === 'monthly' ? t("Next month") : t("Next week")}
+                title={nextDisabled ? t("Already at today — nothing beyond this to show yet") : undefined}
                 className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-500">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
               </button>
@@ -1685,12 +1682,12 @@ export default function ReportsPage() {
               the anchor date, keeping whatever period type is already active; the rest also set
               the period type (weekly/monthly). */}
           <div ref={quickSelectRef} className="relative flex-1 basis-0 min-w-[150px]">
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Period</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">{t("Period")}</label>
             <button type="button" onClick={() => setQuickSelectOpen((o) => !o)}
               className="w-full flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-normal text-slate-900 hover:bg-slate-100 transition">
               <span className="truncate">
                 {periodType === 'custom' && customRange?.start === todayStr && customRange?.end === todayStr
-                  ? 'Today'
+                  ? t("Today")
                   : quickRanges.find((q) => q.key === activeQuickRangeKey)?.label || 'Custom'}
               </span>
               <svg className="flex-shrink-0 text-slate-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
@@ -1706,16 +1703,14 @@ export default function ReportsPage() {
                   className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 border-b border-slate-100 ${
                     periodType === 'custom' && customRange?.start === todayStr && customRange?.end === todayStr
                       ? 'bg-[#EEF4FF] text-[#0c3b8f] font-semibold' : 'text-slate-700'
-                  }`}>
-                  Today
-                </button>
+                  }`}>{t("Today")}</button>
                 {quickRanges.map((q) => (
                   <button key={q.key} type="button"
                     onClick={() => { setPeriodType(q.periodType); setAnchorDate(q.anchorDate); setQuickSelectOpen(false); }}
                     className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 ${
                       activeQuickRangeKey === q.key ? 'bg-[#EEF4FF] text-[#0c3b8f] font-semibold' : 'text-slate-700'
                     }`}>
-                    {q.label}
+                    {t(q.label)}
                   </button>
                 ))}
               </div>
@@ -1730,15 +1725,15 @@ export default function ReportsPage() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 15" />
               </svg>
-              {showHistoryPanel ? 'Hide history' : 'View history'}
+              {showHistoryPanel ? t("Hide history") : t("View history")}
             </button>
           )}
           <button
             onClick={handleDownload}
             disabled={loading || generating || employeesInScope.length === 0 || !budgetDataReady}
             title={
-              !loading && employeesInScope.length === 0 ? 'No attendance records to include in a report'
-              : !budgetDataReady ? 'Loading budget data…'
+              !loading && employeesInScope.length === 0 ? t("No attendance records to include in a report")
+              : !budgetDataReady ? t("Loading budget data…")
               : undefined
             }
             className="flex items-center gap-2 rounded-3xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1749,7 +1744,7 @@ export default function ReportsPage() {
                 <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
               </svg>
             )}
-            {generating ? 'Generating PDF…' : !budgetDataReady && employeesInScope.length > 0 ? 'Loading…' : 'Download PDF'}
+            {generating ? t("Generating PDF…") : !budgetDataReady && employeesInScope.length > 0 ? t("Loading…") : t("Download PDF")}
           </button>
         </div>
       </div>
@@ -1757,10 +1752,10 @@ export default function ReportsPage() {
       {showHistoryPanel && history.length > 0 && (
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Recently generated (this browser)</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("Recently generated (this browser)")}</p>
             {history.length > 5 && (
               <button onClick={() => setHistoryExpanded((v) => !v)} className="text-xs font-semibold text-[#1540A8]">
-                {historyExpanded ? 'Show less' : `Show all (${history.length})`}
+                {historyExpanded ? t("Show less") : t("Show all ({length})", { length: history.length })}
               </button>
             )}
           </div>
@@ -1768,10 +1763,10 @@ export default function ReportsPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider text-xs">
                 <tr>
-                  <th className="px-5 py-3 text-left">Report / Filter</th>
-                  <th className="px-5 py-3 text-left">Period</th>
-                  <th className="px-5 py-3 text-left">Generated on</th>
-                  <th className="px-5 py-3 text-right">Action</th>
+                  <th className="px-5 py-3 text-left">{t("Report / Filter")}</th>
+                  <th className="px-5 py-3 text-left">{t("Period")}</th>
+                  <th className="px-5 py-3 text-left">{t("Generated on")}</th>
+                  <th className="px-5 py-3 text-right">{t("Action")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1779,28 +1774,24 @@ export default function ReportsPage() {
                   <tr key={i}>
                     <td className="px-5 py-3 text-slate-700 whitespace-nowrap">{h.employeeLabel}</td>
                     <td className="px-5 py-3 text-slate-500 whitespace-nowrap"><span className="capitalize">{h.periodType}</span> &middot; {h.rangeLabel}</td>
-                    <td className="px-5 py-3 text-xs text-slate-400 whitespace-nowrap">{new Date(h.generatedAt).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}</td>
+                    <td className="px-5 py-3 text-xs text-slate-400 whitespace-nowrap">{new Date(h.generatedAt).toLocaleString(getLocale(), { timeZone: 'Asia/Singapore' })}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-4">
                         <button
                           onClick={() => redownloadFromCache(h)}
                           disabled={!blobCacheRef.current.has(h.generatedAt)}
-                          title={blobCacheRef.current.has(h.generatedAt) ? 'Download this exact PDF again' : 'Only available for reports generated earlier this session — use Load filters instead'}
+                          title={blobCacheRef.current.has(h.generatedAt) ? t("Download this exact PDF again") : t("Only available for reports generated earlier this session — use Load filters instead")}
                           className="inline-flex items-center gap-1 text-xs font-semibold text-[#1540A8] disabled:text-slate-300 disabled:cursor-not-allowed"
                         >
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
-                          </svg>
-                          Download
-                        </button>
+                          </svg>{t("Download")}</button>
                         <button
                           onClick={() => applyHistoryFilters(h)}
                           disabled={!h.filters}
-                          title={h.filters ? 'Set the filters above to match this report' : 'Filters unavailable for this older entry'}
+                          title={h.filters ? t("Set the filters above to match this report") : t("Filters unavailable for this older entry")}
                           className="text-xs font-semibold text-[#1540A8] disabled:text-slate-300 disabled:cursor-not-allowed"
-                        >
-                          Load filters
-                        </button>
+                        >{t("Load filters")}</button>
                       </div>
                     </td>
                   </tr>
@@ -1813,7 +1804,7 @@ export default function ReportsPage() {
 
       <div id="reports-print-area" className="space-y-6">
         {loading ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading attendance data…</div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">{t("Loading attendance data…")}</div>
         ) : employeesInScope.length === 0 ? (() => {
           const fmtFull = (dateStr) => parseDateStr(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
           const dateRangeText = periodRange.startStr === periodRange.endStr
@@ -1826,19 +1817,14 @@ export default function ReportsPage() {
                 <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
               </svg>
             </div>
-            <p className="text-base font-semibold text-slate-700">No attendance logged for this period</p>
+            <p className="text-base font-semibold text-slate-700">{t("No attendance logged for this period")}</p>
             <p className="mx-auto mt-1.5 max-w-sm text-sm text-slate-500">
-              {employeeFilter === 'all' ? 'No employee has' : `${employees.find((e) => e.user_id === employeeFilter)?.full_name || 'This employee'} has no`} clock-in records {dateRangeText} — either no shifts fell in this range, or logs haven&apos;t synced yet.
-            </p>
+              {employeeFilter === 'all' ? t("No employee has") : t("{v} has no", { v: employees.find((e) => e.user_id === employeeFilter)?.full_name || 'This employee' })}{" "}{t("clock-in records {dateRangeText} — either no shifts fell in this range, or logs haven't synced yet.", { dateRangeText: dateRangeText })}</p>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
               <button onClick={() => { setAnchorDate(toDateStr(new Date())); if (periodType === 'custom') setPeriodType('weekly'); }}
-                className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-                Jump to today
-              </button>
+                className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">{t("Jump to today")}</button>
               {employeeFilter !== 'all' && (
-                <button onClick={() => setEmployeeFilter('all')} className="rounded-2xl bg-[#1540A8] px-4 py-2 text-sm font-semibold text-white">
-                  Check all employees instead
-                </button>
+                <button onClick={() => setEmployeeFilter('all')} className="rounded-2xl bg-[#1540A8] px-4 py-2 text-sm font-semibold text-white">{t("Check all employees instead")}</button>
               )}
             </div>
           </div>

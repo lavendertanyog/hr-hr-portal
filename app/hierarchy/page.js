@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import axios from 'axios';
+import { useT } from '../i18n/LanguageProvider';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
@@ -32,6 +33,7 @@ const OrgNode = React.forwardRef(function OrgNode(
   { user, role, unassigned, editable, removable, currentSupervisorId, supervisorOptions, onAssignSupervisor, onRemoveSupervisor, onRemoveFromProject },
   ref
 ) {
+  const { t } = useT();
   if (!user) return null;
   const color = ROLE_COLOR[role] || ROLE_COLOR.staff;
   const [assigning, setAssigning] = React.useState(false);
@@ -46,11 +48,11 @@ const OrgNode = React.forwardRef(function OrgNode(
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-slate-900 truncate">{user.full_name}</p>
-          <p className="text-[11px] font-semibold truncate" style={{ color: unassigned ? '#92400e' : color.text }}>{roleLabel(role)}</p>
+          <p className="text-[11px] font-semibold truncate" style={{ color: unassigned ? '#92400e' : color.text }}>{t(roleLabel(role))}</p>
         </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">
           {editable && !unassigned && (
-            <button type="button" onClick={() => setAssigning((v) => !v)} title="Reassign supervisor"
+            <button type="button" onClick={() => setAssigning((v) => !v)} title={t("Reassign supervisor")}
               className="flex items-center justify-center w-6 h-6 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 20h9" />
@@ -59,7 +61,7 @@ const OrgNode = React.forwardRef(function OrgNode(
             </button>
           )}
           {removable && (
-            <button type="button" onClick={() => onRemoveFromProject(user.user_id)} title="Remove from project"
+            <button type="button" onClick={() => onRemoveFromProject(user.user_id)} title={t("Remove from project")}
               className="flex items-center justify-center w-6 h-6 rounded-full text-slate-400 hover:bg-red-50 hover:text-red-500 transition">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 6 6 18" /><path d="M6 6l12 12" />
@@ -74,14 +76,12 @@ const OrgNode = React.forwardRef(function OrgNode(
             onChange={(e) => { if (e.target.value) { onAssignSupervisor(user.user_id, e.target.value); setAssigning(false); } }}
             onBlur={() => setAssigning(false)}
             className="w-full rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-700 focus:outline-none">
-            <option value="" disabled>Select supervisor…</option>
+            <option value="" disabled>{t("Select supervisor…")}</option>
             {supervisorOptions.map((s) => <option key={s.user_id} value={s.user_id}>{s.full_name}</option>)}
           </select>
         ) : (
           <button type="button" onClick={() => setAssigning(true)}
-            className="w-full rounded-lg border border-dashed border-amber-400 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100 transition">
-            + Assign Manager
-          </button>
+            className="w-full rounded-lg border border-dashed border-amber-400 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100 transition">{t("+ Assign Manager")}</button>
         )
       )}
       {editable && !unassigned && assigning && (
@@ -89,15 +89,13 @@ const OrgNode = React.forwardRef(function OrgNode(
           <select autoFocus defaultValue=""
             onChange={(e) => { if (e.target.value) { onAssignSupervisor(user.user_id, e.target.value); setAssigning(false); } }}
             className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 focus:outline-none">
-            <option value="" disabled>Reassign to…</option>
+            <option value="" disabled>{t("Reassign to…")}</option>
             {supervisorOptions.filter((s) => s.user_id !== currentSupervisorId).map((s) => (
               <option key={s.user_id} value={s.user_id}>{s.full_name}</option>
             ))}
           </select>
           <button type="button" onClick={() => { onRemoveSupervisor(user.user_id); setAssigning(false); }}
-            className="w-full rounded-lg border border-dashed border-red-300 py-1 text-[11px] font-semibold text-red-500 hover:bg-red-50 transition">
-            Remove Manager
-          </button>
+            className="w-full rounded-lg border border-dashed border-red-300 py-1 text-[11px] font-semibold text-red-500 hover:bg-red-50 transition">{t("Remove Manager")}</button>
         </div>
       )}
     </div>
@@ -105,12 +103,13 @@ const OrgNode = React.forwardRef(function OrgNode(
 });
 
 function TierPill({ role, text }) {
+  const { t } = useT();
   const color = ROLE_COLOR[role] || ROLE_COLOR.staff;
   return (
     <div className="flex justify-center mb-2">
       <span className="rounded-full px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.15em]"
         style={{ background: color.pillBg, color: color.pillText }}>
-        {text}
+        {t(text)}
       </span>
     </div>
   );
@@ -124,6 +123,7 @@ function personRoleLabel(u) {
 }
 
 function AddPersonNode({ role, options, onAdd }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const inputRef = useRef(null);
@@ -144,11 +144,11 @@ function AddPersonNode({ role, options, onAdd }) {
         </svg>
         <input ref={inputRef} type="text" value={query} onChange={(e) => setQuery(e.target.value)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Search name…"
+          placeholder={t("Search name…")}
           className="w-full rounded-xl border-2 border-dashed border-blue-300 bg-white pl-9 pr-3 py-2 text-xs font-semibold text-blue-700 focus:outline-none" />
         <div className="absolute z-30 mt-1 w-full max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
           {filtered.length === 0 ? (
-            <p className="px-3 py-2 text-[11px] text-slate-400">No matches</p>
+            <p className="px-3 py-2 text-[11px] text-slate-400">{t("No matches")}</p>
           ) : filtered.map((u) => (
             <button key={u.user_id} type="button"
               onMouseDown={(e) => { e.preventDefault(); onAdd(u.user_id); setOpen(false); }}
@@ -164,13 +164,12 @@ function AddPersonNode({ role, options, onAdd }) {
   return (
     <button type="button" onClick={() => { setOpen(true); setQuery(''); }}
       className="flex items-center justify-center rounded-xl border-2 border-dashed border-blue-300 px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition"
-      style={{ minWidth: 160, maxWidth: 200, minHeight: 52 }}>
-      + Add {roleLabel(role)}
-    </button>
+      style={{ minWidth: 160, maxWidth: 200, minHeight: 52 }}>{t("+ Add {roleLabel}", { roleLabel: roleLabel(role) })}</button>
   );
 }
 
 function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMembersChanged }) {
+  const { t } = useT();
   // Group members by their project_role (from project_assignments.project_role)
   const byRole = useMemo(() => {
     const groups = { account_manager: [], manager: [], staff: [] };
@@ -268,7 +267,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">{project.project_code}</p>
           <h2 className="text-xl font-semibold text-slate-900">{project.project_name}</h2>
-          <p className="text-xs text-slate-400 mt-1">{project.budget_hours} hrs budget · {(project.status || 'ACTIVE').toUpperCase() === 'INACTIVE' ? 'DEPLOYED' : (project.status || 'ACTIVE')} · {projectMembers.length} assigned</p>
+          <p className="text-xs text-slate-400 mt-1">{t("{budget_hours} hrs budget ·", { budget_hours: project.budget_hours })}{" "}{(project.status || 'ACTIVE').toUpperCase() === 'INACTIVE' ? t("DEPLOYED") : t(project.status || 'ACTIVE')}{" "}{t("· {length} assigned", { length: projectMembers.length })}</p>
         </div>
         <button type="button" onClick={() => setEditMode((v) => !v)}
           className={`flex-shrink-0 flex items-center gap-1.5 rounded-xl border px-4 py-2 text-xs font-semibold transition ${
@@ -276,13 +275,13 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
           </svg>
-          {editMode ? 'Save' : 'Edit Organisation'}
+          {editMode ? t("Save") : t("Edit Organisation")}
         </button>
       </div>
       {actionError && (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-600">
           {actionError}
-          <button type="button" onClick={() => setActionError('')} className="flex-shrink-0 text-red-400 hover:text-red-600" aria-label="Dismiss">×</button>
+          <button type="button" onClick={() => setActionError('')} className="flex-shrink-0 text-red-400 hover:text-red-600" aria-label={t("Dismiss")}>×</button>
         </div>
       )}
       <div className="relative flex flex-col items-center min-w-fit rounded-2xl px-8 py-8 border border-slate-200"
@@ -350,9 +349,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
         ))}
         {(staffByManager['__unassigned'] || []).length > 0 && (
           <div className="w-full flex flex-col items-center pt-8">
-            <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600 mb-2">
-              No Manager Assigned
-            </p>
+            <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600 mb-2">{t("No Manager Assigned")}</p>
             <TreeRow>
               {staffByManager['__unassigned'].map((s) => (
                 <OrgNode key={s.user_id} user={s} role="staff" unassigned editable={editMode} removable={editMode}
@@ -363,7 +360,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
           </div>
         )}
         {projectMembers.length === 0 && (
-          <p className="mt-6 text-sm text-slate-400 italic">No members assigned to this project yet.</p>
+          <p className="mt-6 text-sm text-slate-400 italic">{t("No members assigned to this project yet.")}</p>
         )}
       </div>
     </div>
@@ -371,6 +368,7 @@ function ProjectOrgTree({ project, allUsers, projectMembers, requesterId, onMemb
 }
 
 function HierarchyContent({ hideHeader = false }) {
+  const { t } = useT();
   const [requesterId, setRequesterId]   = useState(null);
   const [allUsers, setAllUsers]         = useState([]);
   const [projects, setProjects]         = useState([]);
@@ -447,14 +445,14 @@ function HierarchyContent({ hideHeader = false }) {
     <div className={hideHeader ? '' : 'p-8'}>
       {!hideHeader && (
         <div className="mb-10 pl-3">
-          <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-          <h1 className="mt-3 text-4xl font-semibold text-slate-950">Organisation Hierarchy</h1>
-          <p className="mt-2 text-sm text-slate-500">Visualise project reporting lines, reassign roles, and review employee project involvement.</p>
+          <p className="text-sm uppercase tracking-[0.32em] text-slate-500">{t("HR Portal")}</p>
+          <h1 className="mt-3 text-4xl font-semibold text-slate-950">{t("Organisation Hierarchy")}</h1>
+          <p className="mt-2 text-sm text-slate-500">{t("Visualise project reporting lines, reassign roles, and review employee project involvement.")}</p>
         </div>
       )}
-      {loading ? <p className="text-sm text-slate-400 py-8">Loading…</p> : (
+      {loading ? <p className="text-sm text-slate-400 py-8">{t("Loading…")}</p> : (
         projectHierarchy.filter((p) => !['INACTIVE', 'DEPLOYED'].includes((p.status || 'ACTIVE').toUpperCase())).length === 0
-          ? <p className="text-sm text-slate-400 py-8">No active projects found.</p>
+          ? <p className="text-sm text-slate-400 py-8">{t("No active projects found.")}</p>
           : (
           <>
             <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -467,16 +465,16 @@ function HierarchyContent({ hideHeader = false }) {
                     type="text"
                     value={projectSearch}
                     onChange={(e) => { setProjectSearch(e.target.value); }}
-                    placeholder="Search project or person name…"
+                    placeholder={t("Search project or person name…")}
                     className="rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60"
                   />
                 </div>
-                <span className="ml-auto text-xs text-slate-400">{visibleProjects.length} project{visibleProjects.length !== 1 ? 's' : ''}</span>
+                <span className="ml-auto text-xs text-slate-400">{t("{length} project", { length: visibleProjects.length })}{visibleProjects.length !== 1 ? 's' : ''}</span>
               </div>
               <div className="overflow-hidden" style={isCollapsed ? { maxHeight: COLLAPSED_ROWS_HEIGHT } : undefined}>
                 <div className="flex flex-wrap gap-2">
                   {visibleProjects.length === 0 ? (
-                    <p className="px-1 py-2 text-xs text-slate-400">No projects match your search.</p>
+                    <p className="px-1 py-2 text-xs text-slate-400">{t("No projects match your search.")}</p>
                   ) : visibleProjects.map((p) => (
                     <button key={p.project_code} onClick={() => setSelectedCode(p.project_code)}
                       className={`rounded-xl px-4 py-2 text-xs font-semibold border transition ${p.project_code === selectedCode ? 'bg-[#1a3a8f] text-white border-[#1a3a8f] shadow' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
@@ -489,7 +487,7 @@ function HierarchyContent({ hideHeader = false }) {
                 <div className="mt-3 flex justify-end">
                   <button type="button" onClick={() => setShowAllProjects((v) => !v)} aria-expanded={showAllProjects}
                     className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold text-[#1a3a8f] transition hover:bg-[#E8EEFF]">
-                    {showAllProjects ? 'Show less' : `Show all ${visibleProjects.length} projects`}
+                    {showAllProjects ? t("Show less") : t("Show all {length} projects", { length: visibleProjects.length })}
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                       className={`transition-transform ${showAllProjects ? 'rotate-180' : ''}`} aria-hidden="true">
                       <polyline points="6 9 12 15 18 9" />
@@ -501,7 +499,7 @@ function HierarchyContent({ hideHeader = false }) {
             {activeProject
               ? <ProjectOrgTree project={activeProject} allUsers={allUsers} projectMembers={projectMembers}
                   requesterId={requesterId} onMembersChanged={() => fetchProjectMembers(selectedCode)} />
-              : <p className="text-sm text-slate-400">Select a project above.</p>}
+              : <p className="text-sm text-slate-400">{t("Select a project above.")}</p>}
           </>
         )
       )}
@@ -510,8 +508,9 @@ function HierarchyContent({ hideHeader = false }) {
 }
 
 export default function HierarchyPage({ hideHeader = false } = {}) {
+  const { t } = useT();
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading hierarchy…</div>}>
+    <Suspense fallback={<div className="p-8 text-sm text-slate-400">{t("Loading hierarchy…")}</div>}>
       <HierarchyContent hideHeader={hideHeader} />
     </Suspense>
   );

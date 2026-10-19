@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
+import { useT, getLocale } from '../i18n/LanguageProvider';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
 function formatDate(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+  return new Date(y, m - 1, d).toLocaleDateString(getLocale(), { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function toISODateStr(d) {
@@ -16,7 +17,7 @@ function toISODateStr(d) {
 
 function monthLabel(dateStr) {
   const [y, m] = dateStr.split('-').map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString('en-SG', { month: 'long', year: 'numeric' });
+  return new Date(y, m - 1, 1).toLocaleDateString(getLocale(), { month: 'long', year: 'numeric' });
 }
 
 // Accent colors cycled per row in the list view — purely visual, holidays have no real category.
@@ -27,11 +28,12 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 // Approved leave shown on the grid per day before collapsing into "+N more"
 const LEAVE_PILLS_PER_DAY = 2;
 const parseISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
-const shortDate = (s) => parseISO(s).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
+const shortDate = (s) => parseISO(s).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' });
 const rangeLabel = (a, b) => (a === b ? shortDate(a) : `${shortDate(a)} – ${shortDate(b)}`);
 const dayCount = (a, b) => Math.round((parseISO(b) - parseISO(a)) / 86400000) + 1;
 
 export default function CalendarPage() {
+  const { t } = useT();
   const [requesterId, setRequesterId] = useState(null);
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [holidays, setHolidays] = useState([]);
@@ -141,7 +143,7 @@ export default function CalendarPage() {
     e.preventDefault();
     if (!requesterId) return;
     if (!addDate || !addName.trim()) {
-      showToast('Please enter a date and a name.', 'error');
+      showToast(t("Please enter a date and a name."), 'error');
       return;
     }
     setSaving(true);
@@ -155,9 +157,9 @@ export default function CalendarPage() {
       setGridMonth(new Date(savedYear, savedMonth - 1, 1));
       if (savedYear !== year) setYear(savedYear);
       else await fetchHolidays(year);
-      showToast('Holiday saved.', 'success');
+      showToast(t("Holiday saved."), 'success');
     } catch (err) {
-      showToast(err.response?.data?.error || 'Failed to save holiday.', 'error');
+      showToast(t(err.response?.data?.error || 'Failed to save holiday.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -192,7 +194,7 @@ export default function CalendarPage() {
       // Count what the server actually saved; rows missing a date or name are skipped.
       const added = res.data?.data?.length ?? toAdd.length;
       const skipped = res.data?.skipped || 0;
-      showToast(`Added ${added} holiday${added === 1 ? '' : 's'}.${skipped ? ` Skipped ${skipped} without a date or name.` : ''}`, 'success');
+      showToast(t("Added {added} holiday{v}.{v2}", { added: added, v: added === 1 ? '' : 's', v2: skipped ? ` Skipped ${skipped} without a date or name.` : '' }), 'success');
     } catch (err) {
       setFetchError(err.response?.data?.error || 'Failed to save fetched holidays.');
     } finally {
@@ -207,9 +209,9 @@ export default function CalendarPage() {
       await axios.delete(`${API_BASE}/api/v1/hr/public-holidays/${deleteConfirm.holiday_date}`, { data: { requesterId } });
       setDeleteConfirm(null);
       await fetchHolidays(year);
-      showToast('Holiday removed.', 'success');
+      showToast(t("Holiday removed."), 'success');
     } catch (err) {
-      showToast(err.response?.data?.error || 'Failed to remove holiday.', 'error');
+      showToast(t(err.response?.data?.error || 'Failed to remove holiday.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -279,17 +281,15 @@ export default function CalendarPage() {
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
           <div className={`rounded-full px-4 py-2.5 text-sm font-medium shadow-lg text-white ${toast.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>
-            {toast.text}
+            {t(toast.text)}
           </div>
         </div>
       )}
 
       <div className="mb-10 pl-3">
-        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-        <h1 className="mt-3 text-4xl font-semibold text-slate-900">Calendar</h1>
-        <p className="mt-2 text-sm text-slate-500">
-          Manage Singapore public holidays and see who&apos;s on approved leave. Holidays and leave also show on every portal&apos;s calendar.
-        </p>
+        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">{t("HR Portal")}</p>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-900">{t("Calendar")}</h1>
+        <p className="mt-2 text-sm text-slate-500">{t("Manage Singapore public holidays and see who's on approved leave. Holidays and leave also show on every portal's calendar.")}</p>
       </div>
 
       {/* Calendar card — an icon-tabs + search/filter row (integrated as the card's own header,
@@ -307,22 +307,22 @@ export default function CalendarPage() {
                   listTab === key ? 'font-bold text-slate-900 border-[#1540A8]' : 'font-medium text-slate-400 border-transparent hover:text-slate-600'
                 }`}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{icon}</svg>
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
 
           <div className="flex items-center gap-4 py-2.5">
             <div className="hidden items-center gap-4 text-xs font-medium text-slate-500 sm:flex">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-500" />Public holiday</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[#C9D5FF]" />On leave</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-500" />{t("Public holiday")}</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[#C9D5FF]" />{t("On leave")}</span>
             </div>
             <div className="relative">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                 className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                 <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search holiday or name…"
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t("Search holiday or name…")}
                 className="rounded-full border border-slate-200 pl-8 pr-3 py-1.5 text-sm w-60 max-w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:w-64 transition-all" />
             </div>
           </div>
@@ -343,7 +343,7 @@ export default function CalendarPage() {
                     viewMode === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'
                   }`}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{icon}</svg>
-                  {label}
+                  {t(label)}
                 </button>
               ))}
             </div>
@@ -357,7 +357,7 @@ export default function CalendarPage() {
                 </button>
                 <button type="button" onClick={() => (pickerOpen ? setPickerOpen(false) : openPicker())}
                   className="flex items-center gap-1.5 rounded-full px-3 py-1.5 -mx-1 text-base font-bold text-slate-900 whitespace-nowrap hover:bg-slate-50 transition">
-                  {gridMonth.toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })}
+                  {gridMonth.toLocaleDateString(getLocale(), { month: 'long', year: 'numeric' })}
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
                 </button>
                 <button type="button" onClick={() => shiftGridMonth(1)}
@@ -368,7 +368,7 @@ export default function CalendarPage() {
             ) : (
               <button type="button" onClick={() => (pickerOpen ? setPickerOpen(false) : openPicker())}
                 className="flex items-center gap-1.5 rounded-full px-3 py-1.5 -mx-1 text-base font-bold text-slate-900 whitespace-nowrap hover:bg-slate-50 transition">
-                {listTab === 'upcoming' ? `Upcoming in ${year}` : year}
+                {listTab === 'upcoming' ? t("Upcoming in {year}", { year: year }) : year}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
             )}
@@ -396,24 +396,20 @@ export default function CalendarPage() {
                       return (
                         <button key={m} type="button" onClick={() => pickMonthYear(i)}
                           className={`py-3 text-xs font-semibold transition border-slate-100 ${col !== 2 ? 'border-r' : ''} ${row !== 3 ? 'border-b' : ''} ${isCurrent ? 'bg-[#1540A8] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-                          {m}
+                          {t(m)}
                         </button>
                       );
                     })}
                   </div>
                   <button type="button" onClick={jumpToToday}
-                    className="w-full border-t border-slate-100 py-3 text-xs font-semibold text-[#1540A8] hover:bg-slate-50 transition">
-                    Today
-                  </button>
+                    className="w-full border-t border-slate-100 py-3 text-xs font-semibold text-[#1540A8] hover:bg-slate-50 transition">{t("Today")}</button>
                 </div>
               </>
             )}
           </div>
           <div className="relative justify-self-end">
             <button type="button" onClick={() => setAddMenuOpen((o) => !o)}
-              className="inline-flex items-center gap-2 rounded-full bg-[#1540A8] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#12378F]">
-              Add New
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+              className="inline-flex items-center gap-2 rounded-full bg-[#1540A8] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#12378F]">{t("Add New")}{" "}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
             </button>
             {addMenuOpen && (
               <>
@@ -424,16 +420,16 @@ export default function CalendarPage() {
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-slate-50 transition">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1540A8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                     <span>
-                      <span className="block text-sm font-semibold text-slate-800">Add manually</span>
-                      <span className="block text-xs text-slate-400">Enter a date and name yourself</span>
+                      <span className="block text-sm font-semibold text-slate-800">{t("Add manually")}</span>
+                      <span className="block text-xs text-slate-400">{t("Enter a date and name yourself")}</span>
                     </span>
                   </button>
                   <button type="button" onClick={() => { setAddMenuOpen(false); openFetchModal(); }}
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-slate-50 transition border-t border-slate-100">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1540A8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
                     <span>
-                      <span className="block text-sm font-semibold text-slate-800">Fetch official holidays</span>
-                      <span className="block text-xs text-slate-400">Auto-import from data.gov.sg</span>
+                      <span className="block text-sm font-semibold text-slate-800">{t("Fetch official holidays")}</span>
+                      <span className="block text-xs text-slate-400">{t("Auto-import from data.gov.sg")}</span>
                     </span>
                   </button>
                 </div>
@@ -446,7 +442,7 @@ export default function CalendarPage() {
           <>
             <div className="grid grid-cols-7 border-b border-slate-100">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-                <span key={d} className="py-3 text-center text-xs font-semibold text-slate-400 border-r border-slate-100 last:border-r-0">{d}</span>
+                <span key={d} className="py-3 text-center text-xs font-semibold text-slate-400 border-r border-slate-100 last:border-r-0">{t(d)}</span>
               ))}
             </div>
             <div className="grid grid-cols-7">
@@ -470,7 +466,7 @@ export default function CalendarPage() {
                       <p key={l.leave_id} className="mt-1 w-full truncate rounded-md bg-[#E8EEFF] px-2 py-1 text-left text-[10px] font-semibold leading-tight text-[#1540A8]">{l.full_name}</p>
                     ))}
                     {onLeave.length > LEAVE_PILLS_PER_DAY && (
-                      <p className="mt-1 w-full text-left text-[10px] font-semibold text-slate-500">+{onLeave.length - LEAVE_PILLS_PER_DAY} more on leave</p>
+                      <p className="mt-1 w-full text-left text-[10px] font-semibold text-slate-500">{t("+{v} more on leave", { v: onLeave.length - LEAVE_PILLS_PER_DAY })}</p>
                     )}
                   </button>
                 );
@@ -480,18 +476,18 @@ export default function CalendarPage() {
         ) : (
           <div className="p-6">
             {loading ? (
-              <p className="text-sm text-slate-400 py-8 text-center">Loading…</p>
+              <p className="text-sm text-slate-400 py-8 text-center">{t("Loading…")}</p>
             ) : holidaysByMonth.length === 0 ? (
-              <p className="text-sm text-slate-400 py-8 text-center">No holidays or leave match {year}.</p>
+              <p className="text-sm text-slate-400 py-8 text-center">{t("No holidays or leave match {year}.", { year: year })}</p>
             ) : (
               holidaysByMonth.map((group, gi) => {
                 let colorCursor = holidaysByMonth.slice(0, gi).reduce((n, g) => n + g.items.filter((x) => x.kind === 'holiday').length, 0);
                 return (
                   <div key={group.label} className={gi > 0 ? 'mt-6' : ''}>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">{group.label}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">{t(group.label)}</p>
                     <div className="rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
                       {group.items.map((it) => {
-                        const weekday = new Date(it.date + 'T00:00:00').toLocaleDateString('en-SG', { weekday: 'short' });
+                        const weekday = new Date(it.date + 'T00:00:00').toLocaleDateString(getLocale(), { weekday: 'short' });
                         const [, , dNum] = it.date.split('-');
                         if (it.kind === 'leave') {
                           const l = it.leave;
@@ -504,12 +500,12 @@ export default function CalendarPage() {
                               </div>
                               <div className="w-[3px] self-stretch rounded-full flex-shrink-0 bg-[#1540A8]" />
                               <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-medium text-slate-400 leading-tight">On leave</p>
+                                <p className="text-[11px] font-medium text-slate-400 leading-tight">{t("On leave")}</p>
                                 <p className="text-sm font-semibold text-slate-800 leading-snug truncate">{l.full_name}</p>
                               </div>
                               <p className="flex-shrink-0 text-right text-xs text-slate-500">
                                 {rangeLabel(l.start_date, l.end_date)}
-                                <span className="block text-[11px] text-slate-400">{days} day{days === 1 ? '' : 's'}</span>
+                                <span className="block text-[11px] text-slate-400">{t("{days} day", { days: days })}{days === 1 ? '' : 's'}</span>
                               </p>
                             </div>
                           );
@@ -526,7 +522,7 @@ export default function CalendarPage() {
                             </div>
                             <div className="w-[3px] self-stretch rounded-full flex-shrink-0" style={{ background: color }} />
                             <div className="min-w-0 flex-1">
-                              <p className="text-[11px] font-medium text-slate-400 leading-tight">Public holiday</p>
+                              <p className="text-[11px] font-medium text-slate-400 leading-tight">{t("Public holiday")}</p>
                               <p className="text-sm font-semibold text-slate-800 leading-snug truncate">{h.name}</p>
                             </div>
                           </button>
@@ -545,16 +541,16 @@ export default function CalendarPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
           onMouseDown={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
           <form onSubmit={handleAdd} className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <p className="text-sm font-semibold text-slate-900 mb-4">{holidayByDateAll[addDate] ? 'Edit holiday' : 'Add a public holiday'}</p>
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">Date</label>
+            <p className="text-sm font-semibold text-slate-900 mb-4">{holidayByDateAll[addDate] ? t("Edit holiday") : t("Add a public holiday")}</p>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">{t("Date")}</label>
             <input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} autoFocus
               className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5 mt-4">Holiday name</label>
-            <input type="text" value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="e.g. National Day"
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5 mt-4">{t("Holiday name")}</label>
+            <input type="text" value={addName} onChange={(e) => setAddName(e.target.value)} placeholder={t("e.g. National Day")}
               className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             {addDate && leaveOnDay(addDate).length > 0 && (
               <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="mb-1.5 text-xs font-semibold text-slate-500">On leave this day ({leaveOnDay(addDate).length})</p>
+                <p className="mb-1.5 text-xs font-semibold text-slate-500">{t("On leave this day ({length})", { length: leaveOnDay(addDate).length })}</p>
                 <ul className="max-h-32 space-y-1 overflow-y-auto">
                   {leaveOnDay(addDate).map((l) => (
                     <li key={l.leave_id} className="flex justify-between gap-3 text-sm">
@@ -567,14 +563,14 @@ export default function CalendarPage() {
             )}
             <div className="flex gap-3 mt-6">
               <button type="button" onClick={() => setShowModal(false)}
-                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">{t("Cancel")}</button>
               {holidayByDateAll[addDate] && (
                 <button type="button" onClick={() => { setShowModal(false); setDeleteConfirm(holidayByDateAll[addDate]); }}
-                  className="flex-1 rounded-xl border border-red-200 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50">Delete</button>
+                  className="flex-1 rounded-xl border border-red-200 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50">{t("Delete")}</button>
               )}
               <button type="submit" disabled={saving || !addDate || !addName.trim()}
                 className="flex-1 rounded-xl bg-[#1540A8] py-2.5 text-sm font-bold text-white disabled:opacity-40 hover:bg-[#12378F]">
-                {holidayByDateAll[addDate] ? 'Save' : 'Add'}
+                {holidayByDateAll[addDate] ? t("Save") : t("Add")}
               </button>
             </div>
           </form>
@@ -587,18 +583,16 @@ export default function CalendarPage() {
           <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
             <div className="flex items-center gap-2 mb-1">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1540A8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
-              <p className="text-sm font-semibold text-slate-900">{year} public holidays</p>
+              <p className="text-sm font-semibold text-slate-900">{t("{year} public holidays", { year: year })}</p>
             </div>
 
             {fetchLoading ? (
-              <p className="text-sm text-slate-400 py-10 text-center">Fetching from data.gov.sg…</p>
+              <p className="text-sm text-slate-400 py-10 text-center">{t("Fetching from data.gov.sg…")}</p>
             ) : fetchError ? (
               <p className="text-sm text-red-600 py-6">{fetchError}</p>
             ) : (
               <>
-                <p className="text-xs text-slate-400 mb-4">
-                  Source: {fetchSource || 'data.gov.sg'}. {fetchResults.length} holiday{fetchResults.length === 1 ? '' : 's'} found.
-                </p>
+                <p className="text-xs text-slate-400 mb-4">{t("Source:")}{" "}{fetchSource || 'data.gov.sg'}{t(". {length} holiday", { length: fetchResults.length })}{fetchResults.length === 1 ? '' : 's'}{" "}{t("found.")}</p>
                 <div className="rounded-2xl border border-slate-200 divide-y divide-slate-100 max-h-72 overflow-y-auto">
                   {fetchResults.map((h) => (
                     <div key={h.holiday_date} className="flex items-center justify-between px-4 py-2.5">
@@ -615,20 +609,18 @@ export default function CalendarPage() {
                   ))}
                 </div>
                 {fetchResults.some((h) => h.alreadyExists) && (
-                  <p className="mt-3 text-xs text-amber-600">
-                    {fetchResults.filter((h) => h.alreadyExists).length} of these already exist in your calendar and will be left as-is.
-                  </p>
+                  <p className="mt-3 text-xs text-amber-600">{t("{length} of these already exist in your calendar and will be left as-is.", { length: fetchResults.filter((h) => h.alreadyExists).length })}</p>
                 )}
               </>
             )}
 
             <div className="flex gap-3 mt-6">
               <button type="button" onClick={() => setFetchModalOpen(false)}
-                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">{t("Cancel")}</button>
               <button type="button" onClick={confirmFetchImport}
                 disabled={fetchLoading || fetchSaving || fetchResults.filter((h) => !h.alreadyExists).length === 0}
                 className="flex-1 rounded-xl bg-[#1540A8] py-2.5 text-sm font-bold text-white disabled:opacity-40 hover:bg-[#12378F]">
-                {fetchSaving ? 'Adding…' : `Add ${fetchResults.filter((h) => !h.alreadyExists).length} new holiday${fetchResults.filter((h) => !h.alreadyExists).length === 1 ? '' : 's'}`}
+                {fetchSaving ? t("Adding…") : t("Add {length} new holiday{v}", { length: fetchResults.filter((h) => !h.alreadyExists).length, v: fetchResults.filter((h) => !h.alreadyExists).length === 1 ? '' : 's' })}
               </button>
             </div>
           </div>
@@ -639,13 +631,13 @@ export default function CalendarPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
           onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteConfirm(null); }}>
           <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <p className="text-sm font-semibold text-slate-900 mb-2">Remove this holiday?</p>
+            <p className="text-sm font-semibold text-slate-900 mb-2">{t("Remove this holiday?")}</p>
             <p className="text-sm text-slate-500 mb-5">{formatDate(deleteConfirm.holiday_date)} — {deleteConfirm.name}</p>
             <div className="flex gap-3">
               <button type="button" onClick={() => setDeleteConfirm(null)}
-                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">{t("Cancel")}</button>
               <button type="button" onClick={confirmDelete} disabled={saving}
-                className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60">Delete</button>
+                className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60">{t("Delete")}</button>
             </div>
           </div>
         </div>

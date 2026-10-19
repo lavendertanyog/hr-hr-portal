@@ -6,6 +6,8 @@ import Image from 'next/image';
 import { REMEMBERED_EMAIL_KEY, clearDeviceToken, forgetThisDevice, getDeviceToken, revokeSessionToken, saveSession } from './authSession';
 
 import VerifyEmailPanel from './VerifyEmailPanel';
+import { useT } from './i18n/LanguageProvider';
+import LanguageSwitch from './i18n/LanguageSwitch';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
 function deriveNameFromEmail(email) {
@@ -20,6 +22,7 @@ function maskEmail(email) {
 }
 
 export default function Home() {
+  const { t, lang, syncFromAccount } = useT();
   const router = useRouter();
   const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'reset'
   const [email, setEmail] = useState('');
@@ -55,6 +58,7 @@ export default function Home() {
     }
     saveSession({ session: payload.session, rememberMe: remember, email: user.email });
     sessionStorage.setItem('hr_portal_user', JSON.stringify(user));
+    syncFromAccount();
     router.push('/project-codes');
     return null;
   };
@@ -74,10 +78,10 @@ export default function Home() {
         body: JSON.stringify({ email: unverifiedEmail, portalUrl: window.location.origin }),
       });
       const payload = await res.json();
-      setInfoMessage(res.ok ? 'If an unverified account exists for that email, a new verification link has been sent.' : (payload.error || 'Failed to resend.'));
+      setInfoMessage(t(res.ok ? 'If an unverified account exists for that email, a new verification link has been sent.' : (payload.error || 'Failed to resend.')));
       setUnverifiedEmail(''); setVerifyPanel(null);
     } catch {
-      setError('Unable to reach server. Try again.');
+      setError(t("Unable to reach server. Try again."));
     } finally {
       setResending(false);
     }
@@ -127,10 +131,10 @@ export default function Home() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(''); setInfoMessage(''); setUnverifiedEmail(''); setVerifyPanel(null);
-    if (!email || (mode !== 'reset' && !password)) { setError('Email and password are required.'); return; }
-    if (!email.toLowerCase().endsWith('@nextan.com.sg')) { setError(mode === 'login' ? 'Invalid email or password.' : 'Please enter a valid email address.'); return; }
-    if (mode === 'signup' && password !== confirmPassword) { setError('Passwords do not match.'); return; }
-    if (mode !== 'reset' && password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (!email || (mode !== 'reset' && !password)) { setError(t("Email and password are required.")); return; }
+    if (!email.toLowerCase().endsWith('@nextan.com.sg')) { setError(t(mode === 'login' ? 'Invalid email or password.' : 'Please enter a valid email address.')); return; }
+    if (mode === 'signup' && password !== confirmPassword) { setError(t("Passwords do not match.")); return; }
+    if (mode !== 'reset' && password.length < 6) { setError(t("Password must be at least 6 characters.")); return; }
 
     setLoading(true);
     try {
@@ -138,7 +142,7 @@ export default function Home() {
       const body = mode === 'reset'
         ? { email: email.trim().toLowerCase(), portalUrl: window.location.origin }
         : mode === 'signup'
-          ? { email: email.trim().toLowerCase(), password, userRole: 'hr', portalUrl: window.location.origin }
+          ? { email: email.trim().toLowerCase(), password, userRole: 'hr', portalUrl: window.location.origin, preferredLanguage: lang }
           : { email: email.trim().toLowerCase(), password, trustDevice: rememberMe, portal: 'hr' };
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
@@ -148,7 +152,7 @@ export default function Home() {
       const payload = await res.json();
       if (!res.ok) {
         if (payload.unverified) { setUnverifiedEmail(email.trim().toLowerCase()); setVerifyPanel({ email: email.trim().toLowerCase(), status: 'unverified' }); }
-        setError(payload.error || payload.detail || 'Authentication failed.');
+        setError(t(payload.error || payload.detail || 'Authentication failed.'));
         setLoading(false);
         return;
       }
@@ -158,7 +162,7 @@ export default function Home() {
         setPassword('');
         setConfirmPassword('');
         setLoading(false);
-        setInfoMessage('If an account exists for that email, a temporary password has been sent — check your inbox and log in with it.');
+        setInfoMessage(t("If an account exists for that email, a temporary password has been sent — check your inbox and log in with it."));
       } else if (mode === 'signup') {
         setMode('login');
         setPassword('');
@@ -171,7 +175,7 @@ export default function Home() {
         if (loginError) { setError(loginError); setLoading(false); }
       }
     } catch {
-      setError("Unable to reach server.");
+      setError(t("Unable to reach server."));
       setLoading(false);
     }
   };
@@ -186,33 +190,37 @@ export default function Home() {
             {!logoMissing ? (
               <Image
                 src="/nextan-logo.png"
-                alt="Nextan"
+                alt={t("Nextan")}
                 width={150}
                 height={50}
                 className="object-contain brightness-0 invert"
                 onError={() => setLogoMissing(true)}
               />
             ) : (
-              <span className="text-xs uppercase tracking-[0.24em] text-white/80">NEXTAN</span>
+              <span className="text-xs uppercase tracking-[0.24em] text-white/80">{t("NEXTAN")}</span>
             )}
           </div>
           <div className="flex flex-col items-center justify-center h-full">
-            <h2 className="text-3xl font-bold mb-3">Nextan HR Portal</h2>
+            <h2 className="text-3xl font-bold mb-3">{t("Nextan HR Portal")}</h2>
             <button
               type="button"
               onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setUnverifiedEmail(''); setVerifyPanel(null); }}
               className="mt-8 px-5 py-2 rounded-full border border-white/40 text-sm font-medium hover:bg-white/10 transition"
             >
-              {mode === 'login' ? 'Create Account' : 'Back to Sign In'}
+              {mode === 'login' ? t("Create Account") : t("Back to Sign In")}
             </button>
+          </div>
+          <div className="absolute bottom-6 left-0 right-0 flex justify-center">
+            <LanguageSwitch variant="dark" />
           </div>
         </div>
 
         {/* Right white panel */}
         <div className="flex flex-col justify-center w-full md:w-1/2 bg-white p-10 md:p-12">
+          <div className="mb-4 flex justify-end md:hidden"><LanguageSwitch /></div>
           {!verifyPanel && (<>
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">{mode === 'login' ? 'Hello Again!' : mode === 'signup' ? 'Create Account' : 'Forgot Password'}</h1>
-          <p className="text-slate-500 text-base mb-8">{mode === 'login' ? (rememberedEmail ? `Welcome back, ${deriveNameFromEmail(rememberedEmail)}` : 'Welcome Back') : mode === 'signup' ? 'Register with your Nextan email' : 'Enter your email and we’ll send you a temporary password'}</p>
+          <h1 className="text-4xl font-bold text-slate-900 mb-2">{mode === 'login' ? t("Hello Again!") : mode === 'signup' ? t("Create Account") : t("Forgot Password")}</h1>
+          <p className="text-slate-500 text-base mb-8">{mode === 'login' ? (rememberedEmail ? t("Welcome back, {deriveNameFromEmail}", { deriveNameFromEmail: deriveNameFromEmail(rememberedEmail) }) : t("Welcome Back")) : mode === 'signup' ? t("Register with your Nextan email") : t("Enter your email and we’ll send you a temporary password")}</p>
           </>)}
 
           {verifyPanel ? (
@@ -221,19 +229,15 @@ export default function Home() {
           ) : resuming ? (
             <div className="space-y-4">
               <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-[#1540A8]" aria-hidden />
-                Signing you in…
-              </div>
-              <button type="button" onClick={cancelResume} className="text-sm text-cyan-700 hover:underline">
-                Use my password instead
-              </button>
+                <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-[#1540A8]" aria-hidden />{t("Signing you in…")}</div>
+              <button type="button" onClick={cancelResume} className="text-sm text-cyan-700 hover:underline">{t("Use my password instead")}</button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Email: a remembered account shows as a masked card instead of the input */}
               {mode === 'login' && rememberedEmail ? (
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Email ID</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">{t("Email ID")}</label>
                   <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-300 bg-slate-50 px-4 py-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="flex items-center justify-center w-8 h-8 shrink-0 rounded-full text-xs font-semibold text-white" style={{ background: '#1a3a8f' }}>
@@ -241,21 +245,19 @@ export default function Home() {
                       </span>
                       <span className="truncate text-sm text-slate-900">{maskEmail(rememberedEmail)}</span>
                     </div>
-                    <button type="button" onClick={forgetRememberedEmail} className="shrink-0 text-sm text-cyan-700 hover:underline">
-                      Not you?
-                    </button>
+                    <button type="button" onClick={forgetRememberedEmail} className="shrink-0 text-sm text-cyan-700 hover:underline">{t("Not you?")}</button>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Email ID</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">{t("Email ID")}</label>
                   <div className="relative">
                     <span className="absolute left-3 top-3.5 text-slate-400" aria-hidden>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
                     </span>
                     <input
                       type="email"
-                      placeholder="Enter your email id"
+                      placeholder={t("Enter your email id")}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full pl-9 pr-4 py-3.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -266,7 +268,7 @@ export default function Home() {
 
               {mode !== 'reset' && (
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t("Password")}</label>
                 <div className="relative">
                   <span className="absolute left-3 top-3.5 text-slate-400" aria-hidden>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -275,13 +277,13 @@ export default function Home() {
                     type="button"
                     className="absolute right-3 top-3.5 text-slate-400"
                     onClick={() => setShowPassword((v) => !v)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? t("Hide password") : t("Show password")}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
                   </button>
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Enter your password"
+                    placeholder={t("Enter your password")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full pl-9 pr-10 py-3.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -292,7 +294,7 @@ export default function Home() {
 
               {mode === 'signup' && (
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Confirm Password</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">{t("Confirm Password")}</label>
                   <div className="relative">
                     <span className="absolute left-3 top-3.5 text-slate-400" aria-hidden>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -301,13 +303,13 @@ export default function Home() {
                       type="button"
                       className="absolute right-3 top-3.5 text-slate-400"
                       onClick={() => setShowConfirmPassword((v) => !v)}
-                      aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                      aria-label={showConfirmPassword ? t("Hide confirm password") : t("Show confirm password")}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
                     </button>
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
-                      placeholder="Confirm your password"
+                      placeholder={t("Confirm your password")}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="w-full pl-9 pr-4 py-3.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -318,11 +320,9 @@ export default function Home() {
 
               {mode === 'login' && (
                 <div className="flex items-center justify-between text-sm text-slate-500">
-                  <label className="inline-flex items-center gap-2" title="Stay signed in on this browser for 30 days (1 day for HR accounts). Your password is never saved. Don’t tick this on a shared computer.">
-                    <input type="checkbox" className="rounded border-slate-300" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
-                    Remember me on this device
-                  </label>
-                  <button type="button" className="text-cyan-700 hover:underline" onClick={() => { setMode('reset'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); setVerifyPanel(null); }}>Forgot password</button>
+                  <label className="inline-flex items-center gap-2" title={t("Stay signed in on this browser for 30 days (1 day for HR accounts). Your password is never saved. Don’t tick this on a shared computer.")}>
+                    <input type="checkbox" className="rounded border-slate-300" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />{t("Remember me on this device")}</label>
+                  <button type="button" className="text-cyan-700 hover:underline" onClick={() => { setMode('reset'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); setVerifyPanel(null); }}>{t("Forgot password")}</button>
                 </div>
               )}
 
@@ -330,7 +330,7 @@ export default function Home() {
               {unverifiedEmail && (
                 <button type="button" onClick={handleResendVerification} disabled={resending}
                   className="text-cyan-700 hover:underline text-xs disabled:opacity-60">
-                  {resending ? 'Sending…' : 'Resend verification email'}
+                  {resending ? t("Sending…") : t("Resend verification email")}
                 </button>
               )}
 
@@ -340,7 +340,7 @@ export default function Home() {
                 className="w-full py-3.5 rounded-xl font-bold text-white text-base transition"
                 style={{ background: '#0c3b8f' }}
               >
-                {loading ? 'Please wait\u2026' : mode === 'login' ? 'LOGIN' : mode === 'signup' ? 'SIGN UP' : 'SEND TEMPORARY PASSWORD'}
+                {loading ? t("Please wait…") : mode === 'login' ? t("LOGIN") : mode === 'signup' ? t("SIGN UP") : t("SEND TEMPORARY PASSWORD")}
               </button>
             </form>
           )}
@@ -349,16 +349,13 @@ export default function Home() {
 
           <p className="text-center text-base text-slate-700 mt-6">
             {mode === 'login' ? (
-              <>No account?{' '}
-                <button className="text-blue-700 font-semibold" onClick={() => { setMode('signup'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); setVerifyPanel(null); }}>Sign up</button>
+              <>{t("No account?")}{" "}<button className="text-blue-700 font-semibold" onClick={() => { setMode('signup'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); setVerifyPanel(null); }}>{t("Sign up")}</button>
               </>
             ) : mode === 'signup' ? (
-              <>Already have an account?{' '}
-                <button className="text-blue-700 font-semibold" onClick={() => { setMode('login'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); setVerifyPanel(null); }}>Sign in</button>
+              <>{t("Already have an account?")}{" "}<button className="text-blue-700 font-semibold" onClick={() => { setMode('login'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); setVerifyPanel(null); }}>{t("Sign in")}</button>
               </>
             ) : (
-              <>Remember your password?{' '}
-                <button className="text-blue-700 font-semibold" onClick={() => { setMode('login'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); setVerifyPanel(null); }}>Back to login</button>
+              <>{t("Remember your password?")}{" "}<button className="text-blue-700 font-semibold" onClick={() => { setMode('login'); setError(''); setInfoMessage(''); setUnverifiedEmail(''); setVerifyPanel(null); }}>{t("Back to login")}</button>
               </>
             )}
           </p>

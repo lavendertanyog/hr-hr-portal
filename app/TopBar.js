@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { endSession } from './authSession';
 import { WHATS_NEW_LATEST_ID, WHATS_NEW_SEEN_KEY } from './whatsNewData';
+import { useT } from './i18n/LanguageProvider';
 
 function deriveNameFromEmail(email) {
   return String(email || '').split('@')[0].split('.').filter(Boolean)
@@ -12,6 +13,7 @@ function deriveNameFromEmail(email) {
 }
 
 function WhatsNewButton() {
+  const { t } = useT();
   const [seenId, setSeenId] = useState(0);
 
   useEffect(() => {
@@ -26,7 +28,7 @@ function WhatsNewButton() {
   };
 
   return (
-    <Link href="/whats-new" onClick={markSeen} aria-label="What's new"
+    <Link href="/whats-new" onClick={markSeen} aria-label={t("What's new")}
       className="relative flex items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
       style={{ width: 36, height: 36 }}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -64,9 +66,10 @@ const SEARCH_INDEX = [
 // the match only came from a hidden keyword (not present in the label text), there's nothing
 // to localize, so the whole label renders at normal weight instead of looking half-empty.
 function HighlightedLabel({ label, query }) {
-  if (!query) return <span>{label}</span>;
+  const { t } = useT();
+  if (!query) return <span>{t(label)}</span>;
   const idx = label.toLowerCase().indexOf(query);
-  if (idx === -1) return <span className="text-slate-900">{label}</span>;
+  if (idx === -1) return <span className="text-slate-900">{t(label)}</span>;
   return (
     <span className="text-slate-400">
       {label.slice(0, idx)}
@@ -77,6 +80,7 @@ function HighlightedLabel({ label, query }) {
 }
 
 function SearchBox() {
+  const { t } = useT();
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -118,7 +122,7 @@ function SearchBox() {
           <circle cx="11" cy="11" r="8" />
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
-        <input type="text" placeholder="Search"
+        <input type="text" placeholder={t("Search")}
           value={query}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
@@ -128,12 +132,12 @@ function SearchBox() {
       {open && q && (
         <div className="absolute left-0 top-full mt-2 w-80 rounded-2xl border border-slate-200 bg-white shadow-lg py-2 z-30 max-h-80 overflow-y-auto">
           {results.length === 0 ? (
-            <p className="px-4 py-3 text-xs text-slate-400">No matches for "{query}"</p>
+            <p className="px-4 py-3 text-xs text-slate-400">{t("No matches for \"{query}\"", { query: query })}</p>
           ) : results.map((item, i) => (
             <button key={`${item.href}-${item.label}`} type="button"
               onClick={() => go(item)} onMouseEnter={() => setActiveIndex(i)}
               className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left rounded-xl ${i === activeIndex ? 'bg-slate-50' : ''}`}>
-              <span className="text-sm"><HighlightedLabel label={item.label} query={q} /></span>
+              <span className="text-sm"><HighlightedLabel label={t(item.label)} query={q} /></span>
               {i === activeIndex && (
                 <kbd className="flex-shrink-0 text-[10px] border border-slate-300 rounded px-1.5 py-0.5 text-slate-400">↵</kbd>
               )}
@@ -146,6 +150,7 @@ function SearchBox() {
 }
 
 export default function TopBar({ onMenuClick, menuLabel = 'Toggle menu' }) {
+  const { t } = useT();
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -179,7 +184,7 @@ export default function TopBar({ onMenuClick, menuLabel = 'Toggle menu' }) {
     <div className="sticky top-0 z-20 px-8 pt-4 pb-2 bg-white">
       <div className="flex items-center gap-3 rounded-full bg-white border border-slate-200 shadow-sm px-4 py-2.5">
         {/* Hamburger */}
-        <button type="button" onClick={onMenuClick} aria-label={menuLabel} title={menuLabel}
+        <button type="button" onClick={onMenuClick} aria-label={t(menuLabel)} title={t(menuLabel)}
           className="flex-shrink-0 flex items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
           style={{ width: 36, height: 36 }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -196,7 +201,7 @@ export default function TopBar({ onMenuClick, menuLabel = 'Toggle menu' }) {
         <div className="flex items-center gap-1 flex-shrink-0">
           <WhatsNewButton />
           {/* Notification bell */}
-          <Link href="/admin" aria-label="Notifications" title="Notifications"
+          <Link href="/admin" aria-label={t("Notifications")} title={t("Notifications")}
             className="flex items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
             style={{ width: 36, height: 36 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -206,7 +211,7 @@ export default function TopBar({ onMenuClick, menuLabel = 'Toggle menu' }) {
           </Link>
 
           {/* Calendar shortcut */}
-          <Link href="/calendar" aria-label="Calendar"
+          <Link href="/calendar" aria-label={t("Calendar")}
             className="flex items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
             style={{ width: 36, height: 36 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -235,9 +240,9 @@ export default function TopBar({ onMenuClick, menuLabel = 'Toggle menu' }) {
             {menuOpen && (
               <div className="absolute right-0 mt-2 w-48 rounded-2xl border border-slate-200 bg-white shadow-lg py-2 z-30">
                 <Link href="/profile" onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Settings</Link>
+                  className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">{t("Settings")}</Link>
                 <button type="button" onClick={handleLogout}
-                  className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Log out</button>
+                  className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">{t("Log out")}</button>
               </div>
             )}
           </div>

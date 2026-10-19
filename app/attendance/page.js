@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { RangeCalendarPopover, toDateStr, parseDateStr } from '../RangeCalendarPopover';
+import { useT, getLocale } from '../i18n/LanguageProvider';
 
 function toCsv(rows) {
   if (!rows.length) return '';
@@ -43,8 +44,8 @@ function formatDt(dt) {
   // timezone the VIEWER's own computer happens to be set to, which can silently show a
   // completely wrong hour (e.g. an 8am SGT clock-in appearing as 4pm) if that device isn't
   // correctly configured to Singapore/Malaysia time.
-  const datePart = d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short', timeZone: 'Asia/Singapore' });
-  const timePart = d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
+  const datePart = d.toLocaleDateString(getLocale(), { day: '2-digit', month: 'short', timeZone: 'Asia/Singapore' });
+  const timePart = d.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
   return `${datePart}, ${timePart}`;
 }
 
@@ -97,6 +98,7 @@ function isOvernightShift(row) {
 }
 
 export default function AttendancePage() {
+  const { t } = useT();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [nameSearch, setNameSearch] = useState('');
@@ -195,7 +197,7 @@ export default function AttendancePage() {
           return true;
         });
       } catch {
-        if (!window.confirm('Leave records could not be loaded. Export attendance only?')) return;
+        if (!window.confirm(t("Leave records could not be loaded. Export attendance only?"))) return;
       }
     }
 
@@ -281,9 +283,9 @@ export default function AttendancePage() {
   return (
     <div className="p-8">
       <div className="mb-10 pl-3">
-        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
-        <h1 className="mt-3 text-4xl font-semibold text-slate-900">Attendance Logs</h1>
-        <p className="mt-2 text-sm text-slate-500">Monitor attendance across all employees.</p>
+        <p className="text-sm uppercase tracking-[0.32em] text-slate-500">{t("HR Portal")}</p>
+        <h1 className="mt-3 text-4xl font-semibold text-slate-900">{t("Attendance Logs")}</h1>
+        <p className="mt-2 text-sm text-slate-500">{t("Monitor attendance across all employees.")}</p>
       </div>
 
       {/* Filters */}
@@ -291,7 +293,7 @@ export default function AttendancePage() {
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           {/* Employee name search */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Employee Name</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">{t("Employee Name")}</label>
             <div className="relative">
               <svg className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -299,7 +301,7 @@ export default function AttendancePage() {
               <input
                 value={nameSearch}
                 onChange={(e) => setNameSearch(e.target.value)}
-                placeholder="Search employee name…"
+                placeholder={t("Search employee name…")}
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -307,16 +309,16 @@ export default function AttendancePage() {
 
           {/* Status */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Status</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">{t("Status")}</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900"
             >
-              <option value="ALL">All Status</option>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="COMPLETED">COMPLETED</option>
-              <option value="VOIDED">VOIDED</option>
+              <option value="ALL">{t("All Status")}</option>
+              <option value="ACTIVE">{t("ACTIVE")}</option>
+              <option value="COMPLETED">{t("COMPLETED")}</option>
+              <option value="VOIDED">{t("VOIDED")}</option>
             </select>
           </div>
 
@@ -324,7 +326,7 @@ export default function AttendancePage() {
               the old separate Date From / Date To inputs with one field you click to pick either
               a single day or a range. */}
           <div ref={calendarRef} className="relative">
-            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">Date</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-1.5">{t("Date")}</label>
             <button type="button" onClick={() => setCalendarOpen((o) => !o)}
               className="w-full flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 hover:bg-slate-100 transition">
               <svg className="flex-shrink-0 text-slate-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -347,22 +349,18 @@ export default function AttendancePage() {
             <button
               onClick={resetFilters}
               className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              Reset Filters
-            </button>
+            >{t("Reset Filters")}</button>
           </div>
         </div>
 
         <div className="mt-4 flex justify-end border-t border-slate-100 pt-4">
           <div className="relative" ref={exportRef}>
             <button type="button" onClick={() => setExportMenuOpen((o) => !o)} aria-haspopup="menu" aria-expanded={exportMenuOpen}
-              className="rounded-3xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white">
-              Export ▾
-            </button>
+              className="rounded-3xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white">{t("Export ▾")}</button>
             {exportMenuOpen && (
               <div role="menu" className="absolute right-0 bottom-full z-20 mb-2 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 shadow-lg">
-                <button type="button" role="menuitem" onClick={() => handleExport('xlsx')} className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50">Excel (.xlsx)</button>
-                <button type="button" role="menuitem" onClick={() => handleExport('csv')} className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50">CSV (.csv)</button>
+                <button type="button" role="menuitem" onClick={() => handleExport('xlsx')} className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50">{t("Excel (.xlsx)")}</button>
+                <button type="button" role="menuitem" onClick={() => handleExport('csv')} className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50">{t("CSV (.csv)")}</button>
               </div>
             )}
           </div>
@@ -374,19 +372,19 @@ export default function AttendancePage() {
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase tracking-[0.22em] text-[0.65rem]">
             <tr>
-              <th className="px-4 py-3">Employee</th>
-              <th className="px-4 py-3">Project(s)</th>
-              <th className="px-4 py-3">Clock In → Out</th>
-              <th className="px-4 py-3">Hours</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Details</th>
+              <th className="px-4 py-3">{t("Employee")}</th>
+              <th className="px-4 py-3">{t("Project(s)")}</th>
+              <th className="px-4 py-3">{t("Clock In → Out")}</th>
+              <th className="px-4 py-3">{t("Hours")}</th>
+              <th className="px-4 py-3">{t("Status")}</th>
+              <th className="px-4 py-3 text-right">{t("Details")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">Loading attendance logs…</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">{t("Loading attendance logs…")}</td></tr>
             ) : filteredRows.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No records match the selected filters.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">{t("No records match the selected filters.")}</td></tr>
             ) : filteredRows.map((row) => {
               const isOpen = expandedId === row.attendance_id;
               const status = derivedStatus(row);
@@ -402,20 +400,16 @@ export default function AttendancePage() {
                     <td className="px-4 py-3 font-medium text-slate-800">{row.full_name}</td>
                     <td className="px-4 py-3">
                       {isMultiProject ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E8EEFF] px-2.5 py-1 text-xs font-semibold text-[#163EAF]">
-                          {allocations.length} projects
-                        </span>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E8EEFF] px-2.5 py-1 text-xs font-semibold text-[#163EAF]">{t("{length} projects", { length: allocations.length })}</span>
                       ) : (
                         <span className="text-sm text-slate-600">{allocationsSummary(row)}</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span>{formatDt(row.clock_in_time)} → {row.clock_out_time ? formatDt(row.clock_out_time) : <span className="text-green-600 font-semibold text-xs">Ongoing</span>}</span>
+                        <span>{formatDt(row.clock_in_time)} → {row.clock_out_time ? formatDt(row.clock_out_time) : <span className="text-green-600 font-semibold text-xs">{t("Ongoing")}</span>}</span>
                         {overnight && (
-                          <span title="Overnight / unusual shift timing" className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                            ⚠ Overnight
-                          </span>
+                          <span title={t("Overnight / unusual shift timing")} className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">{t("⚠ Overnight")}</span>
                         )}
                       </div>
                     </td>
@@ -427,7 +421,7 @@ export default function AttendancePage() {
                         : 'bg-red-100 text-red-600'
                       }`}>
                         {status === 'ACTIVE' && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />}
-                        {status}
+                        {t(status)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-slate-400">{isOpen ? '▲' : '▼'}</td>
@@ -439,7 +433,7 @@ export default function AttendancePage() {
                           <div className="flex flex-wrap gap-x-10 gap-y-4">
                             <div className="min-w-[180px]">
                               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                {isMultiProject ? 'Project Allocation' : 'Project'}
+                                {isMultiProject ? t("Project Allocation") : t("Project")}
                               </p>
                               {isMultiProject ? (
                                 <div className="mt-1.5 flex flex-col gap-1.5">
@@ -448,17 +442,15 @@ export default function AttendancePage() {
                                       <span className="inline-block rounded-full bg-[#E8EEFF] px-2.5 py-1 text-xs font-semibold text-[#163EAF]">
                                         {allocationLabel(a)}
                                       </span>
-                                      <span className="text-xs text-slate-500">{Number(a.allocated_hours).toFixed(2)}h planned</span>
+                                      <span className="text-xs text-slate-500">{t("{v}h planned", { v: Number(a.allocated_hours).toFixed(2) })}</span>
                                       <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
                                         a.status === 'COMPLETED' ? 'bg-slate-200 text-slate-500'
                                         : a.status === 'ACTIVE' ? 'bg-green-100 text-green-700'
                                         : 'bg-amber-100 text-amber-700'
-                                      }`}>{a.status}</span>
+                                      }`}>{t(a.status)}</span>
                                       {a.edited_after_completion && (
-                                        <span title={a.last_edited_at ? `Last edited ${formatDt(a.last_edited_at)}` : undefined}
-                                          className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                                          ⚠ Edited after completion
-                                        </span>
+                                        <span title={a.last_edited_at ? t("Last edited {formatDt}", { formatDt: formatDt(a.last_edited_at) }) : undefined}
+                                          className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{t("⚠ Edited after completion")}</span>
                                       )}
                                     </div>
                                   ))}
@@ -469,26 +461,24 @@ export default function AttendancePage() {
                                     {allocationsSummary(row)}
                                   </span>
                                   {allocations[0]?.edited_after_completion && (
-                                    <span title={allocations[0]?.last_edited_at ? `Last edited ${formatDt(allocations[0].last_edited_at)}` : undefined}
-                                      className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                                      ⚠ Edited after completion
-                                    </span>
+                                    <span title={allocations[0]?.last_edited_at ? t("Last edited {formatDt}", { formatDt: formatDt(allocations[0].last_edited_at) }) : undefined}
+                                      className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{t("⚠ Edited after completion")}</span>
                                   )}
                                 </div>
                               )}
                             </div>
                             <div className="min-w-[100px]">
-                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">OT Hours</p>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{t("OT Hours")}</p>
                               <span className="mt-1 inline-block rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
                                 {row.ot_hours_accrued ?? '0.00'}h
                               </span>
                             </div>
                             <div className="min-w-[240px] flex-1">
-                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Remark</p>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{t("Remark")}</p>
                               <p className="mt-1 text-sm">
                                 {row.remark
-                                  ? <span className="text-slate-700">{row.remark}{row.is_manual_entry ? ' (manual entry)' : ''}</span>
-                                  : <span className="text-slate-400 italic">No remarks provided for this session.</span>}
+                                  ? <span className="text-slate-700">{row.remark}{row.is_manual_entry ? t(" (manual entry)") : ''}</span>
+                                  : <span className="text-slate-400 italic">{t("No remarks provided for this session.")}</span>}
                               </p>
                             </div>
                           </div>
