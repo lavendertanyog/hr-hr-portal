@@ -58,8 +58,7 @@ export default function Home() {
     }
     saveSession({ session: payload.session, rememberMe: remember, email: user.email });
     sessionStorage.setItem('hr_portal_user', JSON.stringify(user));
-    syncFromAccount();
-    router.push('/project-codes');
+    router.push('/dashboard');
     return null;
   };
 
