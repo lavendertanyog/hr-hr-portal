@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import SidebarClient, { PAGE_BG } from './SidebarClient';
 import TopBar from './TopBar';
+import WalkthroughTour from './WalkthroughTour';
 
 const SIDEBAR_PATH_PREFIXES = ['/dashboard', '/project-codes', '/admin', '/people', '/users', '/hierarchy', '/attendance', '/reports', '/claims', '/calendar', '/audit-log', '/profile', '/whats-new'];
 const MOBILE_MEDIA_QUERY = '(max-width: 860px)';
@@ -64,6 +65,7 @@ export default function AppShell({ children }) {
         )}
         {sidebarOpen && <SidebarClient isDrawer onClose={() => setSidebarOpen(false)} />}
         <main ref={scrollRef}>
+          <WalkthroughTour />
           <TopBar onMenuClick={() => setSidebarOpen(true)} />
           {children}
         </main>
@@ -88,6 +90,7 @@ export default function AppShell({ children }) {
             scrollbar) from the card's rounded corners, so the scrollbar never sits on the curve. */}
         <div className="flex-1 flex flex-col" style={{ minHeight: 0, padding: '16px 0' }}>
           <div ref={scrollRef} className="flex-1 overflow-y-auto page-scrollbar" style={{ paddingLeft: 12, paddingRight: 8 }}>
+              <WalkthroughTour />
               <TopBar onMenuClick={toggleCollapsed} menuExpanded={!collapsed} />
             {children}
           </div>
