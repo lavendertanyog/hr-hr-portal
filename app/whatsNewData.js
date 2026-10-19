@@ -4,6 +4,21 @@
 // the next number. Entries from before the numbering began have no version.
 export const WHATS_NEW = [
   {
+    id: 11,
+    date: '16 Oct 2026',
+    version: '1.5',
+    title: 'Expense claims',
+    body: 'Staff can now claim expenses from a receipt photo. After their manager approves, claims come to the new Claims page for your final approval.',
+    points: [
+      'Approve or reject claims (a reason is needed to reject), one at a time or in bulk',
+      'Mark approved claims paid with the payment date and a reference; staff are told in their Inbox',
+      'Export a month’s approved claims as a CSV for payroll, with a total per staff member; each claim shows its tax and service charge',
+      'Claims that look like the same receipt as another claim (same date, amount and merchant), by anyone, are flagged as a possible duplicate',
+      'Claims in another currency show the SGD amount at the purchase date’s exchange rate, and the payroll CSV has the rate and the SGD amount',
+      'See this month’s receipt-scanning spend against its US$20 monthly limit',
+    ],
+  },
+  {
     id: 10,
     date: '12 Oct 2026',
     version: '1.4',

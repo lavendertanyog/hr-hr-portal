@@ -2,8 +2,42 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { formatLeaveDate } from '../leaveFormat';
+import Link from 'next/link';
+import { formatLeaveDate, openMcFile } from '../leaveFormat';
+import { authHeaders } from '../authSession';
 import { useT, getLocale } from '../i18n/LanguageProvider';
+
+// One line summing up a claim's charges and tax, e.g. "Service charge 5% 40.66 · SST 6% 48.79".
+const CHARGE_KIND_LABELS = { SERVICE_CHARGE: 'Service charge', TAX: 'Tax', ROUNDING: 'Rounding', DISCOUNT: 'Discount', OTHER: 'Other' };
+const chargesSummary = (c) => {
+  const lines = (c.charges || []).map((ch) => `${ch.label || CHARGE_KIND_LABELS[ch.kind] || ch.kind} ${ch.kind === 'DISCOUNT' ? '−' : ''}${Number(ch.amount).toFixed(2)}`);
+  if (lines.length === 0) return '';
+  return lines.join(' · ') + (c.tax_inclusive ? ' (prices include tax)' : '');
+};
+
+// Claims in another currency also carry the amount in SGD at the purchase date's rate.
+const fxNote = (c) => (c.currency !== 'SGD' && c.amount_base != null ? `≈ SGD ${Number(c.amount_base).toFixed(2)}` : '');
+const fxDetail = (c) => {
+  if (c.currency === 'SGD') return '';
+  if (c.fx_rate == null) return `No exchange rate found for ${c.currency} on the purchase date.`;
+  return `1 ${c.currency} = ${Number(c.fx_rate)} SGD (${c.fx_source || 'rate'} for ${c.fx_rate_date})`;
+};
+
+// Amber note on a claim that looks like the same receipt as another claim (same date, amount,
+// currency and merchant), from the server's possible_duplicates.
+const DUP_STATUS = { PENDING: 'waiting for manager', MANAGER_APPROVED: 'waiting for HR', APPROVED: 'approved', PAID: 'paid' };
+function DuplicateFlag({ claim }) {
+  const dups = claim.possible_duplicates || [];
+  if (dups.length === 0) return null;
+  const who = dups.map((d) => `${d.same_person ? 'their own earlier claim' : `${d.claimant_name || 'another employee'}'s claim`} (${DUP_STATUS[d.status] || d.status.toLowerCase()})`);
+  return (
+    <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+      <p><span className="font-semibold">Possible duplicate:</span> same date, amount and merchant as {who.join(', ')}.</p>
+      {claim.duplicate_acknowledged && <p className="mt-0.5">The claimant was warned and submitted it anyway.</p>}
+    </div>
+  );
+}
+
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 const LEAVE_CATEGORIES = ['ANNUAL', 'EMERGENCY', 'SICK'];
@@ -70,6 +104,49 @@ export default function AdminPage() {
   const [leaveSaving, setLeaveSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
+
+  // Expense claims waiting for HR's final approval (marking paid, export and history are on
+  // the Claims page).
+  const [claimsPending, setClaimsPending] = useState([]);
+  const [claimCategories, setClaimCategories] = useState([]);
+  const [claimReview, setClaimReview] = useState(null); // { claim, action }
+  const [claimRemarks, setClaimRemarks] = useState('');
+  const [claimError, setClaimError] = useState('');
+  const [claimSaving, setClaimSaving] = useState(false);
+  const loadClaims = useCallback(async () => {
+    try {
+      const res = await axios.get(`${BACKEND}/api/v1/claims/hr-pending`, { headers: authHeaders() });
+      setClaimsPending(res.data?.data || []);
+    } catch { setClaimsPending([]); }
+  }, []);
+  const claimCategoryLabel = (code) => claimCategories.find((c) => c.code === code)?.label || code;
+  const viewClaimReceipt = async (claimId) => {
+    try {
+      const res = await axios.get(`${BACKEND}/api/v1/claims/${claimId}/receipt`, { headers: authHeaders() });
+      openMcFile(res.data?.data?.receiptImage);
+    } catch (err) {
+      setFeedback(err.response?.data?.error || 'Failed to open the receipt.');
+    }
+  };
+  const submitClaimReview = async () => {
+    if (!claimReview) return;
+    if (claimReview.action === 'REJECTED' && !claimRemarks.trim()) {
+      setClaimError('Please give a reason for rejecting this claim.');
+      return;
+    }
+    setClaimSaving(true);
+    try {
+      await axios.patch(`${BACKEND}/api/v1/claims/${claimReview.claim.claim_id}/hr-review`,
+        { action: claimReview.action, remarks: claimRemarks.trim() || undefined }, { headers: authHeaders() });
+      setFeedback(`${claimReview.action === 'APPROVED' ? 'Approved' : 'Rejected'} claim for ${claimReview.claim.claimant_name}.`);
+      setClaimReview(null);
+      loadClaims();
+    } catch (err) {
+      setClaimError(err.response?.data?.error || 'Failed to save the decision.');
+    } finally {
+      setClaimSaving(false);
+    }
+  };
   const [user, setUser] = useState(null);
   // Pagination
   const [accountsPage, setAccountsPage] = useState(1);
@@ -152,6 +229,11 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => { if (adminId) fetchAll(adminId); }, [adminId, fetchAll]);
+  useEffect(() => {
+    if (!adminId) return;
+    loadClaims();
+    axios.get(`${BACKEND}/api/v1/claims/categories`).then((r) => setClaimCategories(r.data?.data || [])).catch(() => setClaimCategories([]));
+  }, [adminId, loadClaims]);
 
   const handleAccount = async (userId, action) => {
     setFeedback('');
@@ -230,6 +312,7 @@ export default function AdminPage() {
       { key: 'resets', label: t("Password Resets ({length})", { length: pendingResets.length }) },
     ] : []),
     { key: 'leave', label: t("Leave Requests ({pendingLeaveCount})", { pendingLeaveCount: pendingLeaveCount }) },
+    { key: 'claims', label: t("Claims ({length})", { length: claimsPending.length }) },
     { key: 'history', label: t("History") },
   ];
 
@@ -279,6 +362,13 @@ export default function AdminPage() {
           }`}>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t("Leave Requests")}</p>
           <p className="mt-3 text-4xl font-semibold text-slate-900">{pendingLeaveCount}</p>
+        </button>
+        <button type="button" onClick={() => setTab('claims')}
+          className={`text-left rounded-2xl border bg-white px-6 py-5 shadow-sm transition ${
+            tab === 'claims' ? 'border-[#1a3a8f] ring-2 ring-[#1a3a8f]/30' : 'border-gray-100 hover:border-slate-300'
+          }`}>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Claims</p>
+          <p className="mt-3 text-4xl font-semibold text-slate-900">{claimsPending.length}</p>
         </button>
       </div>
 
@@ -477,6 +567,54 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        ) : tab === 'claims' ? (
+          <div className="p-6">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-500">Claims your managers have approved, waiting for HR&apos;s final approval.</p>
+              <Link href="/claims" className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100">
+                Mark paid, export and history →
+              </Link>
+            </div>
+            {claimsPending.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-slate-500">No claims waiting for HR.</div>
+            ) : (
+              <div className="space-y-3">
+                {claimsPending.map((c) => (
+                  <div key={c.claim_id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{claimCategoryLabel(c.category)}</p>
+                        <h3 className="mt-1 text-lg font-semibold text-slate-900">{c.claimant_name}</h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {c.merchant} • {formatLeaveDate(c.purchase_date)}
+                          <span className="ml-1.5 font-semibold text-[#1540A8]">{c.currency} {Number(c.total_amount).toFixed(2)}</span>
+                          {fxNote(c) && <span className="ml-1.5 text-xs text-slate-400" title={fxDetail(c)}>{fxNote(c)}</span>}
+                        </p>
+                        {c.items?.length > 0 && (
+                          <p className="mt-1 text-xs text-slate-500">{c.items.map((it) => `${it.quantity ? `${Number(it.quantity)} × ` : ''}${it.description}`).join(', ')}</p>
+                        )}
+                        {chargesSummary(c) && <p className="mt-1 text-xs text-slate-500">{chargesSummary(c)}</p>}
+                        <DuplicateFlag claim={c} />
+                        {c.manager_reviewer_name && (
+                          <p className="mt-1 text-xs text-slate-400">Approved by {c.manager_reviewer_name}{c.manager_remarks ? `: "${c.manager_remarks}"` : ''}</p>
+                        )}
+                        <button type="button" onClick={() => viewClaimReceipt(c.claim_id)}
+                          className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800 underline">
+                          View receipt
+                        </button>
+                      </div>
+                      <div className="flex gap-2.5">
+                        <button type="button" onClick={() => { setClaimReview({ claim: c, action: 'APPROVED' }); setClaimRemarks(''); setClaimError(''); }}
+                          className="rounded-2xl bg-[#1540A8] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#12378F]">Approve</button>
+                        <button type="button" onClick={() => { setClaimReview({ claim: c, action: 'REJECTED' }); setClaimRemarks(''); setClaimError(''); }}
+                          className="rounded-2xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-red-400 hover:text-red-600">Reject</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -771,6 +909,38 @@ export default function AdminPage() {
               <button type="button" onClick={handleSaveLeaveEdit} disabled={leaveSaving}
                 className="w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-60 transition" style={{ background: '#0c3b8f' }}>
                 {leaveSaving ? t("Saving…") : t("Save Changes")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve / reject a claim */}
+      {claimReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setClaimReview(null); }}>
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">{claimReview.action === 'APPROVED' ? 'Approve claim' : 'Reject claim'}</p>
+              <button type="button" onClick={() => setClaimReview(null)} aria-label="Close" className="flex items-center justify-center w-7 h-7 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            <p className="mt-4 text-sm text-slate-700">
+              <strong>{claimReview.claim.claimant_name}</strong> — {claimReview.claim.merchant} • {formatLeaveDate(claimReview.claim.purchase_date)} • {claimReview.claim.currency} {Number(claimReview.claim.total_amount).toFixed(2)}
+            </p>
+            <label className="mt-5 block text-sm font-semibold text-slate-700 mb-2">
+              {claimReview.action === 'REJECTED' ? 'Reason' : 'Remark'}
+              {claimReview.action === 'REJECTED' ? <span className="text-red-500"> *</span> : <span className="font-normal text-slate-400"> (optional)</span>}
+            </label>
+            <textarea rows={3} value={claimRemarks} onChange={(e) => { setClaimRemarks(e.target.value); if (claimError) setClaimError(''); }}
+              className={`w-full resize-none rounded-xl border ${claimError ? 'border-red-400' : 'border-slate-300'} px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              placeholder={claimReview.action === 'REJECTED' ? 'Why is this claim rejected?' : 'Add a note for the staff member…'} />
+            {claimError && <p className="mt-2 text-sm font-medium text-red-500">{claimError}</p>}
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setClaimReview(null)} className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancel</button>
+              <button type="button" onClick={submitClaimReview} disabled={claimSaving}
+                className={`rounded-2xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60 ${claimReview.action === 'REJECTED' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1540A8] hover:bg-[#12378F]'}`}>
+                {claimSaving ? 'Saving…' : claimReview.action === 'REJECTED' ? 'Reject' : 'Approve'}
               </button>
             </div>
           </div>

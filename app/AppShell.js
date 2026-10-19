@@ -7,7 +7,7 @@ import UpdateNotice from './UpdateNotice';
 import LanguageWelcome from './i18n/LanguageWelcome';
 import TopBar from './TopBar';
 
-const SIDEBAR_PATH_PREFIXES = ['/project-codes', '/admin', '/people', '/users', '/hierarchy', '/attendance', '/reports', '/calendar', '/audit-log', '/profile', '/whats-new'];
+const SIDEBAR_PATH_PREFIXES = ['/project-codes', '/admin', '/people', '/users', '/hierarchy', '/attendance', '/reports', '/claims', '/calendar', '/audit-log', '/profile', '/whats-new'];
 const MOBILE_MEDIA_QUERY = '(max-width: 860px)';
 
 export default function AppShell({ children }) {
