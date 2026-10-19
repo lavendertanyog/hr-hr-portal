@@ -185,11 +185,11 @@ export default function HrDashboard() {
             </svg>
             <div className="relative max-w-lg">
               <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#aab8e0]">{todayLabel || 'HR Portal'}</p>
-              <h1 className="mt-3 text-4xl font-extrabold tracking-tight">{greeting}, {firstName}</h1>
+              <h1 className="mt-3 text-4xl font-extrabold tracking-tight">{t(greeting)}, {firstName}</h1>
               <p className="mt-3 text-sm text-[#d6def5]">
                 {!loaded ? t("Checking for requests…")
                   : totalPending === 0 ? t("You’re all caught up. Nothing is waiting for HR.")
-                    : t("{totalPending} {v} waiting for HR review.", { totalPending: totalPending, v: totalPending === 1 ? 'item is' : 'items are' })}
+                    : (totalPending === 1 ? t("1 item is waiting for HR review.") : t("{totalPending} items are waiting for HR review.", { totalPending: totalPending }))}
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link href={leave.length === 0 && claims.length > 0 ? '/admin?tab=claims' : '/admin?tab=leave'}
@@ -235,7 +235,7 @@ export default function HrDashboard() {
                 <p className="py-8 text-center text-sm text-slate-400">{t("Loading…")}</p>
               ) : listLength === 0 ? (
                 <p className="py-8 text-center text-sm text-slate-400">
-                  {{ LEAVE: 'No leave waiting for review.', CLAIMS: 'No claims waiting for review.', PEOPLE: 'No employees yet.', PROJECTS: 'No active projects.' }[activeTab]}
+                  {t({ LEAVE: 'No leave waiting for review.', CLAIMS: 'No claims waiting for review.', PEOPLE: 'No employees yet.', PROJECTS: 'No active projects.' }[activeTab])}
                 </p>
               ) : (
                 <ul className="divide-y divide-slate-100">
