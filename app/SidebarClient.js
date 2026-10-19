@@ -11,6 +11,7 @@ function deriveNameFromEmail(email) {
 }
 
 const NAV = [
+  { label: 'Dashboard', href: '/dashboard', icon: 'grid' },
   { label: 'Approvals', href: '/admin', icon: 'check' },
   { label: 'Employee', href: '/people', icon: 'users' },
   { label: 'Projects', href: '/project-codes', icon: 'folder' },
@@ -24,6 +25,8 @@ const NAV = [
 function NavIcon({ name, size = 20 }) {
   const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
   switch (name) {
+    case 'grid':
+      return <svg {...common}><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>;
     case 'check':
       return <svg {...common}><circle cx="12" cy="12" r="9" /><polyline points="8 12 11 15 16 9" /></svg>;
     case 'users':
@@ -42,36 +45,35 @@ function NavIcon({ name, size = 20 }) {
       return <svg {...common}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
     case 'shield':
       return <svg {...common}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><polyline points="9 12 11 14 15 10" /></svg>;
-    case 'settings':
-      return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>;
+    case 'user':
+      return <svg {...common}><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>;
+    case 'logout':
+      return <svg {...common}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 5 12 10 7" /><line x1="5" y1="12" x2="17" y2="12" /></svg>;
     default:
       return null;
   }
 }
 
+// The content card's colour (see AppShell). The open tab's capsule uses it too.
+export const PAGE_BG = '#F7F9FD';
+
 // Module-level: resets on every full page reload.
 let _hr_lastVerified = 0;
 
-export default function SidebarClient({ isDrawer = false, onClose }) {
+export default function SidebarClient({ isDrawer = false, collapsed = false, onClose }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [logoMissing, setLogoMissing] = useState(false);
-  // Desktop rail can collapse to icons only; the choice is remembered in this browser.
-  const [collapsed, setCollapsed] = useState(() => {
-    try { return typeof window !== 'undefined' && localStorage.getItem('sidebar_collapsed') === '1'; } catch { return false; }
-  });
   const toggleCollapsed = () => setCollapsed((c) => {
     const next = !c;
     try { localStorage.setItem('sidebar_collapsed', next ? '1' : '0'); } catch {}
     return next;
   });
-  const menuRef = useRef(null);
   const navRef = useRef(null);
 
-  // On a shorter screen (most laptops) the full-size tabs don't all fit above the settings
-  // button, so the rail switches to a compact size; the tab list still scrolls if even that
+  // On a shorter screen (most laptops) the full-size tabs don't all fit above Profile and
+  // Log out, so the rail switches to a compact size; the tab list still scrolls if even that
   // doesn't fit.
   const [compact, setCompact] = useState(false);
   useEffect(() => {
@@ -132,14 +134,6 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
     return () => { ctrl.abort(); clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
 
-  useEffect(() => {
-    const onClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
-
   const handleLogout = () => {
     endSession();
     sessionStorage.removeItem('hr_portal_user');
@@ -178,8 +172,8 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
                 style={{
                   padding: '13px 18px',
                   marginBottom: 6,
-                  background: active ? '#e8edf8' : 'white',
-                  color: active ? '#1a3a8f' : '#374151',
+                  background: active ? '#E8EEFF' : 'white',
+                  color: active ? '#16307a' : '#334155',
                   fontWeight: active ? 600 : 500,
                 }}>
                 <NavIcon name={item.icon} size={18} />
@@ -216,102 +210,74 @@ export default function SidebarClient({ isDrawer = false, onClose }) {
     );
   }
 
-  // Desktop: pill-shaped icon rail, floating with a tight margin, pure-CSS stadium (no SVG,
-  // no JS-measured height — the fixed top/bottom offsets alone define its shape, so nothing
-  // can drift out of sync). Nav items cluster near the top. The active item is a modestly
-  // wider capsule, same color as the content pane, that pokes just past the rail's edge —
-  // a small, restrained highlight rather than a large separate shape. Settings sits pinned to
-  // the very bottom of this SAME element so the navy always shows behind/around it, clipped by
-  // its own overflow wrapper so only the top half is visible.
-  const PAGE_BG = '#ffffff';
+  // Desktop: the navy icon rail. AppShell's backdrop is navy, so the rail is just that backdrop
+  // showing beside the content card. The open tab is a capsule the colour of the content card.
+  // Profile and Log out sit at the bottom in the same style. Collapsing (icons only) is driven by
+  // the menu button in the top bar, via AppShell.
   const RAIL_W = collapsed ? 64 : 140;
-  const MARGIN = 10;
-  const PILL_W = collapsed ? 48 : 72;
+
+  const railItemStyle = (active) => ({
+    width: collapsed ? (active ? 44 : 40) : compact ? (active ? 76 : 64) : (active ? 80 : 69),
+    height: collapsed ? (active ? 44 : 40) : compact ? (active ? 70 : 50) : (active ? 132 : 69),
+    borderRadius: collapsed ? (active ? 14 : 12) : compact ? (active ? 28 : 16) : (active ? 40 : 18),
+    margin: collapsed ? (active ? '6px 0' : '4px 0') : compact ? (active ? '8px 0' : '3px 0') : (active ? '18px 0' : '6px 0'),
+    gap: compact ? 5 : 7,
+    background: active ? PAGE_BG : 'transparent',
+    color: active ? '#16307a' : '#aab8e0',
+  });
+  const railLabel = (text, active) => !collapsed && (
+    <span style={{ fontSize: 11, fontWeight: active ? 600 : 500, lineHeight: 1 }}>{text}</span>
+  );
+  const profileActive = pathname.startsWith('/profile');
 
   return (
-    <div style={{ width: MARGIN + RAIL_W, flexShrink: 0, position: 'relative', transition: 'width 200ms ease' }}>
-      {/* No background of its own — the page behind it is already navy (see AppShell),
-          so there's no seam between this rail and the rest of the backdrop to misalign. */}
-      <aside
-        className="flex flex-col"
-        style={{
-          position: 'fixed', top: MARGIN, bottom: MARGIN, left: MARGIN, width: RAIL_W, transition: 'width 200ms ease',
-          zIndex: 30,
-        }}
-      >
-        {/* Collapse / expand the rail (icons only when collapsed) — remembered per browser */}
-        <button type="button" onClick={toggleCollapsed}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-expanded={!collapsed}
-          className="absolute flex items-center justify-center rounded-lg text-[#aab8e0] transition hover:bg-white/10 hover:text-white"
-          style={{ top: 12, right: collapsed ? (RAIL_W - 32) / 2 : 8, width: 32, height: 32, zIndex: 31 }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            aria-hidden="true" style={{ transform: collapsed ? 'scaleX(-1)' : 'none', transition: 'transform 200ms ease' }}>
-            <line x1="11" y1="6" x2="21" y2="6" /><line x1="11" y1="12" x2="21" y2="12" /><line x1="11" y1="18" x2="21" y2="18" /><polyline points="7 8 3 12 7 16" />
-          </svg>
+    <aside className="flex flex-col flex-shrink-0" style={{ width: RAIL_W, transition: 'width 200ms ease', padding: '10px 0' }}>
+      {/* Logo */}
+      <div className="flex items-center justify-center" style={{ paddingTop: collapsed ? 20 : compact ? 24 : 38, paddingBottom: 4 }}>
+        {collapsed ? (
+          <span className="text-lg font-extrabold text-white" aria-label="Nextan">n</span>
+        ) : !logoMissing ? (
+          <img src="/nextan-logo.png" alt="Nextan" width={compact ? 120 : 156} height={compact ? 36 : 48}
+            className="object-contain brightness-0 invert"
+            onError={() => setLogoMissing(true)} />
+        ) : (
+          <span className="text-sm font-bold text-white tracking-tight">nextan</span>
+        )}
+      </div>
+
+      {/* The tabs scroll when they don't all fit, so none end up hidden behind the bottom items. */}
+      <nav ref={navRef} aria-label="Main" className="flex flex-col items-center overflow-y-auto hide-native-scrollbar" style={{ paddingTop: 16, flex: 1, minHeight: 0 }}>
+        {NAV.map((item) => {
+          const active = pathname.startsWith(item.href);
+          return (
+            <Link key={item.href} href={item.href}
+              title={item.label}
+              aria-label={item.label}
+              aria-current={active ? 'page' : undefined}
+              className={`flex flex-col items-center justify-center transition-all flex-shrink-0 ${active ? '' : 'hover:bg-white/10 hover:text-white'}`}
+              style={railItemStyle(active)}>
+              <NavIcon name={item.icon} size={active ? 20 : 18} />
+              {railLabel(item.short || item.label, active)}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="flex flex-col items-center flex-shrink-0" style={{ paddingTop: 8, borderTop: '1px solid rgba(170,184,224,0.2)', margin: '0 12px' }}>
+        <Link href="/profile" title="Profile" aria-label="Profile"
+          aria-current={profileActive ? 'page' : undefined}
+          className={`flex flex-col items-center justify-center transition-all flex-shrink-0 ${profileActive ? '' : 'hover:bg-white/10 hover:text-white'}`}
+          style={railItemStyle(profileActive)}>
+          <NavIcon name="user" size={profileActive ? 20 : 18} />
+          {railLabel('Profile', profileActive)}
+        </Link>
+        <button type="button" onClick={handleLogout} title="Log out" aria-label="Log out"
+          className="flex flex-col items-center justify-center transition-all flex-shrink-0 hover:bg-white/10 hover:text-white"
+          style={{ ...railItemStyle(false), border: 'none', cursor: 'pointer' }}>
+          <NavIcon name="logout" size={18} />
+          {railLabel('Log out', false)}
         </button>
-
-        {/* Logo */}
-        <div className="flex items-center justify-center" style={{ paddingTop: collapsed ? 28 : compact ? 36 : 50, paddingBottom: 4 }}>
-          {collapsed ? (
-            <span aria-hidden="true" style={{ display: 'block', height: 20 }} />
-          ) : !logoMissing ? (
-            <img src="/nextan-logo.png" alt="Nextan" width={compact ? 120 : 156} height={compact ? 36 : 48}
-              className="object-contain brightness-0 invert"
-              onError={() => setLogoMissing(true)} />
-          ) : (
-            <span className="text-sm font-bold text-white tracking-tight">nextan</span>
-          )}
-        </div>
-
-        <nav ref={navRef} className="flex flex-col items-center overflow-y-auto hide-native-scrollbar" style={{ paddingTop: 20, flex: 1, minHeight: 0 }}>
-          {NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
-            return (
-              <Link key={item.href} href={item.href}
-                title={item.label}
-                aria-label={item.label}
-                aria-current={active ? 'page' : undefined}
-                className="flex flex-col items-center justify-center transition-all flex-shrink-0"
-                style={{
-                  width: collapsed ? (active ? 44 : 40) : compact ? (active ? 76 : 64) : (active ? 80 : 69),
-                  height: collapsed ? (active ? 44 : 40) : compact ? (active ? 70 : 50) : (active ? 132 : 69),
-                  borderRadius: collapsed ? (active ? 14 : 12) : compact ? (active ? 28 : 16) : (active ? 40 : 18),
-                  margin: collapsed ? (active ? '6px 0' : '4px 0') : compact ? (active ? '8px 0' : '3px 0') : (active ? '18px 0' : '6px 0'),
-                  gap: compact ? 5 : 7,
-                  background: active ? PAGE_BG : 'transparent',
-                  color: active ? '#16307a' : '#aab8e0',
-                }}>
-                <NavIcon name={item.icon} size={active ? 20 : 18} />
-                {!collapsed && <span style={{ fontSize: 11, fontWeight: active ? 600 : 500, lineHeight: 1 }}>{item.label}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Settings / profile — a half pill flush against the bottom edge: rounded top,
-            flat bottom, no gap, so it reads as cut off by the screen's edge. */}
-        <div ref={menuRef} style={{ position: 'relative', flexShrink: 0, left: (RAIL_W - PILL_W) / 2, width: PILL_W }}>
-          <button type="button" onClick={() => setMenuOpen((v) => !v)} aria-label="Settings"
-            className="flex items-center justify-center"
-            style={{
-              width: PILL_W, height: collapsed ? 64 : compact ? 64 : 93, borderRadius: collapsed ? '24px 24px 0 0' : '36px 36px 0 0',
-              background: '#f0c9dc', color: '#16307a', border: 'none', cursor: 'pointer',
-            }}>
-            <NavIcon name="settings" size={18} />
-          </button>
-          {menuOpen && (
-            <div className="absolute rounded-2xl border border-slate-200 bg-white shadow-lg py-2 z-30"
-              style={{ bottom: collapsed || compact ? 72 : 101, left: 0, width: 150 }}>
-              <Link href="/profile" onClick={() => setMenuOpen(false)}
-                className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Profile</Link>
-              <button type="button" onClick={handleLogout}
-                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Log out</button>
-            </div>
-          )}
-        </div>
-      </aside>
-    </div>
+      </div>
+    </aside>
   );
 }

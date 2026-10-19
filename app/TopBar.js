@@ -2,8 +2,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { endSession } from './authSession';
+import axios from 'axios';
+import { useRouter, usePathname } from 'next/navigation';
+import { authHeaders, endSession } from './authSession';
 import { WHATS_NEW_LATEST_ID, WHATS_NEW_SEEN_KEY } from './whatsNewData';
 
 function deriveNameFromEmail(email) {
@@ -27,12 +28,12 @@ function WhatsNewButton() {
 
   return (
     <Link href="/whats-new" onClick={markSeen} aria-label="What's new"
-      className="relative flex items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
-      style={{ width: 36, height: 36 }}>
+      className="relative flex items-center justify-center rounded-full text-slate-500 transition hover:bg-white"
+      style={{ width: 40, height: 40 }}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2l2.09 6.26L20 10l-5.91 1.74L12 18l-2.09-6.26L4 10l5.91-1.74L12 2z" />
       </svg>
-      {hasUnseen && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />}
+      {hasUnseen && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#F7F9FD]" />}
     </Link>
   );
 }
@@ -40,6 +41,7 @@ function WhatsNewButton() {
 // Every page, and every named feature/action on those pages, so typing "approve" or
 // "budget" finds the right place even if the user doesn't know which page it lives on.
 const SEARCH_INDEX = [
+  { label: 'Dashboard', href: '/dashboard', section: 'Page', keywords: 'home overview welcome pending out today' },
   { label: 'Approvals', href: '/admin', section: 'Page', keywords: 'approve accounts password reset leave requests' },
   { label: 'Employee', href: '/people', section: 'Page', keywords: 'user roles leave days entitlement employees' },
   { label: 'Projects', href: '/project-codes', section: 'Page', keywords: 'project codes budgets' },
@@ -115,17 +117,17 @@ function SearchBox() {
 
   return (
     <div className="relative" ref={boxRef}>
-      <div className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 max-w-md">
+      <div className="flex items-center gap-3 rounded-2xl bg-white border border-slate-100 shadow-[0_1px_2px_rgba(15,23,42,0.03)] px-4 max-w-xl focus-within:ring-2 focus-within:ring-blue-500" style={{ height: 48 }}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 flex-shrink-0">
           <circle cx="11" cy="11" r="8" />
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
-        <input type="text" placeholder="Search"
+        <input type="text" placeholder="Search pages and actions, e.g. approve leave" aria-label="Search"
           value={query}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          className="w-full bg-transparent text-sm text-slate-700 placeholder-slate-400 focus:outline-none" />
+          className="w-full bg-transparent text-sm text-slate-900 placeholder-slate-400 focus:outline-none" />
       </div>
       {open && q && (
         <div className="absolute left-0 top-full mt-2 w-80 rounded-2xl border border-slate-200 bg-white shadow-lg py-2 z-30 max-h-80 overflow-y-auto">
@@ -147,13 +149,15 @@ function SearchBox() {
   );
 }
 
-export default function TopBar({ onMenuClick }) {
+export default function TopBar({ onMenuClick, menuExpanded }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const menuRef = useRef(null);
   const notifRef = useRef(null);
+  const [pending, setPending] = useState(null); // { leave, claims }
 
   useEffect(() => {
     try {
@@ -171,6 +175,20 @@ export default function TopBar({ onMenuClick }) {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
+  // Items waiting for HR. Refreshed on every page change, so the count drops as soon as they've
+  // been worked through on Approvals and the user moves on.
+  useEffect(() => {
+    if (!user?.user_id) return;
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
+    Promise.all([
+      axios.get(`${base}/api/v1/hr/leave-requests?requesterId=${user.user_id}`).catch(() => null),
+      axios.get(`${base}/api/v1/claims/hr-pending`, { headers: authHeaders() }).catch(() => null),
+    ]).then(([leaveRes, claimsRes]) => {
+      const leave = (leaveRes?.data?.data || []).filter((r) => String(r.workflow_status).toUpperCase() === 'PENDING').length;
+      setPending({ leave, claims: (claimsRes?.data?.data || []).length });
+    });
+  }, [user?.user_id, pathname]);
+
   const handleLogout = () => {
     endSession();
     sessionStorage.removeItem('hr_portal_user');
@@ -178,15 +196,20 @@ export default function TopBar({ onMenuClick }) {
   };
 
   const displayName = user?.full_name || deriveNameFromEmail(user?.email) || 'HR';
+  const totalPending = pending ? pending.leave + pending.claims : 0;
+  const notifRows = [
+    { label: 'Leave requests', count: pending?.leave || 0, href: '/admin?tab=leave' },
+    { label: 'Expense claims', count: pending?.claims || 0, href: '/admin?tab=claims' },
+  ];
   const initials = displayName.split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('') || 'HR';
 
   return (
-    <div className="sticky top-0 z-20 px-8 pt-4 pb-2 bg-white">
-      <div className="flex items-center gap-3 rounded-full bg-white border border-slate-200 shadow-sm px-4 py-2.5">
-        {/* Hamburger */}
-        <button type="button" onClick={onMenuClick} aria-label="Toggle menu"
-          className="flex-shrink-0 flex items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
-          style={{ width: 36, height: 36 }}>
+    <div className="sticky top-0 z-20 px-6 pt-4 pb-3 sm:px-8" style={{ background: '#F7F9FD' }}>
+      <div className="flex items-center gap-3">
+        {/* Menu: collapses/expands the rail on desktop, opens the drawer on small screens */}
+        <button type="button" onClick={onMenuClick} aria-label="Toggle menu" aria-expanded={menuExpanded}
+          className="flex-shrink-0 flex items-center justify-center rounded-full text-slate-500 transition hover:bg-white"
+          style={{ width: 40, height: 40 }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 6h16M4 12h16M4 18h16" />
           </svg>
@@ -202,30 +225,42 @@ export default function TopBar({ onMenuClick }) {
           <WhatsNewButton />
           {/* Notification bell */}
           <div className="relative" ref={notifRef}>
-            <button type="button" onClick={() => setNotifOpen((v) => !v)} aria-label="Notifications"
-              className="flex items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
-              style={{ width: 36, height: 36 }}>
+            <button type="button" onClick={() => setNotifOpen((v) => !v)}
+              aria-label={totalPending > 0 ? `Notifications, ${totalPending} waiting for review` : 'Notifications'}
+              className="relative flex items-center justify-center rounded-full text-slate-500 transition hover:bg-white"
+              style={{ width: 40, height: 40 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
+              {totalPending > 0 && (
+                <span className="absolute top-1 right-1 flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-[#F7F9FD]">
+                  {totalPending > 99 ? '99+' : totalPending}
+                </span>
+              )}
             </button>
             {notifOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-200 bg-white shadow-lg p-4 z-30">
-                <p className="text-sm font-semibold text-slate-800 mb-1">Notifications</p>
-                <p className="text-xs text-slate-500">Check Approvals for pending items.</p>
-                <Link href="/admin" onClick={() => setNotifOpen(false)}
-                  className="mt-3 inline-block text-xs font-semibold" style={{ color: '#1a3a8f' }}>
-                  Go to Approvals →
-                </Link>
+              <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-slate-200 bg-white shadow-lg p-2 z-30">
+                <p className="px-3 pt-2 pb-1 text-sm font-semibold text-slate-900">Waiting for your review</p>
+                {pending === null ? (
+                  <p className="px-3 py-3 text-xs text-slate-400">Loading…</p>
+                ) : totalPending === 0 ? (
+                  <p className="px-3 py-3 text-xs text-slate-500">You&apos;re all caught up.</p>
+                ) : notifRows.map((row) => (
+                  <Link key={row.label} href={row.href} onClick={() => setNotifOpen(false)}
+                    className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                    {row.label}
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${row.count > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500'}`}>{row.count}</span>
+                  </Link>
+                ))}
               </div>
             )}
           </div>
 
           {/* Calendar shortcut */}
           <Link href="/calendar" aria-label="Calendar"
-            className="flex items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
-            style={{ width: 36, height: 36 }}>
+            className="flex items-center justify-center rounded-full text-slate-500 transition hover:bg-white"
+            style={{ width: 40, height: 40 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" />
               <line x1="16" y1="2" x2="16" y2="6" />
@@ -234,17 +269,20 @@ export default function TopBar({ onMenuClick }) {
             </svg>
           </Link>
 
-          <div className="w-px self-stretch bg-slate-200 mx-1" />
+          <div className="w-px h-6 bg-slate-200 mx-2" />
 
           {/* Avatar + name dropdown */}
           <div className="relative" ref={menuRef}>
             <button type="button" onClick={() => setMenuOpen((v) => !v)}
-              className="flex items-center gap-2 rounded-full pl-1 pr-2 py-1 transition hover:bg-slate-100">
+              className="flex items-center gap-2.5 rounded-full pl-1 pr-2 py-1 transition hover:bg-white">
               <div className="flex items-center justify-center rounded-full text-white text-xs font-bold flex-shrink-0"
-                style={{ width: 30, height: 30, background: '#1a3a8f' }}>
+                style={{ width: 36, height: 36, background: '#1a3a8f', boxShadow: '0 0 0 3px #f0c9dc' }}>
                 {initials}
               </div>
-              <span className="hidden sm:block text-sm font-semibold text-slate-800 truncate max-w-[120px]">{displayName}</span>
+              <span className="hidden sm:flex flex-col items-start leading-tight">
+                <span className="text-sm font-semibold text-slate-800 truncate max-w-[140px]">{displayName}</span>
+                <span className="text-xs text-slate-500">HR</span>
+              </span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 flex-shrink-0">
                 <polyline points="6 9 12 15 18 9" />
               </svg>

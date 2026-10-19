@@ -2,6 +2,18 @@
 // jargon). Newest first. `id` just needs to increase; it's what "seen" is tracked against.
 export const WHATS_NEW = [
   {
+    id: 8,
+    date: '13 Oct 2026',
+    title: 'A fresh new look and a Dashboard',
+    body: 'The portal has a cleaner design, and you now land on a new Dashboard after logging in.',
+    points: [
+      'The Dashboard shows leave and claims waiting for you, employees, active projects and who is out today',
+      'The bell shows how many leave requests and claims are waiting, and opens the right Approvals tab',
+      'The menu button next to search hides or shows the sidebar labels; Profile and Log out are at the bottom of the sidebar',
+      'The Calendar has a cleaner month view',
+    ],
+  },
+  {
     id: 7,
     date: '12 Oct 2026',
     title: 'Expense claims',

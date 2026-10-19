@@ -443,23 +443,26 @@ export default function CalendarPage() {
         </div>
 
         {listTab === 'all' && viewMode === 'month' ? (
-          <>
-            <div className="grid grid-cols-7 border-b border-slate-100">
+          // Same look as the Staff, Manager and Account Manager calendars: weekdays are navy pills,
+          // and the days below have no boxes, just a line under each week.
+          <div className="px-4 pb-4">
+            <div className="grid grid-cols-7 pt-4 pb-2">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-                <span key={d} className="py-3 text-center text-xs font-semibold text-slate-400 border-r border-slate-100 last:border-r-0">{d}</span>
+                <span key={d} className="px-1">
+                  <span className="block rounded-full bg-[#16307a] py-2 text-center text-xs font-bold uppercase tracking-[0.12em] text-white">{d}</span>
+                </span>
               ))}
             </div>
             <div className="grid grid-cols-7">
               {gridCells.map((d, i) => {
-                const isLastCol = (i + 1) % 7 === 0;
-                if (!d) return <div key={i} className={`min-h-[110px] border-b border-slate-100 bg-slate-50/40 ${isLastCol ? '' : 'border-r'}`} />;
+                if (!d) return <div key={i} className="min-h-[110px] border-b border-slate-200" />;
                 const iso = toISODateStr(d);
                 const holiday = holidayByDate[iso];
                 const onLeave = leaveByDate[iso] || [];
                 const isToday = iso === toISODateStr(new Date());
                 return (
                   <button key={i} type="button" onClick={() => openAddModal(iso, holidayByDateAll[iso]?.name)}
-                    className={`min-h-[110px] p-2 flex flex-col items-end text-left transition hover:bg-slate-50 border-b border-slate-100 ${isLastCol ? '' : 'border-r'}`}>
+                    className="min-h-[110px] p-2 flex flex-col items-start text-left transition hover:bg-slate-50 border-b border-slate-200">
                     <span className={`inline-flex items-center justify-center text-xs font-semibold w-6 h-6 rounded-full ${isToday ? 'bg-[#1540A8] text-white' : 'text-slate-700'}`}>
                       {d.getDate()}
                     </span>
@@ -476,7 +479,7 @@ export default function CalendarPage() {
                 );
               })}
             </div>
-          </>
+          </div>
         ) : (
           <div className="p-6">
             {loading ? (
