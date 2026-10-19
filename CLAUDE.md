@@ -6,6 +6,6 @@ Shared workspace notes, skills and agents live one folder up, in `../CLAUDE.md` 
 
 - Before any UI change, follow `nextan-ui-design`. If the same page or component exists in the other portals, follow `nextan-cross-portal` and change every copy.
 - This Next.js version has breaking changes. Check `node_modules/next/dist/docs/` before using an unfamiliar API.
-- Work on your own branch (see the Team table in `../CLAUDE.md`). Never run `vercel --prod`.
+- Work on your own branch (see the Team table in `../CLAUDE.md`). Only the team lead, Eunice (`janicelav9`), runs `vercel --prod`; for anyone else, never run it.
 - Before reporting a task as done, run `nextan-release-check`.
 - All visible text goes through `t("English text")` from `useT()` (`app/i18n/LanguageProvider.js`); the English text is the key. Add the Mandarin to `app/i18n/zh-portal.js` (What's New text goes in `zh-content.js`; both files are identical in the HR, Manager and Account Manager portals, so change every copy). A missing entry shows the English. Dates use `getLocale()`. The language is saved on the account (`users.preferred_language`) and in the browser for the login page.
