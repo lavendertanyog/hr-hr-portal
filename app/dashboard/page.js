@@ -5,7 +5,8 @@ import Link from 'next/link';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { authHeaders } from '../authSession';
-import { WHATS_NEW } from '../whatsNewData';
+import { WHATS_NEW } from '../whatsNewData';
+import ComingUp from '../ComingUp';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 const PREVIEW_COUNT = 6;
@@ -217,6 +218,8 @@ export default function HrDashboard() {
               </button>
             ))}
           </div>
+
+          <ComingUp user={user} />
 
           {/* List panel */}
           <section ref={listRef} className="flex scroll-mt-24 flex-col gap-4">
