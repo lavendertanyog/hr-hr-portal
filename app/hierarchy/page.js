@@ -75,7 +75,7 @@ const OrgNode = React.forwardRef(function OrgNode(
             onBlur={() => setAssigning(false)}
             className="w-full rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-700 focus:outline-none">
             <option value="" disabled>Select supervisor…</option>
-            {supervisorOptions.map((s) => <option key={s.user_id} value={s.user_id}>{s.full_name}</option>)}
+            {supervisorOptions.filter((s) => s.user_id !== user.user_id).map((s) => <option key={s.user_id} value={s.user_id}>{s.full_name}</option>)}
           </select>
         ) : (
           <button type="button" onClick={() => setAssigning(true)}
@@ -90,7 +90,7 @@ const OrgNode = React.forwardRef(function OrgNode(
             onChange={(e) => { if (e.target.value) { onAssignSupervisor(user.user_id, e.target.value); setAssigning(false); } }}
             className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 focus:outline-none">
             <option value="" disabled>Reassign to…</option>
-            {supervisorOptions.filter((s) => s.user_id !== currentSupervisorId).map((s) => (
+            {supervisorOptions.filter((s) => s.user_id !== currentSupervisorId && s.user_id !== user.user_id).map((s) => (
               <option key={s.user_id} value={s.user_id}>{s.full_name}</option>
             ))}
           </select>
