@@ -2,6 +2,17 @@
 // jargon). Newest first. `id` just needs to increase; it's what "seen" is tracked against.
 export const WHATS_NEW = [
   {
+    id: 14,
+    date: '29 Oct 2026',
+    title: 'Sign-ups from any email, with you approving outside ones',
+    body: 'People can now sign up with any email address, not only @nextan.com.sg. You hear about every new sign-up in your Inbox and by email to hr.admin@.',
+    points: [
+      'Nextan emails become active as soon as the person verifies their email, as before',
+      'Other emails (e.g. Gmail) wait for you after they verify: approve or reject them under Approvals > Pending Accounts',
+      'Microsoft (Outlook) sign-in still only accepts Nextan accounts',
+    ],
+  },
+  {
     id: 13,
     date: '29 Oct 2026',
     title: 'Leave by the hour',

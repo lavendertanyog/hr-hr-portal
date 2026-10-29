@@ -125,7 +125,7 @@ export default function Home() {
     e.preventDefault();
     setError(''); setInfoMessage(''); setUnverifiedEmail('');
     if (!email || (mode !== 'reset' && !password)) { setError('Email and password are required.'); return; }
-    if (!email.toLowerCase().endsWith('@nextan.com.sg')) { setError(mode === 'login' ? 'Invalid email or password.' : 'Please enter a valid email address.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError(mode === 'login' ? 'Invalid email or password.' : 'Please enter a valid email address.'); return; }
     if (mode === 'signup' && password !== confirmPassword) { setError('Passwords do not match.'); return; }
     if (mode !== 'reset' && password.length < 6) { setError('Password must be at least 6 characters.'); return; }
 
@@ -161,7 +161,7 @@ export default function Home() {
         setPassword('');
         setConfirmPassword('');
         setLoading(false);
-        setInfoMessage('Account created. Check your email for a link to verify your account before signing in.');
+        setInfoMessage(payload.message || 'Account created. Check your email for a link to verify your account before signing in.');
       } else {
         const loginError = finishLogin(payload, rememberMe);
         if (loginError) { setError(loginError); setLoading(false); }
@@ -207,7 +207,7 @@ export default function Home() {
         {/* Right white panel */}
         <div className="flex flex-col justify-center w-full md:w-1/2 bg-white p-10 md:p-12">
           <h1 className="text-4xl font-bold text-slate-900 mb-2">{mode === 'login' ? 'Hello Again!' : mode === 'signup' ? 'Create Account' : 'Forgot Password'}</h1>
-          <p className="text-slate-500 text-base mb-8">{mode === 'login' ? (rememberedEmail ? `Welcome back, ${deriveNameFromEmail(rememberedEmail)}` : 'Welcome Back') : mode === 'signup' ? 'Register with your Nextan email' : 'Enter your email and we’ll send you a temporary password'}</p>
+          <p className="text-slate-500 text-base mb-8">{mode === 'login' ? (rememberedEmail ? `Welcome back, ${deriveNameFromEmail(rememberedEmail)}` : 'Welcome Back') : mode === 'signup' ? 'Register with your email' : 'Enter your email and we’ll send you a temporary password'}</p>
 
           {resuming ? (
             <div className="space-y-4">
