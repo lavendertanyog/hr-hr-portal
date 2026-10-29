@@ -556,6 +556,7 @@ export default function CalendarPage() {
                         if (it.kind === 'leave') {
                           const l = it.leave;
                           const days = dayCount(l.start_date, l.end_date);
+                          const hours = l.leave_hours != null ? Number(l.leave_hours) : null;
                           return (
                             <div key={it.key} className="flex items-center gap-4 px-4 py-3.5">
                               <div className="w-10 flex-shrink-0 text-center">
@@ -569,7 +570,7 @@ export default function CalendarPage() {
                               </div>
                               <p className="flex-shrink-0 text-right text-xs text-slate-500">
                                 {rangeLabel(l.start_date, l.end_date)}
-                                <span className="block text-[11px] text-slate-400">{days} day{days === 1 ? '' : 's'}</span>
+                                <span className="block text-[11px] text-slate-400">{hours != null ? `${hours} h` : `${days} day${days === 1 ? '' : 's'}`}</span>
                               </p>
                             </div>
                           );
@@ -661,7 +662,7 @@ export default function CalendarPage() {
                   {leaveOnDay(addDate).map((l) => (
                     <li key={l.leave_id} className="flex justify-between gap-3 text-sm">
                       <span className="truncate font-medium text-slate-800">{l.full_name}</span>
-                      <span className="flex-shrink-0 text-xs text-slate-500">{rangeLabel(l.start_date, l.end_date)}</span>
+                      <span className="flex-shrink-0 text-xs text-slate-500">{rangeLabel(l.start_date, l.end_date)}{l.leave_hours != null ? ` · ${Number(l.leave_hours)} h` : ''}</span>
                     </li>
                   ))}
                 </ul>
