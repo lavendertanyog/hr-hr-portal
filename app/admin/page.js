@@ -106,6 +106,8 @@ function AdminContent() {
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
   const [editReason, setEditReason] = useState('');
+  // Hours for leave by the hour (one day); null for full-day leave.
+  const [editHours, setEditHours] = useState(null);
   const [leaveSaving, setLeaveSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
@@ -280,6 +282,7 @@ function AdminContent() {
     setEditCategory(String(r.category || 'ANNUAL').toUpperCase());
     setEditStartDate(String(r.start_date).slice(0, 10));
     setEditEndDate(String(r.end_date).slice(0, 10));
+    setEditHours(r.leave_hours != null ? Number(r.leave_hours) : null);
     setEditReason(r.reason || '');
     setLeaveMessage('');
   };
@@ -296,7 +299,8 @@ function AdminContent() {
         requesterId: adminId,
         category: editCategory,
         startDate: editStartDate,
-        endDate: editEndDate,
+        endDate: editHours != null ? editStartDate : editEndDate,
+        hours: editHours != null && editCategory !== 'SICK' ? editHours : undefined,
         reason: editReason.trim() || undefined,
       });
       setLeaveMessage('Leave request updated successfully.'); setLeaveMessageType('success');
@@ -560,7 +564,7 @@ function AdminContent() {
                         </td>
                         <td className="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">{r.category}</td>
                         <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.start_date).slice(0, 10))}</td>
-                        <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.end_date).slice(0, 10))}</td>
+                        <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{r.leave_hours != null ? `${Number(r.leave_hours)} h` : formatLeaveDate(String(r.end_date).slice(0, 10))}</td>
                         <td className="px-6 py-4 whitespace-nowrap"><LeaveStatusPill status={r.workflow_status} /></td>
                         <td className="px-6 py-4 text-slate-500 max-w-[220px] truncate">{r.reviewer_remarks || '—'}</td>
                         <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">{formatDt(r.created_at)}</td>
@@ -681,7 +685,7 @@ function AdminContent() {
                           </td>
                           <td className="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">{r.category}</td>
                           <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.start_date).slice(0, 10))}</td>
-                          <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{formatLeaveDate(String(r.end_date).slice(0, 10))}</td>
+                          <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{r.leave_hours != null ? `${Number(r.leave_hours)} h` : formatLeaveDate(String(r.end_date).slice(0, 10))}</td>
                           <td className="px-6 py-4 whitespace-nowrap"><LeaveStatusPill status={r.workflow_status} /></td>
                           <td className="px-6 py-4 text-slate-500 max-w-[220px] truncate">{r.reviewer_remarks || '—'}</td>
                           <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">{formatDt(r.created_at)}</td>
@@ -908,11 +912,21 @@ function AdminContent() {
                   <input type="date" value={editStartDate} onChange={(e) => setEditStartDate(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">End Date</label>
-                  <input type="date" value={editEndDate} min={editStartDate || undefined} onChange={(e) => setEditEndDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
+                {editHours != null ? (
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Hours</label>
+                    <select value={editHours} onChange={(e) => setEditHours(Number(e.target.value))}
+                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {[1, 1.5, 2, 2.5, 3, 3.5, 4].map((h) => <option key={h} value={h}>{h} hour{h === 1 ? '' : 's'}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">End Date</label>
+                    <input type="date" value={editEndDate} min={editStartDate || undefined} onChange={(e) => setEditEndDate(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Reason <span className="font-normal text-slate-400">(optional)</span></label>

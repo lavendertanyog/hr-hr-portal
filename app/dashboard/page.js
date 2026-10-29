@@ -23,11 +23,12 @@ function dayMonth(ymd) {
   return new Date(ymd + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
 }
 
-// "16 Oct · 1 day" or "16 Oct – 17 Oct · 2 days"
+// "16 Oct · 1 day", "16 Oct – 17 Oct · 2 days", or "16 Oct · 2 h" for leave by the hour
 function leaveRange(item) {
   const start = toYMD(item.start_date);
   const end = toYMD(item.end_date);
   if (!start || !end) return '';
+  if (item.leave_hours != null) return `${dayMonth(start)} · ${Number(item.leave_hours)} h`;
   const days = Math.round((new Date(end + 'T00:00:00') - new Date(start + 'T00:00:00')) / 86400000) + 1;
   return start === end ? `${dayMonth(start)} · 1 day` : `${dayMonth(start)} – ${dayMonth(end)} · ${days} days`;
 }

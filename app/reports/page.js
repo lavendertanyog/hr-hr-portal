@@ -113,12 +113,18 @@ function getLeaveNote(leaveRequests, userId, startStr, endStr) {
     return lStart <= endStr && lEnd >= startStr;
   });
   if (overlapping.length === 0) return null;
+  // Leave by the hour (leave_hours) counts as its hours, full-day leave as its days.
   const totalDays = overlapping.reduce((sum, l) => {
+    if (l.leave_hours != null) return sum;
     const s = parseDateStr(String(l.start_date).slice(0, 10)), e = parseDateStr(String(l.end_date).slice(0, 10));
     return sum + Math.round((e - s) / 86400000) + 1;
   }, 0);
+  const totalHours = overlapping.reduce((sum, l) => sum + (l.leave_hours != null ? Number(l.leave_hours) : 0), 0);
   const category = (overlapping[0].category || 'leave').toLowerCase();
-  return `${totalDays} day${totalDays === 1 ? '' : 's'} of approved ${category} leave overlaps this period`;
+  const parts = [];
+  if (totalDays) parts.push(`${totalDays} day${totalDays === 1 ? '' : 's'}`);
+  if (totalHours) parts.push(`${totalHours} h`);
+  return `${parts.join(' and ')} of approved ${category} leave overlaps this period`;
 }
 
 function fmtHours(n) {
