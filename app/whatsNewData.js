@@ -2,6 +2,30 @@
 // jargon). Newest first. `id` just needs to increase; it's what "seen" is tracked against.
 export const WHATS_NEW = [
   {
+    id: 11,
+    date: '22 Oct 2026',
+    title: 'Public holidays for each country',
+    body: "The Calendar page now manages public holidays for Singapore, Malaysia, China and Sri Lanka. Pick the country from the Holidays for dropdown.",
+    points: [
+      "Fetch official holidays works for every country: Singapore from data.gov.sg, the others from Google's holiday calendar",
+      "Untick any fetched holiday you don't want before adding them",
+      "For a Malaysian holiday, choose Nationwide or Only some states and tick the states",
+      "Some Malaysian state holidays (such as Sultans' birthdays) aren't in the fetched list, so add those by hand",
+    ],
+  },
+  {
+    id: 10,
+    date: '22 Oct 2026',
+    title: 'Office country and time zone for each user',
+    body: "Each user now has an office country, and their attendance follows that office's time zone.",
+    points: [
+      "Set it in Users → Edit User: Singapore, Malaysia, China or Sri Lanka",
+      "Everyone starts as Singapore, so set it for staff based elsewhere",
+      "Attendance and Reports show times in the staff member's own office time, with a small country tag for anyone outside Singapore",
+      "Lunch, overtime and clock-in reminders follow that office's clock",
+    ],
+  },
+  {
     id: 9,
     date: '19 Oct 2026',
     title: 'A quick tour of the portal',

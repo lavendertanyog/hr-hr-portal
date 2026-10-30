@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import FilterSearch from '../people/FilterSearch';
+import { OFFICE_COUNTRIES, DEFAULT_COUNTRY } from '../officeTime';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
@@ -304,10 +305,11 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [page, setPage] = useState(1);
 
-  // Edit user modal (name/email)
+  // Edit user modal (name/email/office country)
   const [editModal, setEditModal] = useState(null);
   const [editFullName, setEditFullName] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editCountry, setEditCountry] = useState(DEFAULT_COUNTRY);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editFeedback, setEditFeedback] = useState('');
 
@@ -387,6 +389,7 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
     setEditModal(u);
     setEditFullName(u.full_name || '');
     setEditEmail(u.email || '');
+    setEditCountry(String(u.home_office_country || DEFAULT_COUNTRY).toUpperCase());
     setEditFeedback('');
   };
 
@@ -395,7 +398,7 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
     setEditSubmitting(true); setEditFeedback('');
     try {
       await axios.patch(`${BACKEND}/api/v1/hr/users/${editModal.user_id}`, {
-        requesterId, fullName: editFullName, email: editEmail,
+        requesterId, fullName: editFullName, email: editEmail, homeOfficeCountry: editCountry,
       });
       setEditFeedback('User updated successfully.');
       setTimeout(() => {
@@ -841,6 +844,14 @@ export default function UserRolesPage({ hideHeader = false } = {}) {
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
                 <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Office Country</label>
+                <select value={editCountry} onChange={(e) => setEditCountry(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {OFFICE_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                </select>
+                <p className="mt-1.5 text-xs text-slate-400">Their clock-in times, lunch, overtime and reminders follow this office's time zone.</p>
               </div>
               {editFeedback && (
                 <p className={`rounded-xl px-4 py-2.5 text-sm font-medium ${

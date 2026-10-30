@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
+import { OFFICE_COUNTRIES, DEFAULT_COUNTRY, MALAYSIA_STATES, countryName, holidayLabel } from '../officeTime';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://hr-backend-qjww.onrender.com';
 
@@ -24,8 +25,9 @@ const LIST_ACCENTS = ['#F97316', '#7C3AED', '#EF4444', '#2563EB', '#10B981', '#E
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// Approved leave shown on the grid per day before collapsing into "+N more"
+// Approved leave and holidays shown on the grid per day before collapsing into "+N more"
 const LEAVE_PILLS_PER_DAY = 2;
+const HOLIDAY_PILLS_PER_DAY = 2;
 const parseISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const shortDate = (s) => parseISO(s).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
 const rangeLabel = (a, b) => (a === b ? shortDate(a) : `${shortDate(a)} – ${shortDate(b)}`);
@@ -33,6 +35,8 @@ const dayCount = (a, b) => Math.round((parseISO(b) - parseISO(a)) / 86400000) + 
 
 export default function CalendarPage() {
   const [requesterId, setRequesterId] = useState(null);
+  // Whose holidays are being managed: one list per office country. Starts on HR's own country.
+  const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [holidays, setHolidays] = useState([]);
   // Who is on approved leave this year (name + dates only, no leave type)
@@ -42,6 +46,12 @@ export default function CalendarPage() {
 
   const [addDate, setAddDate] = useState('');
   const [addName, setAddName] = useState('');
+  // Malaysia only: a holiday is nationwide unless "Only some states" is picked with its states.
+  const [addSomeStates, setAddSomeStates] = useState(false);
+  const [addStates, setAddStates] = useState([]);
+  const [addErrors, setAddErrors] = useState([]);
+  // The holiday being edited, or null when adding a new one.
+  const [editingHoliday, setEditingHoliday] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -52,14 +62,16 @@ export default function CalendarPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear());
 
-  // "Fetch official holidays" — pulls Singapore's public holiday list for a year from
-  // data.gov.sg, shown as a preview (nothing saved yet) before HR confirms the bulk write.
+  // "Fetch official holidays" — pulls the selected country's public holiday list for a year
+  // (data.gov.sg for Singapore, Google's holiday calendars for the others), shown as a preview
+  // (nothing saved yet) with a tick box per new holiday before HR confirms the bulk write.
   const [fetchModalOpen, setFetchModalOpen] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(false);
   const [fetchError, setFetchError] = useState('');
   const [fetchResults, setFetchResults] = useState([]);
   const [fetchSource, setFetchSource] = useState('');
   const [fetchSaving, setFetchSaving] = useState(false);
+  const [fetchSelected, setFetchSelected] = useState([]); // indexes into fetchResults to add
 
   // Top-bar controls — tab filter (all/upcoming) and name search — both narrow which holidays
   // show as pills on the grid below.
@@ -86,6 +98,8 @@ export default function CalendarPage() {
     try {
       const u = JSON.parse(sessionStorage.getItem('hr_portal_user') || '{}');
       if (u?.user_id) setRequesterId(u.user_id);
+      const own = String(u?.home_office_country || '').toUpperCase();
+      if (OFFICE_COUNTRIES.some((c) => c.code === own)) setCountry(own);
     } catch {}
   }, []);
 
@@ -108,10 +122,10 @@ export default function CalendarPage() {
     setPickerOpen(false);
   };
 
-  const fetchHolidays = useCallback(async (y) => {
+  const fetchHolidays = useCallback(async (y, c) => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/api/v1/public-holidays`, { params: { year: y } });
+      const res = await axios.get(`${API_BASE}/api/v1/public-holidays`, { params: { year: y, country: c } });
       setHolidays(res.data?.data || []);
     } catch {
       setHolidays([]);
@@ -120,7 +134,7 @@ export default function CalendarPage() {
     }
   }, []);
 
-  useEffect(() => { fetchHolidays(year); }, [year, fetchHolidays]);
+  useEffect(() => { fetchHolidays(year, country); }, [year, country, fetchHolidays]);
 
   useEffect(() => {
     if (!requesterId) return;
@@ -129,32 +143,57 @@ export default function CalendarPage() {
       .catch(() => setLeave([]));
   }, [year, requesterId]);
 
-  const openAddModal = (prefillDate, prefillName) => {
-    setAddDate(prefillDate || '');
-    setAddName(prefillName || '');
+  // Opens the add/edit form. With a holiday it edits that one; with only a date it adds a new
+  // holiday on that date (the form lists any holidays already on it, each with Edit).
+  const openHolidayForm = (prefillDate, holiday = null) => {
+    setEditingHoliday(holiday);
+    setAddDate(holiday?.holiday_date || prefillDate || '');
+    setAddName(holiday?.name || '');
+    const states = Array.isArray(holiday?.states) ? holiday.states : [];
+    setAddSomeStates(states.length > 0);
+    setAddStates(states);
+    setAddErrors([]);
     setShowModal(true);
   };
+  // A grid day with exactly one holiday opens it for editing; otherwise the form adds a new one.
+  const openForDate = (iso) => {
+    const onDay = holidaysOnDayAll(iso);
+    openHolidayForm(iso, onDay.length === 1 ? onDay[0] : null);
+  };
+  const toggleAddState = (st) => {
+    setAddStates((prev) => (prev.includes(st) ? prev.filter((x) => x !== st) : [...prev, st]));
+  };
 
-  // Upserts by date — also used to edit an existing holiday, since re-saving the same
-  // holidayDate with a new name just overwrites it (no separate create/edit endpoint).
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!requesterId) return;
-    if (!addDate || !addName.trim()) {
-      showToast('Please enter a date and a name.', 'error');
+    const missing = [];
+    if (!addDate) missing.push('date');
+    if (!addName.trim()) missing.push('name');
+    if (country === 'MY' && addSomeStates && addStates.length === 0) missing.push('states');
+    setAddErrors(missing);
+    if (missing.length > 0) {
+      showToast('Please fill in the highlighted field(s).', 'error');
       return;
     }
     setSaving(true);
     try {
-      await axios.post(`${API_BASE}/api/v1/hr/public-holidays`, { requesterId, holidayDate: addDate, name: addName.trim() });
+      await axios.post(`${API_BASE}/api/v1/hr/public-holidays`, {
+        requesterId,
+        holidayId: editingHoliday?.holiday_id || undefined,
+        country,
+        holidayDate: addDate,
+        name: addName.trim(),
+        states: country === 'MY' && addSomeStates ? addStates : null,
+      });
       setShowModal(false);
-      setAddDate(''); setAddName('');
+      setAddDate(''); setAddName(''); setEditingHoliday(null);
       // Jump to the saved holiday's month so a holiday in another year doesn't seem to vanish;
       // changing `year` refetches through the effect above.
       const [savedYear, savedMonth] = addDate.split('-').map(Number);
       setGridMonth(new Date(savedYear, savedMonth - 1, 1));
       if (savedYear !== year) setYear(savedYear);
-      else await fetchHolidays(year);
+      else await fetchHolidays(year, country);
       showToast('Holiday saved.', 'success');
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to save holiday.', 'error');
@@ -168,11 +207,14 @@ export default function CalendarPage() {
     setFetchLoading(true);
     setFetchError('');
     setFetchResults([]);
+    setFetchSelected([]);
     try {
       const res = await axios.get(`${API_BASE}/api/v1/hr/public-holidays/fetch-official`, {
-        params: { requesterId, year },
+        params: { requesterId, year, country },
       });
-      setFetchResults(res.data?.data || []);
+      const results = res.data?.data || [];
+      setFetchResults(results);
+      setFetchSelected(results.map((h, i) => (h.alreadyExists ? null : i)).filter((i) => i !== null));
       setFetchSource(res.data?.source || '');
     } catch (err) {
       setFetchError(err.response?.data?.error || 'Failed to fetch official holidays.');
@@ -181,14 +223,17 @@ export default function CalendarPage() {
     }
   };
 
+  const toggleFetchRow = (i) => {
+    setFetchSelected((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
+  };
   const confirmFetchImport = async () => {
-    const toAdd = fetchResults.filter((h) => !h.alreadyExists);
+    const toAdd = fetchResults.filter((h, i) => !h.alreadyExists && fetchSelected.includes(i));
     if (toAdd.length === 0 || !requesterId) return;
     setFetchSaving(true);
     try {
-      const res = await axios.post(`${API_BASE}/api/v1/hr/public-holidays/bulk`, { requesterId, holidays: toAdd });
+      const res = await axios.post(`${API_BASE}/api/v1/hr/public-holidays/bulk`, { requesterId, country, holidays: toAdd });
       setFetchModalOpen(false);
-      await fetchHolidays(year);
+      await fetchHolidays(year, country);
       // Count what the server actually saved; rows missing a date or name are skipped.
       const added = res.data?.data?.length ?? toAdd.length;
       const skipped = res.data?.skipped || 0;
@@ -204,9 +249,9 @@ export default function CalendarPage() {
     if (!deleteConfirm || !requesterId) return;
     setSaving(true);
     try {
-      await axios.delete(`${API_BASE}/api/v1/hr/public-holidays/${deleteConfirm.holiday_date}`, { data: { requesterId } });
+      await axios.delete(`${API_BASE}/api/v1/hr/public-holidays/${deleteConfirm.holiday_id}`, { data: { requesterId } });
       setDeleteConfirm(null);
-      await fetchHolidays(year);
+      await fetchHolidays(year, country);
       showToast('Holiday removed.', 'success');
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to remove holiday.', 'error');
@@ -216,20 +261,17 @@ export default function CalendarPage() {
   };
 
   // Full lookup (unfiltered) — used by the add/edit modal so clicking any date on the grid
-  // always correctly detects an existing holiday, even one hidden by the top-bar filters.
-  const holidayByDateAll = {};
-  holidays.forEach((h) => { holidayByDateAll[h.holiday_date] = h; });
+  // always correctly finds the holidays already on it, even ones hidden by the top-bar filters.
+  // A date can have several (e.g. two Malaysian state holidays).
+  const holidaysOnDayAll = (iso) => holidays.filter((h) => h.holiday_date === iso);
 
   // Filtered lookup — used for which holiday pills actually render on the grid, respecting the
-  // top-bar tab (all/upcoming) and search query.
+  // top-bar tab (all/upcoming) and search query (which also matches state names).
   const todayISO = toISODateStr(new Date());
   const query = searchQuery.trim().toLowerCase();
-  const holidayByDate = {};
-  holidays.forEach((h) => {
-    if (listTab === 'upcoming' && h.holiday_date < todayISO) return;
-    if (query && !h.name.toLowerCase().includes(query)) return;
-    holidayByDate[h.holiday_date] = h;
-  });
+  const holidayShown = (h) => !(listTab === 'upcoming' && h.holiday_date < todayISO) && (!query || holidayLabel(h).toLowerCase().includes(query));
+  const holidaysByDate = {};
+  holidays.filter(holidayShown).forEach((h) => { (holidaysByDate[h.holiday_date] ||= []).push(h); });
 
   // Approved leave, filtered the same way (search matches the person's name), spread across
   // every day it covers within the loaded year.
@@ -250,8 +292,8 @@ export default function CalendarPage() {
   // fetched year, not just whichever month the grid happens to be on.
   const agendaItems = [
     ...holidays
-      .filter((h) => !(listTab === 'upcoming' && h.holiday_date < todayISO) && (!query || h.name.toLowerCase().includes(query)))
-      .map((h) => ({ kind: 'holiday', date: h.holiday_date, key: `h-${h.holiday_date}`, holiday: h })),
+      .filter(holidayShown)
+      .map((h) => ({ kind: 'holiday', date: h.holiday_date, key: `h-${h.holiday_id}`, holiday: h })),
     ...shownLeave.map((l) => ({ kind: 'leave', date: l.start_date < yearStart ? yearStart : l.start_date, key: `l-${l.leave_id}`, leave: l })),
   ].sort((a, b) => (a.date === b.date ? (a.kind === 'holiday' ? -1 : 1) : a.date < b.date ? -1 : 1));
   const holidaysByMonth = [];
@@ -277,10 +319,10 @@ export default function CalendarPage() {
   return (
     <div className="p-8">
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <div className={`rounded-full px-4 py-2.5 text-sm font-medium shadow-lg text-white ${toast.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>
-            {toast.text}
-          </div>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
+          <div className={`rounded-full px-4 py-2.5 text-sm font-medium shadow-lg border ${
+            toast.type === 'error' ? 'bg-red-600 border-red-700 text-white' : 'bg-slate-900 border-slate-950 text-white'
+          }`}>{toast.text}</div>
         </div>
       )}
 
@@ -288,7 +330,7 @@ export default function CalendarPage() {
         <p className="text-sm uppercase tracking-[0.32em] text-slate-500">HR Portal</p>
         <h1 className="mt-3 text-4xl font-semibold text-slate-900">Calendar</h1>
         <p className="mt-2 text-sm text-slate-500">
-          Manage Singapore public holidays and see who&apos;s on approved leave. Holidays and leave also show on every portal&apos;s calendar.
+          Manage public holidays for Singapore, Malaysia, China and Sri Lanka, and see who&apos;s on approved leave. Each portal&apos;s calendar shows the country the viewer picks, starting on their own office.
         </p>
       </div>
 
@@ -312,9 +354,20 @@ export default function CalendarPage() {
             ))}
           </div>
 
-          <div className="flex items-center gap-4 py-2.5">
+          <div className="flex flex-wrap items-center gap-4 py-2.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-500">
+              Holidays for
+              <span className="relative">
+                <select value={country} onChange={(e) => setCountry(e.target.value)}
+                  aria-label="Which country's public holidays to manage"
+                  className="appearance-none rounded-full border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {OFFICE_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                </select>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"><polyline points="6 9 12 15 18 9" /></svg>
+              </span>
+            </label>
             <div className="hidden items-center gap-4 text-xs font-medium text-slate-500 sm:flex">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-500" />Public holiday</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-500" />{countryName(country)} public holiday</span>
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[#C9D5FF]" />On leave</span>
             </div>
             <div className="relative">
@@ -420,7 +473,7 @@ export default function CalendarPage() {
                 {/* Click-outside backdrop — sits below the menu itself, above everything else. */}
                 <div className="fixed inset-0 z-40" onClick={() => setAddMenuOpen(false)} />
                 <div className="absolute right-0 top-full mt-2 w-60 rounded-2xl border border-slate-200 bg-white shadow-lg z-50 overflow-hidden">
-                  <button type="button" onClick={() => { setAddMenuOpen(false); openAddModal(); }}
+                  <button type="button" onClick={() => { setAddMenuOpen(false); openHolidayForm(); }}
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-slate-50 transition">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1540A8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                     <span>
@@ -433,7 +486,7 @@ export default function CalendarPage() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1540A8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
                     <span>
                       <span className="block text-sm font-semibold text-slate-800">Fetch official holidays</span>
-                      <span className="block text-xs text-slate-400">Auto-import from data.gov.sg</span>
+                      <span className="block text-xs text-slate-400">{country === 'SG' ? 'Auto-import from data.gov.sg' : `${countryName(country)}, from Google's holiday calendar`}</span>
                     </span>
                   </button>
                 </div>
@@ -457,17 +510,21 @@ export default function CalendarPage() {
               {gridCells.map((d, i) => {
                 if (!d) return <div key={i} className="min-h-[110px] border-b border-slate-200" />;
                 const iso = toISODateStr(d);
-                const holiday = holidayByDate[iso];
+                const dayHols = holidaysByDate[iso] || [];
                 const onLeave = leaveByDate[iso] || [];
                 const isToday = iso === toISODateStr(new Date());
                 return (
-                  <button key={i} type="button" onClick={() => openAddModal(iso, holidayByDateAll[iso]?.name)}
+                  <button key={i} type="button" onClick={() => openForDate(iso)}
                     className="min-h-[110px] p-2 flex flex-col items-start text-left transition hover:bg-slate-50 border-b border-slate-200">
                     <span className={`inline-flex items-center justify-center text-xs font-semibold w-6 h-6 rounded-full ${isToday ? 'bg-[#1540A8] text-white' : 'text-slate-700'}`}>
                       {d.getDate()}
                     </span>
-                    {holiday && (
-                      <p className="mt-1.5 w-full rounded-md bg-red-500 px-2 py-1 text-[10px] font-semibold text-white leading-tight line-clamp-2 text-left">{holiday.name}</p>
+                    {dayHols.slice(0, HOLIDAY_PILLS_PER_DAY).map((h, hi) => (
+                      <p key={h.holiday_id} title={holidayLabel(h)}
+                        className={`${hi === 0 ? 'mt-1.5' : 'mt-1'} w-full rounded-md bg-red-500 px-2 py-1 text-[10px] font-semibold text-white leading-tight line-clamp-2 text-left`}>{holidayLabel(h)}</p>
+                    ))}
+                    {dayHols.length > HOLIDAY_PILLS_PER_DAY && (
+                      <p className="mt-1 w-full text-left text-[10px] font-semibold text-red-600">+{dayHols.length - HOLIDAY_PILLS_PER_DAY} more holiday{dayHols.length - HOLIDAY_PILLS_PER_DAY === 1 ? '' : 's'}</p>
                     )}
                     {onLeave.slice(0, LEAVE_PILLS_PER_DAY).map((l) => (
                       <p key={l.leave_id} className="mt-1 w-full truncate rounded-md bg-[#E8EEFF] px-2 py-1 text-left text-[10px] font-semibold leading-tight text-[#1540A8]">{l.full_name}</p>
@@ -521,7 +578,7 @@ export default function CalendarPage() {
                         const color = LIST_ACCENTS[colorCursor % LIST_ACCENTS.length];
                         colorCursor += 1;
                         return (
-                          <button key={h.holiday_date} type="button" onClick={() => openAddModal(h.holiday_date, h.name)}
+                          <button key={h.holiday_id} type="button" onClick={() => openHolidayForm(h.holiday_date, h)}
                             className="w-full flex items-center gap-4 px-4 py-3.5 text-left hover:bg-slate-50 transition">
                             <div className="w-10 flex-shrink-0 text-center">
                               <p className="text-base font-bold text-[#1540A8] leading-tight">{dNum}</p>
@@ -530,7 +587,7 @@ export default function CalendarPage() {
                             <div className="w-[3px] self-stretch rounded-full flex-shrink-0" style={{ background: color }} />
                             <div className="min-w-0 flex-1">
                               <p className="text-[11px] font-medium text-slate-400 leading-tight">Public holiday</p>
-                              <p className="text-sm font-semibold text-slate-800 leading-snug truncate">{h.name}</p>
+                              <p className="text-sm font-semibold text-slate-800 leading-snug">{holidayLabel(h)}</p>
                             </div>
                           </button>
                         );
@@ -547,14 +604,56 @@ export default function CalendarPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
           onMouseDown={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
-          <form onSubmit={handleAdd} className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <p className="text-sm font-semibold text-slate-900 mb-4">{holidayByDateAll[addDate] ? 'Edit holiday' : 'Add a public holiday'}</p>
+          <form onSubmit={handleAdd} className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <p className="text-sm font-semibold text-slate-900">{editingHoliday ? 'Edit holiday' : 'Add a public holiday'}</p>
+            <p className="text-xs text-slate-400 mb-4">{countryName(country)}</p>
+            {!editingHoliday && addDate && holidaysOnDayAll(addDate).length > 0 && (
+              <div className="mb-4 rounded-2xl bg-red-50 px-4 py-3">
+                <p className="mb-1.5 text-xs font-semibold text-red-500">Already on this day</p>
+                <ul className="space-y-1">
+                  {holidaysOnDayAll(addDate).map((h) => (
+                    <li key={h.holiday_id} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="min-w-0 font-medium text-red-700">{holidayLabel(h)}</span>
+                      <button type="button" onClick={() => openHolidayForm(addDate, h)}
+                        className="flex-shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100">Edit</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <label className="block text-xs font-semibold text-slate-500 mb-1.5">Date</label>
             <input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} autoFocus
-              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${addErrors.includes('date') ? 'border-red-400' : 'border-slate-300'}`} />
             <label className="block text-xs font-semibold text-slate-500 mb-1.5 mt-4">Holiday name</label>
             <input type="text" value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="e.g. National Day"
-              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${addErrors.includes('name') ? 'border-red-400' : 'border-slate-300'}`} />
+            {country === 'MY' && (
+              <div className="mt-4">
+                <p className="block text-xs font-semibold text-slate-500 mb-1.5">Where it applies</p>
+                <div className="flex gap-1 rounded-full bg-slate-50 p-1 w-fit">
+                  {[[false, 'Nationwide'], [true, 'Only some states']].map(([val, label]) => (
+                    <button key={label} type="button" onClick={() => setAddSomeStates(val)} aria-pressed={addSomeStates === val}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${addSomeStates === val ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {addSomeStates && (
+                  <div className={`mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-xl border px-3 py-3 ${addErrors.includes('states') ? 'border-red-400' : 'border-slate-200'}`}>
+                    {MALAYSIA_STATES.map((st) => (
+                      <label key={st} className="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" checked={addStates.includes(st)} onChange={() => toggleAddState(st)}
+                          className="h-4 w-4 rounded border-slate-300 accent-[#1540A8]" />
+                        {st}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {addSomeStates && addStates.length > 0 && addName.trim() && (
+                  <p className="mt-2 text-xs text-slate-400">Shows as: {holidayLabel({ name: addName.trim(), states: MALAYSIA_STATES.filter((st) => addStates.includes(st)) })}</p>
+                )}
+              </div>
+            )}
             {addDate && leaveOnDay(addDate).length > 0 && (
               <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3">
                 <p className="mb-1.5 text-xs font-semibold text-slate-500">On leave this day ({leaveOnDay(addDate).length})</p>
@@ -571,13 +670,13 @@ export default function CalendarPage() {
             <div className="flex gap-3 mt-6">
               <button type="button" onClick={() => setShowModal(false)}
                 className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-              {holidayByDateAll[addDate] && (
-                <button type="button" onClick={() => { setShowModal(false); setDeleteConfirm(holidayByDateAll[addDate]); }}
+              {editingHoliday && (
+                <button type="button" onClick={() => { setShowModal(false); setDeleteConfirm(editingHoliday); }}
                   className="flex-1 rounded-xl border border-red-200 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50">Delete</button>
               )}
-              <button type="submit" disabled={saving || !addDate || !addName.trim()}
+              <button type="submit" disabled={saving}
                 className="flex-1 rounded-xl bg-[#1540A8] py-2.5 text-sm font-bold text-white disabled:opacity-40 hover:bg-[#12378F]">
-                {holidayByDateAll[addDate] ? 'Save' : 'Add'}
+                {editingHoliday ? 'Save' : 'Add'}
               </button>
             </div>
           </form>
@@ -590,31 +689,33 @@ export default function CalendarPage() {
           <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
             <div className="flex items-center gap-2 mb-1">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1540A8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
-              <p className="text-sm font-semibold text-slate-900">{year} public holidays</p>
+              <p className="text-sm font-semibold text-slate-900">{countryName(country)} public holidays, {year}</p>
             </div>
 
             {fetchLoading ? (
-              <p className="text-sm text-slate-400 py-10 text-center">Fetching from data.gov.sg…</p>
+              <p className="text-sm text-slate-400 py-10 text-center">Fetching from {country === 'SG' ? 'data.gov.sg' : "Google's holiday calendar"}…</p>
             ) : fetchError ? (
               <p className="text-sm text-red-600 py-6">{fetchError}</p>
             ) : (
               <>
                 <p className="text-xs text-slate-400 mb-4">
                   Source: {fetchSource || 'data.gov.sg'}. {fetchResults.length} holiday{fetchResults.length === 1 ? '' : 's'} found.
+                  {country !== 'SG' && ' Untick any you don\'t want, and check the list against the official gazette: some state or one-off holidays may be missing.'}
                 </p>
                 <div className="rounded-2xl border border-slate-200 divide-y divide-slate-100 max-h-72 overflow-y-auto">
-                  {fetchResults.map((h) => (
-                    <div key={h.holiday_date} className="flex items-center justify-between px-4 py-2.5">
-                      <div className="flex items-center gap-2 min-w-0">
+                  {fetchResults.map((h, i) => (
+                    <label key={`${h.holiday_date}-${h.name}`} className={`flex items-center justify-between px-4 py-2.5 ${h.alreadyExists ? '' : 'cursor-pointer hover:bg-slate-50'}`}>
+                      <div className="flex items-center gap-2.5 min-w-0">
                         {h.alreadyExists ? (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="M5 13l4 4L19 7" /></svg>
                         ) : (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="M5 13l4 4L19 7" /></svg>
+                          <input type="checkbox" checked={fetchSelected.includes(i)} onChange={() => toggleFetchRow(i)}
+                            className="h-4 w-4 flex-shrink-0 rounded border-slate-300 accent-[#1540A8]" />
                         )}
-                        <span className={`text-sm truncate ${h.alreadyExists ? 'text-slate-400' : 'text-slate-800 font-medium'}`}>{h.name}</span>
+                        <span className={`text-sm ${h.alreadyExists ? 'text-slate-400' : 'text-slate-800 font-medium'}`}>{holidayLabel(h)}</span>
                       </div>
                       <span className="text-xs text-slate-400 flex-shrink-0 ml-3">{formatDate(h.holiday_date).replace(/^\w+, /, '')}</span>
-                    </div>
+                    </label>
                   ))}
                 </div>
                 {fetchResults.some((h) => h.alreadyExists) && (
@@ -629,9 +730,9 @@ export default function CalendarPage() {
               <button type="button" onClick={() => setFetchModalOpen(false)}
                 className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
               <button type="button" onClick={confirmFetchImport}
-                disabled={fetchLoading || fetchSaving || fetchResults.filter((h) => !h.alreadyExists).length === 0}
+                disabled={fetchLoading || fetchSaving || fetchSelected.length === 0}
                 className="flex-1 rounded-xl bg-[#1540A8] py-2.5 text-sm font-bold text-white disabled:opacity-40 hover:bg-[#12378F]">
-                {fetchSaving ? 'Adding…' : `Add ${fetchResults.filter((h) => !h.alreadyExists).length} new holiday${fetchResults.filter((h) => !h.alreadyExists).length === 1 ? '' : 's'}`}
+                {fetchSaving ? 'Adding…' : `Add ${fetchSelected.length} new holiday${fetchSelected.length === 1 ? '' : 's'}`}
               </button>
             </div>
           </div>
@@ -643,7 +744,7 @@ export default function CalendarPage() {
           onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteConfirm(null); }}>
           <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
             <p className="text-sm font-semibold text-slate-900 mb-2">Remove this holiday?</p>
-            <p className="text-sm text-slate-500 mb-5">{formatDate(deleteConfirm.holiday_date)} — {deleteConfirm.name}</p>
+            <p className="text-sm text-slate-500 mb-5">{formatDate(deleteConfirm.holiday_date)} — {holidayLabel(deleteConfirm)} ({countryName(country)})</p>
             <div className="flex gap-3">
               <button type="button" onClick={() => setDeleteConfirm(null)}
                 className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>

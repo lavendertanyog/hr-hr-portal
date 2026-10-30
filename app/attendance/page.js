@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { RangeCalendarPopover, toDateStr, parseDateStr } from '../RangeCalendarPopover';
+import { timeZoneForCountry, timeZoneLabel, countryName, zonedWallClock } from '../officeTime';
 
 function toCsv(rows) {
   if (!rows.length) return '';
@@ -25,17 +26,19 @@ function downloadCsv(fileName, csvContent) {
   URL.revokeObjectURL(url);
 }
 
-function formatCsvDate(dt) {
+// Every time on this page is shown in the staff member's own office time zone (set by HR on the
+// Users page), so a 9:00 AM clock-in in Colombo reads 9:00 AM here too.
+function formatCsvDate(dt, timeZone) {
   if (!dt) return '';
-  return new Date(dt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Singapore' });
+  return new Date(dt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone });
 }
 
-function formatCsvTime(dt) {
+function formatCsvTime(dt, timeZone) {
   if (!dt) return '';
-  return new Date(dt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
+  return new Date(dt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone });
 }
 
-function formatDt(dt) {
+function formatDt(dt, timeZone) {
   if (!dt) return '—';
   const d = new Date(dt);
   // timeZone is pinned explicitly — 'en-SG' alone only controls formatting style (date order,
@@ -43,8 +46,8 @@ function formatDt(dt) {
   // timezone the VIEWER's own computer happens to be set to, which can silently show a
   // completely wrong hour (e.g. an 8am SGT clock-in appearing as 4pm) if that device isn't
   // correctly configured to Singapore/Malaysia time.
-  const datePart = d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short', timeZone: 'Asia/Singapore' });
-  const timePart = d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
+  const datePart = d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short', timeZone });
+  const timePart = d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone });
   return `${datePart}, ${timePart}`;
 }
 
@@ -75,21 +78,20 @@ function derivedStatus(row) {
   return row.clock_out_time ? 'COMPLETED' : 'ACTIVE';
 }
 
-// Computed via UTC getters on a manually SGT-shifted instant rather than the local getHours()/
-// getDate(), which only give the right answer if the VIEWER's own device happens to be set to
-// Singapore/Malaysia time — the same class of bug that made clock-in times display up to 8
-// hours off depending on which computer was looking at them.
-function toSGT(dateInput) {
-  return new Date(new Date(dateInput).getTime() + 8 * 60 * 60 * 1000);
-}
+// Computed via UTC getters on an instant shifted to the staff member's office time rather than
+// the local getHours()/getDate(), which only give the right answer if the VIEWER's own device
+// happens to be in that same time zone — the same class of bug that made clock-in times display
+// up to 8 hours off depending on which computer was looking at them.
 function isOvernightShift(row) {
   if (!row.clock_in_time) return false;
-  const inHour = toSGT(row.clock_in_time).getUTCHours();
+  const timeZone = timeZoneForCountry(row.home_office_country);
+  const toOffice = (dateInput) => zonedWallClock(dateInput, timeZone);
+  const inHour = toOffice(row.clock_in_time).getUTCHours();
   const isLateNightStart = inHour >= 22 || inHour < 6;
   if (isLateNightStart) return true;
   if (row.clock_out_time) {
-    const inDate = toSGT(row.clock_in_time);
-    const outDate = toSGT(row.clock_out_time);
+    const inDate = toOffice(row.clock_in_time);
+    const outDate = toOffice(row.clock_out_time);
     const crossesMidnight = outDate.getUTCDate() !== inDate.getUTCDate() || outDate.getUTCMonth() !== inDate.getUTCMonth();
     if (crossesMidnight) return true;
   }
@@ -186,13 +188,15 @@ export default function AttendancePage() {
       const projectDescription = projectAllocs
         .map((a) => `${a.project_code}: ${a.description || '—'}`)
         .join('; ');
+      const timeZone = timeZoneForCountry(row.home_office_country);
       return {
         full_name: row.full_name,
+        office_country: countryName(row.home_office_country),
         project_codes: projectCodes,
-        clock_in_date: formatCsvDate(row.clock_in_time),
-        clock_in_time: formatCsvTime(row.clock_in_time),
-        clock_out_date: formatCsvDate(row.clock_out_time),
-        clock_out_time: formatCsvTime(row.clock_out_time),
+        clock_in_date: formatCsvDate(row.clock_in_time, timeZone),
+        clock_in_time: formatCsvTime(row.clock_in_time, timeZone),
+        clock_out_date: formatCsvDate(row.clock_out_time, timeZone),
+        clock_out_time: formatCsvTime(row.clock_out_time, timeZone),
         hours: row.daily_worktime_hours,
         ot_hours: row.ot_hours_accrued,
         general_description: generalAlloc?.description || '',
@@ -314,6 +318,7 @@ export default function AttendancePage() {
               const isOpen = expandedId === row.attendance_id;
               const status = derivedStatus(row);
               const overnight = isOvernightShift(row);
+              const rowTimeZone = timeZoneForCountry(row.home_office_country);
               const allocations = Array.isArray(row.allocations) ? row.allocations : [];
               const isMultiProject = allocations.length > 1;
               return (
@@ -334,7 +339,12 @@ export default function AttendancePage() {
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span>{formatDt(row.clock_in_time)} → {row.clock_out_time ? formatDt(row.clock_out_time) : <span className="text-green-600 font-semibold text-xs">Ongoing</span>}</span>
+                        <span>{formatDt(row.clock_in_time, rowTimeZone)} → {row.clock_out_time ? formatDt(row.clock_out_time, rowTimeZone) : <span className="text-green-600 font-semibold text-xs">Ongoing</span>}</span>
+                        {timeZoneLabel(row.home_office_country) && (
+                          <span title={`${countryName(row.home_office_country)} time`} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                            {timeZoneLabel(row.home_office_country)}
+                          </span>
+                        )}
                         {overnight && (
                           <span title="Overnight / unusual shift timing" className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
                             ⚠ Overnight
@@ -378,7 +388,7 @@ export default function AttendancePage() {
                                         : 'bg-amber-100 text-amber-700'
                                       }`}>{a.status}</span>
                                       {a.edited_after_completion && (
-                                        <span title={a.last_edited_at ? `Last edited ${formatDt(a.last_edited_at)}` : undefined}
+                                        <span title={a.last_edited_at ? `Last edited ${formatDt(a.last_edited_at, rowTimeZone)}` : undefined}
                                           className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
                                           ⚠ Edited after completion
                                         </span>
@@ -392,7 +402,7 @@ export default function AttendancePage() {
                                     {allocationsSummary(row)}
                                   </span>
                                   {allocations[0]?.edited_after_completion && (
-                                    <span title={allocations[0]?.last_edited_at ? `Last edited ${formatDt(allocations[0].last_edited_at)}` : undefined}
+                                    <span title={allocations[0]?.last_edited_at ? `Last edited ${formatDt(allocations[0].last_edited_at, rowTimeZone)}` : undefined}
                                       className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
                                       ⚠ Edited after completion
                                     </span>
